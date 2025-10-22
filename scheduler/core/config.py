@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Optional
+import yaml
+import os
+
+from scheduler.core.exceptions import ValidationException, PermissionDeniedException
+from scheduler.core.utils import ensure_dir_exists
+from scheduler.core import constants
 
 
 @dataclass
@@ -61,15 +67,33 @@ def load_config(config_path: Optional[str] = None) -> Config:
 
     Args:
         config_path: Path to config file. If None, uses default path.
-        
+
     Returns:
         Config instance with loaded values
-        
+
     Raises:
         FileNotFoundError: If config file doesn't exist
         ValidationException: If config file is invalid
     """
-    pass
+    # Use default path if not provided
+    if config_path is None:
+        config_path = os.path.expanduser(constants.DEFAULT_CONFIG_FILE)
+    else:
+        config_path = os.path.expanduser(config_path)
+
+    # Check if file exists
+    if not os.path.exists(config_path):
+        # Return default config if file doesn't exist
+        return Config()
+
+    try:
+        with open(config_path, 'r') as f:
+            config_dict = yaml.safe_load(f) or {}
+        return Config.from_dict(config_dict)
+    except yaml.YAMLError as e:
+        raise ValidationException(f"Invalid YAML in config file: {e}")
+    except Exception as e:
+        raise ValidationException(f"Error loading config file: {e}")
 
 
 def save_config(config: Config, config_path: Optional[str] = None):
@@ -79,11 +103,28 @@ def save_config(config: Config, config_path: Optional[str] = None):
     Args:
         config: Config instance to save
         config_path: Path to config file. If None, uses default path.
-        
+
     Raises:
         PermissionDeniedException: If cannot write to config file
     """
-    pass
+    # Use default path if not provided
+    if config_path is None:
+        config_path = os.path.expanduser(constants.DEFAULT_CONFIG_FILE)
+    else:
+        config_path = os.path.expanduser(config_path)
+
+    # Ensure parent directory exists
+    parent_dir = os.path.dirname(config_path)
+    if parent_dir:
+        ensure_dir_exists(parent_dir)
+
+    try:
+        with open(config_path, 'w') as f:
+            yaml.safe_dump(config.to_dict(), f, default_flow_style=False)
+    except PermissionError as e:
+        raise PermissionDeniedException(f"Cannot write to config file {config_path}: {e}")
+    except Exception as e:
+        raise PermissionDeniedException(f"Error writing config file: {e}")
 
 
 def init_config(config_path: Optional[str] = None):
@@ -92,9 +133,21 @@ def init_config(config_path: Optional[str] = None):
 
     Args:
         config_path: Path to config file. If None, uses default path.
-        
+
     Raises:
         FileExistsError: If config file already exists
         PermissionDeniedException: If cannot create config file
     """
-    pass
+    # Use default path if not provided
+    if config_path is None:
+        config_path = os.path.expanduser(constants.DEFAULT_CONFIG_FILE)
+    else:
+        config_path = os.path.expanduser(config_path)
+
+    # Check if file already exists
+    if os.path.exists(config_path):
+        raise FileExistsError(f"Config file already exists: {config_path}")
+
+    # Create default config and save it
+    default_config = Config()
+    save_config(default_config, config_path)

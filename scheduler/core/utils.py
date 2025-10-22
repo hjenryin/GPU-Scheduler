@@ -1,8 +1,12 @@
 from datetime import datetime, timedelta
 from typing import List, Tuple, Optional
+import os
+import socket
+import hashlib
+import uuid
+import pathlib
 
-from scheduler.core.exceptions import InvalidRequirementException
-from scheduler.core.models import JobRequirement
+from scheduler.core.exceptions import InvalidRequirementException, PermissionDeniedException, ValidationException
 
 
 def parse_requirements(req_str: str) -> List[Tuple[Optional[str], int]]:
@@ -11,19 +15,51 @@ def parse_requirements(req_str: str) -> List[Tuple[Optional[str], int]]:
 
     Args:
         req_str: Requirement string (e.g., "2", "gpu1:4", "gpu1:2,gpu2:4")
-        
+
     Returns:
         List of (node_name, num_gpus) tuples. node_name is None for any node.
-        
+
     Raises:
         InvalidRequirementException: If requirement string is invalid
-    
+
     Examples:
         parse_requirements("2") -> [(None, 2)]
         parse_requirements("gpu1:4") -> [("gpu1", 4)]
         parse_requirements("gpu1:2,gpu2:4") -> [("gpu1", 2), ("gpu2", 4)]
     """
-    pass
+    if not req_str or not req_str.strip():
+        raise InvalidRequirementException("Requirement string cannot be empty")
+
+    alternatives = []
+    # Split by comma for alternatives (e.g., "gpu1:2,gpu2:4")
+    parts = req_str.split(',')
+
+    for part in parts:
+        part = part.strip()
+        if ':' in part:
+            # Node-specific requirement (e.g., "gpu1:4")
+            node_gpu = part.split(':', 1)
+            if len(node_gpu) != 2:
+                raise InvalidRequirementException(f"Invalid requirement format: {part}")
+            node_name = node_gpu[0].strip()
+            try:
+                num_gpus = int(node_gpu[1].strip())
+            except ValueError:
+                raise InvalidRequirementException(f"Invalid GPU count: {node_gpu[1]}")
+            if num_gpus <= 0:
+                raise InvalidRequirementException(f"GPU count must be positive: {num_gpus}")
+            alternatives.append((node_name, num_gpus))
+        else:
+            # Any node requirement (e.g., "2")
+            try:
+                num_gpus = int(part)
+            except ValueError:
+                raise InvalidRequirementException(f"Invalid GPU count: {part}")
+            if num_gpus <= 0:
+                raise InvalidRequirementException(f"GPU count must be positive: {num_gpus}")
+            alternatives.append((None, num_gpus))
+
+    return alternatives
 
 
 def format_duration(duration: timedelta) -> str:
@@ -32,11 +68,20 @@ def format_duration(duration: timedelta) -> str:
 
     Args:
         duration: Duration to format
-        
+
     Returns:
         Formatted string (e.g., "01:23:45", "5d 03:22:11")
     """
-    pass
+    total_seconds = int(duration.total_seconds())
+    days = total_seconds // 86400
+    hours = (total_seconds % 86400) // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+
+    if days > 0:
+        return f"{days}d {hours:02d}:{minutes:02d}:{seconds:02d}"
+    else:
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
 def format_timestamp(dt: datetime, relative: bool = False) -> str:
@@ -46,11 +91,27 @@ def format_timestamp(dt: datetime, relative: bool = False) -> str:
     Args:
         dt: Datetime to format
         relative: If True, return relative time (e.g., "2 hours ago")
-        
+
     Returns:
         Formatted timestamp string
     """
-    pass
+    if relative:
+        now = datetime.now()
+        delta = now - dt
+
+        if delta.total_seconds() < 60:
+            return "just now"
+        elif delta.total_seconds() < 3600:
+            minutes = int(delta.total_seconds() / 60)
+            return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+        elif delta.total_seconds() < 86400:
+            hours = int(delta.total_seconds() / 3600)
+            return f"{hours} hour{'s' if hours != 1 else ''} ago"
+        else:
+            days = int(delta.total_seconds() / 86400)
+            return f"{days} day{'s' if days != 1 else ''} ago"
+    else:
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def format_bytes(bytes_val: int) -> str:
@@ -59,11 +120,22 @@ def format_bytes(bytes_val: int) -> str:
 
     Args:
         bytes_val: Number of bytes
-        
+
     Returns:
         Formatted string (e.g., "1.5 GB", "256 MB")
     """
-    pass
+    units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+    size = float(bytes_val)
+    unit_idx = 0
+
+    while size >= 1024.0 and unit_idx < len(units) - 1:
+        size /= 1024.0
+        unit_idx += 1
+
+    if unit_idx == 0:
+        return f"{int(size)} {units[unit_idx]}"
+    else:
+        return f"{size:.1f} {units[unit_idx]}"
 
 
 def generate_job_id() -> str:
@@ -73,7 +145,8 @@ def generate_job_id() -> str:
     Returns:
         Job ID string in format "job_<uuid>"
     """
-    pass
+    # Use first 16 characters of UUID for shorter IDs
+    return f"job_{uuid.uuid4().hex[:16]}"
 
 
 def generate_versioned_filename(script_path: str, job_id: str) -> str:
@@ -83,11 +156,28 @@ def generate_versioned_filename(script_path: str, job_id: str) -> str:
     Args:
         script_path: Original script path
         job_id: Job ID
-        
+
     Returns:
         Versioned filename (e.g., "script.py.scheduler_job_abc123_hash.py")
     """
-    pass
+    # Get script name and read its content for hashing
+    script_name = os.path.basename(script_path)
+
+    # Generate hash from script content if file exists
+    try:
+        with open(script_path, 'rb') as f:
+            content_hash = hashlib.sha256(f.read()).hexdigest()[:8]
+    except (FileNotFoundError, PermissionError):
+        # If we can't read the file, use timestamp-based hash
+        content_hash = hashlib.sha256(str(datetime.now()).encode()).hexdigest()[:8]
+
+    # Split name and extension
+    name_parts = script_name.rsplit('.', 1)
+    if len(name_parts) == 2:
+        base_name, ext = name_parts
+        return f"{base_name}.scheduler_{job_id}_{content_hash}.{ext}"
+    else:
+        return f"{script_name}.scheduler_{job_id}_{content_hash}"
 
 
 def is_port_available(port: int, host: str = "0.0.0.0") -> bool:
@@ -97,11 +187,17 @@ def is_port_available(port: int, host: str = "0.0.0.0") -> bool:
     Args:
         port: Port number to check
         host: Host address to bind to
-        
+
     Returns:
         True if port is available
     """
-    pass
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind((host, port))
+            return True
+    except OSError:
+        return False
 
 
 def get_local_ip() -> str:
@@ -111,7 +207,15 @@ def get_local_ip() -> str:
     Returns:
         IP address string
     """
-    pass
+    try:
+        # Create a socket to get the local IP
+        # This doesn't actually connect, just determines routing
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except Exception:
+        # Fallback to localhost
+        return "127.0.0.1"
 
 
 def ensure_dir_exists(path: str):
@@ -120,11 +224,18 @@ def ensure_dir_exists(path: str):
 
     Args:
         path: Directory path
-        
+
     Raises:
         PermissionDeniedException: If cannot create directory
     """
-    pass
+    try:
+        # Expand user home directory if needed
+        expanded_path = os.path.expanduser(path)
+        pathlib.Path(expanded_path).mkdir(parents=True, exist_ok=True)
+    except PermissionError as e:
+        raise PermissionDeniedException(f"Cannot create directory {path}: {e}")
+    except Exception as e:
+        raise PermissionDeniedException(f"Error creating directory {path}: {e}")
 
 
 def parse_address(address: str) -> Tuple[str, int]:
@@ -133,11 +244,32 @@ def parse_address(address: str) -> Tuple[str, int]:
 
     Args:
         address: Address string (e.g., "host:port" or "host")
-        
+
     Returns:
         Tuple of (host, port)
-        
+
     Raises:
         ValidationException: If address format is invalid
     """
-    pass
+    if not address or not address.strip():
+        raise ValidationException("Address cannot be empty")
+
+    address = address.strip()
+
+    if ':' in address:
+        parts = address.rsplit(':', 1)
+        if len(parts) != 2:
+            raise ValidationException(f"Invalid address format: {address}")
+
+        host = parts[0].strip()
+        try:
+            port = int(parts[1].strip())
+            if port < 1 or port > 65535:
+                raise ValidationException(f"Port must be between 1 and 65535: {port}")
+        except ValueError:
+            raise ValidationException(f"Invalid port number: {parts[1]}")
+
+        return (host, port)
+    else:
+        # No port specified, return just the host with a default port (will be determined by caller)
+        raise ValidationException(f"Address must include port (format: host:port): {address}")

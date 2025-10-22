@@ -1,5 +1,21 @@
-from scheduler.core.config import Config
+import logging
+import socket
+import signal
+import time
 from typing import Optional
+
+from scheduler.core.config import Config
+from scheduler.core.exceptions import ConnectionException
+from scheduler.core import constants
+from scheduler.core.utils import get_local_ip
+from scheduler.worker.gpu_monitor import GPUMonitor
+from scheduler.worker.job_executor import JobExecutor
+from scheduler.worker.heartbeat import HeartbeatSender
+from scheduler.worker.file_handler import FileHandler
+from scheduler.api.client import SchedulerClient
+
+logger = logging.getLogger(__name__)
+
 
 class WorkerDaemon:
     """Main worker node daemon"""
@@ -7,43 +23,219 @@ class WorkerDaemon:
     def __init__(self, config: Config, node_name: str, num_gpus: Optional[int] = None):
         """
         Initialize worker daemon.
-        
+
         Args:
             config: Configuration instance
             node_name: Unique node name
             num_gpus: Number of GPUs (auto-detect if None)
         """
-        pass
+        self.config = config
+        self.node_name = node_name
+        self.running = False
+
+        # Get head node address
+        head_config = config.get('head_node', {})
+        head_host = head_config.get('host', 'localhost')
+        head_port = head_config.get('port', constants.DEFAULT_HEAD_PORT)
+        self.head_address = f"{head_host}:{head_port}"
+
+        # Get worker address
+        worker_config = config.get('worker', {})
+        worker_port = worker_config.get('port', constants.DEFAULT_WORKER_PORT)
+        self.worker_address = f"{get_local_ip()}:{worker_port}"
+
+        # Initialize GPU monitor
+        self.gpu_monitor = GPUMonitor(config)
+
+        # Detect or use specified number of GPUs
+        if num_gpus is None:
+            self.num_gpus = self.gpu_monitor.detect_gpus()
+        else:
+            self.num_gpus = num_gpus
+
+        logger.info(f"Worker daemon initialized: node={node_name}, gpus={self.num_gpus}")
+
+        # Initialize job executor
+        self.job_executor = JobExecutor(config)
+
+        # Initialize file handler
+        self.file_handler = FileHandler(config)
+
+        # Initialize heartbeat sender
+        self.heartbeat_sender = HeartbeatSender(
+            node_name=node_name,
+            head_address=self.head_address,
+            gpu_monitor=self.gpu_monitor,
+            config=config
+        )
+
+        # Initialize client for job operations
+        self.client = SchedulerClient(address=self.head_address, config=config)
+
+        # Track current job
+        self.current_job = None
+        self.current_job_pid = None
+
+        # Setup signal handlers
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
 
     def start(self):
         """
         Start the worker daemon and all components.
-        
+
         Raises:
             ConnectionException: If cannot connect to head node
         """
-        pass
+        if self.running:
+            logger.warning("Worker daemon is already running")
+            return
+
+        logger.info("Starting worker daemon...")
+
+        # Register with head node
+        try:
+            self.register_with_head()
+        except ConnectionException as e:
+            logger.error(f"Failed to register with head node: {e}")
+            raise
+
+        # Start GPU monitoring
+        self.gpu_monitor.start_monitoring()
+
+        # Start heartbeat sender
+        self.heartbeat_sender.start()
+
+        self.running = True
+        logger.info("Worker daemon started successfully")
 
     def stop(self, graceful: bool = True):
         """
         Stop the worker daemon and all components.
-        
+
         Args:
             graceful: If True, wait for jobs to complete
         """
-        pass
+        if not self.running:
+            logger.warning("Worker daemon is not running")
+            return
+
+        logger.info("Stopping worker daemon...")
+
+        self.running = False
+
+        if graceful and self.current_job:
+            # Wait for current job to complete
+            logger.info(f"Waiting for job {self.current_job.job_id} to complete...")
+            timeout = 60  # 60 seconds
+            start_time = time.time()
+
+            while time.time() - start_time < timeout:
+                is_running, exit_code = self.job_executor.get_job_status(self.current_job_pid)
+                if not is_running:
+                    break
+                time.sleep(1)
+
+            if is_running:
+                logger.warning("Job did not complete in time, terminating...")
+                self.job_executor.terminate_job(self.current_job_pid)
+
+        # Stop heartbeat
+        self.heartbeat_sender.stop()
+
+        # Stop GPU monitoring
+        self.gpu_monitor.stop_monitoring()
+
+        logger.info("Worker daemon stopped")
 
     def run(self):
         """
         Run the worker daemon main loop (blocking).
         """
-        pass
+        self.start()
+
+        # Main loop: poll for jobs and execute them
+        logger.info("Entering main worker loop...")
+
+        try:
+            while self.running:
+                # Poll for job assignment
+                job = self.heartbeat_sender.poll_for_job()
+
+                if job:
+                    logger.info(f"Received job assignment: {job.job_id}")
+                    self._execute_job(job)
+                else:
+                    # No job available, sleep briefly
+                    time.sleep(5)
+        except KeyboardInterrupt:
+            logger.info("Received keyboard interrupt")
+        finally:
+            self.stop(graceful=True)
 
     def register_with_head(self):
         """
         Register this worker with the head node.
-        
+
         Raises:
             ConnectionException: If cannot connect to head node
         """
-        pass
+        try:
+            logger.info(f"Registering with head node at {self.head_address}")
+            response = self.client.register_node(
+                node_name=self.node_name,
+                address=self.worker_address,
+                num_gpus=self.num_gpus
+            )
+            logger.info(f"Successfully registered with head node: {response}")
+        except Exception as e:
+            raise ConnectionException(f"Failed to register with head node: {e}")
+
+    def _execute_job(self, job):
+        """Execute a job (internal)."""
+        try:
+            self.current_job = job
+            logger.info(f"Starting job {job.job_id}")
+
+            # Get assigned GPUs from job
+            gpu_ids = job.assigned_gpus if job.assigned_gpus else list(range(self.num_gpus))
+
+            # Execute the job
+            pid = self.job_executor.execute_job(job, gpu_ids)
+            self.current_job_pid = pid
+
+            logger.info(f"Job {job.job_id} started with PID {pid}")
+
+            # Monitor job execution
+            while self.running:
+                is_running, exit_code = self.job_executor.get_job_status(pid)
+
+                if not is_running:
+                    # Job completed
+                    if exit_code == 0:
+                        logger.info(f"Job {job.job_id} completed successfully")
+                        self.client.report_job_complete(job.job_id, exit_code)
+                    else:
+                        logger.error(f"Job {job.job_id} failed with exit code {exit_code}")
+                        self.client.report_job_failed(job.job_id, f"Exit code: {exit_code}")
+                    break
+
+                # Still running, sleep and check again
+                time.sleep(5)
+
+            self.current_job = None
+            self.current_job_pid = None
+
+        except Exception as e:
+            logger.error(f"Error executing job {job.job_id}: {e}")
+            try:
+                self.client.report_job_failed(job.job_id, str(e))
+            except:
+                pass
+            self.current_job = None
+            self.current_job_pid = None
+
+    def _signal_handler(self, signum, frame):
+        """Handle termination signals."""
+        logger.info(f"Received signal {signum}")
+        self.stop(graceful=True)

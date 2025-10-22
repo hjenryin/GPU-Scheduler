@@ -1,3 +1,12 @@
+import os
+import signal
+import logging
+
+from scheduler.worker.singleton import is_daemon_running
+
+logger = logging.getLogger(__name__)
+
+
 def stop_command(force: bool = False, all_nodes: bool = False) -> int:
     """
     Stop scheduler on current node or all nodes.
@@ -5,11 +14,76 @@ def stop_command(force: bool = False, all_nodes: bool = False) -> int:
     Args:
         force: If True, force kill without graceful shutdown
         all_nodes: If True, stop all nodes in cluster (head only)
-        
+
     Returns:
         Exit code (0 for success)
-        
+
     Raises:
         ConnectionException: If cannot connect to scheduler
     """
-    pass
+    if all_nodes:
+        print("Error: --all flag not yet implemented")
+        print("Please stop each node individually with 'scheduler stop'")
+        return 1
+
+    # Try to stop head node
+    head_lockfile = os.path.expanduser("~/.scheduler/head.lock")
+    head_stopped = _stop_daemon(head_lockfile, "head node", force)
+
+    # Try to stop worker nodes (check common lock patterns)
+    worker_stopped = False
+    scheduler_dir = os.path.expanduser("~/.scheduler")
+    if os.path.exists(scheduler_dir):
+        for filename in os.listdir(scheduler_dir):
+            if filename.startswith("worker-") and filename.endswith(".lock"):
+                lockfile = os.path.join(scheduler_dir, filename)
+                node_name = filename[7:-5]  # Remove "worker-" and ".lock"
+                if _stop_daemon(lockfile, f"worker node '{node_name}'", force):
+                    worker_stopped = True
+
+    if not head_stopped and not worker_stopped:
+        print("No scheduler processes found running on this machine")
+        return 1
+
+    return 0
+
+
+def _stop_daemon(lockfile: str, name: str, force: bool) -> bool:
+    """
+    Stop a daemon by reading its PID from lockfile.
+
+    Returns:
+        True if daemon was stopped, False if not running
+    """
+    if not is_daemon_running(lockfile):
+        return False
+
+    try:
+        with open(lockfile, 'r') as f:
+            pid = int(f.read().strip())
+
+        print(f"Stopping {name} (PID {pid})...")
+
+        if force:
+            os.kill(pid, signal.SIGKILL)
+            print(f"Forcefully killed {name}")
+        else:
+            os.kill(pid, signal.SIGTERM)
+            print(f"Sent graceful shutdown signal to {name}")
+            print("(Jobs will complete before shutdown)")
+
+        # Clean up lockfile
+        try:
+            os.remove(lockfile)
+        except:
+            pass
+
+        return True
+    except (ValueError, ProcessLookupError, PermissionError) as e:
+        logger.warning(f"Failed to stop {name}: {e}")
+        # Try to clean up stale lockfile
+        try:
+            os.remove(lockfile)
+        except:
+            pass
+        return False

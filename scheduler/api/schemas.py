@@ -34,7 +34,20 @@ class JobResponse(BaseModel):
     @classmethod
     def from_job(cls, job: Job) -> 'JobResponse':
         """Create response from Job model"""
-        pass
+        return cls(
+            job_id=job.job_id,
+            name=job.name,
+            script=job.script,
+            requirements=str(job.requirements),
+            status=job.status.value,
+            submitted_at=job.submitted_at.isoformat() if job.submitted_at else "",
+            started_at=job.started_at.isoformat() if job.started_at else None,
+            completed_at=job.completed_at.isoformat() if job.completed_at else None,
+            assigned_node=job.assigned_node,
+            assigned_gpus=job.assigned_gpus,
+            exit_code=job.exit_code,
+            error_message=job.error_message
+        )
 
 
 class JobListResponse(BaseModel):
@@ -80,4 +93,26 @@ class NodeResponse(BaseModel):
     @classmethod
     def from_node(cls, node: Node) -> 'NodeResponse':
         """Create response from Node model"""
-        pass
+        gpus = [
+            GPUResponse(
+                gpu_id=gpu.gpu_id,
+                utilization=gpu.stats.utilization,
+                memory_used=gpu.stats.memory_used,
+                memory_total=gpu.stats.memory_total,
+                temperature=gpu.stats.temperature,
+                power_draw=gpu.stats.power_draw,
+                assigned_job_id=gpu.assigned_job_id,
+                stable_since=gpu.stable_since.isoformat() if gpu.stable_since else None
+            )
+            for gpu in node.gpus
+        ]
+
+        return cls(
+            node_name=node.node_name,
+            address=node.address,
+            num_gpus=node.num_gpus,
+            status=node.status.value,
+            gpus=gpus,
+            last_heartbeat=node.last_heartbeat.isoformat() if node.last_heartbeat else None,
+            registered_at=node.registered_at.isoformat() if node.registered_at else ""
+        )
