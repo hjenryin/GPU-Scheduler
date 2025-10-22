@@ -4,13 +4,9 @@ import socket
 import logging
 from typing import Optional
 
-from scheduler.core.config import load_config, save_config
-from scheduler.core.exceptions import ValidationException, ConnectionException, PermissionDeniedException
-from scheduler.core import constants
-from scheduler.core.utils import ensure_dir_exists
-from scheduler.head.orchestrator import Orchestrator
-from scheduler.worker.daemon import WorkerDaemon
-from scheduler.worker.singleton import SingletonDaemon
+from scheduler.core import load_config, save_config, ValidationException, ConnectionException, PermissionDeniedException, constants
+from scheduler.head import Orchestrator
+from scheduler.worker import WorkerDaemon, SingletonDaemon
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +14,7 @@ logger = logging.getLogger(__name__)
 def start_command(
     head: bool = False,
     address: Optional[str] = None,
-    port: int = constants.DEFAULT_HEAD_PORT,
+    port: int = constants.DEFAULT_PORT,
     node_name: Optional[str] = None,
     num_gpus: Optional[int] = None,
     temp_dir: Optional[str] = None,
@@ -128,8 +124,8 @@ def start_command(
 def _start_head_node(config: dict, block: bool) -> int:
     """Start head node orchestrator."""
     print("Starting scheduler as HEAD NODE...")
-    print(f"Port: {config.get('head_node', {}).get('port', constants.DEFAULT_HEAD_PORT)}")
-    print(f"API: http://localhost:{config.get('head_node', {}).get('port', constants.DEFAULT_HEAD_PORT)}/api/v1")
+    print(f"Port: {config.get('head_node', {}).get('port', constants.DEFAULT_PORT)}")
+    print(f"API: http://localhost:{config.get('head_node', {}).get('port', constants.DEFAULT_PORT)}/api/v1")
 
     # Check for existing head node
     lockfile = os.path.expanduser("~/.scheduler/head.lock")
@@ -167,7 +163,7 @@ def _start_worker_node(config: dict, node_name: Optional[str], num_gpus: Optiona
     print(f"Node name: {node_name}")
 
     head_host = config.get('head_node', {}).get('host', 'localhost')
-    head_port = config.get('head_node', {}).get('port', constants.DEFAULT_HEAD_PORT)
+    head_port = config.get('head_node', {}).get('port', constants.DEFAULT_PORT)
     print(f"Connecting to head node: {head_host}:{head_port}")
 
     # Check for existing worker

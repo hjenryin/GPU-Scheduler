@@ -4,15 +4,12 @@ import signal
 import time
 from typing import Optional
 
-from scheduler.core.config import Config
-from scheduler.core.exceptions import ConnectionException
-from scheduler.core import constants
-from scheduler.core.utils import get_local_ip
+from scheduler.core import Config, ConnectionException, constants, get_local_ip
 from scheduler.worker.gpu_monitor import GPUMonitor
 from scheduler.worker.job_executor import JobExecutor
 from scheduler.worker.heartbeat import HeartbeatSender
 from scheduler.worker.file_handler import FileHandler
-from scheduler.api.client import SchedulerClient
+from scheduler.api import SchedulerClient
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +33,7 @@ class WorkerDaemon:
         # Get head node address
         head_config = config.get('head_node', {})
         head_host = head_config.get('host', 'localhost')
-        head_port = head_config.get('port', constants.DEFAULT_HEAD_PORT)
+        head_port = head_config.get('port', constants.DEFAULT_PORT)
         self.head_address = f"{head_host}:{head_port}"
 
         # Get worker address

@@ -2,9 +2,8 @@ import json
 from typing import List, Optional
 from datetime import datetime
 
-from scheduler.api.client import SchedulerClient
-from scheduler.core.config import load_config
-from scheduler.core.exceptions import ConnectionException
+from scheduler.api import SchedulerClient
+from scheduler.core import load_config, ConnectionException
 
 
 def jobs_command(

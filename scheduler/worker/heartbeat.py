@@ -3,11 +3,9 @@ import threading
 import time
 from typing import Optional
 
-from scheduler.core.config import Config
-from scheduler.core.models import Job
-from scheduler.core import constants
+from scheduler.core import Config, Job, constants
 from scheduler.worker.gpu_monitor import GPUMonitor
-from scheduler.api.client import SchedulerClient
+from scheduler.api import SchedulerClient
 
 logger = logging.getLogger(__name__)
 

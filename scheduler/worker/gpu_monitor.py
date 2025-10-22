@@ -4,9 +4,7 @@ import threading
 import time
 from typing import List, Optional
 
-from scheduler.core.config import Config
-from scheduler.core.exceptions import GPUNotFoundException
-from scheduler.core.models import GPUStats
+from scheduler.core import Config, GPUStats
 
 logger = logging.getLogger(__name__)
 

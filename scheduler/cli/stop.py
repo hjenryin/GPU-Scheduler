@@ -2,7 +2,7 @@ import os
 import signal
 import logging
 
-from scheduler.worker.singleton import is_daemon_running
+from scheduler.worker import is_daemon_running
 
 logger = logging.getLogger(__name__)
 

@@ -4,12 +4,9 @@ import time
 import threading
 from typing import Optional
 
-from scheduler.core.config import Config
-from scheduler.core.exceptions import PermissionDeniedException
-from scheduler.core import constants
-from scheduler.storage.file_backend import FileBackend
-from scheduler.storage.sqlite_backend import SQLiteBackend
-from scheduler.head.persistence import Persistence
+from scheduler.core import Config, PermissionDeniedException, constants
+from scheduler.storage import FileBackend, SQLiteBackend
+from scheduler.head.persistence import PersistenceManager
 from scheduler.head.job_manager import JobManager
 from scheduler.head.node_manager import NodeManager
 from scheduler.head.scheduler import Scheduler
@@ -46,7 +43,7 @@ class Orchestrator:
             logger.info(f"Using file backend at {data_dir}")
 
         # Initialize persistence layer
-        persistence = Persistence(backend)
+        persistence = PersistenceManager(backend)
 
         # Initialize managers
         self.job_manager = JobManager(persistence)

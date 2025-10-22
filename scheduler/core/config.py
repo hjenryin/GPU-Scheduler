@@ -7,7 +7,7 @@ import os
 
 from scheduler.core.exceptions import ValidationException, PermissionDeniedException
 from scheduler.core.utils import ensure_dir_exists
-from scheduler.core import constants
+from scheduler.core.constants import CONFIG_FILE_PATH
 
 
 @dataclass
@@ -77,7 +77,7 @@ def load_config(config_path: Optional[str] = None) -> Config:
     """
     # Use default path if not provided
     if config_path is None:
-        config_path = os.path.expanduser(constants.DEFAULT_CONFIG_FILE)
+        config_path = os.path.expanduser(CONFIG_FILE_PATH)
     else:
         config_path = os.path.expanduser(config_path)
 
@@ -109,7 +109,7 @@ def save_config(config: Config, config_path: Optional[str] = None):
     """
     # Use default path if not provided
     if config_path is None:
-        config_path = os.path.expanduser(constants.DEFAULT_CONFIG_FILE)
+        config_path = os.path.expanduser(CONFIG_FILE_PATH)
     else:
         config_path = os.path.expanduser(config_path)
 
@@ -140,7 +140,7 @@ def init_config(config_path: Optional[str] = None):
     """
     # Use default path if not provided
     if config_path is None:
-        config_path = os.path.expanduser(constants.DEFAULT_CONFIG_FILE)
+        config_path = os.path.expanduser(CONFIG_FILE_PATH)
     else:
         config_path = os.path.expanduser(config_path)
 

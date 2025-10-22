@@ -2,9 +2,8 @@ import os
 import time
 from typing import List, Optional
 
-from scheduler.api.client import SchedulerClient
-from scheduler.core.config import load_config
-from scheduler.core.exceptions import ValidationException, ConnectionException
+from scheduler.api import SchedulerClient
+from scheduler.core import load_config, ValidationException, ConnectionException
 
 
 def submit_command(

@@ -3,7 +3,7 @@ from textual.app import ComposeResult
 from textual.widgets import Header, Footer, Static, DataTable
 from textual.containers import Container, VerticalScroll
 from typing import List
-from scheduler.api.schemas import Node, Job
+from scheduler.api import Node, Job
 from scheduler.tui.utils import get_status_color, create_gpu_utilization_bar, format_runtime
 
 

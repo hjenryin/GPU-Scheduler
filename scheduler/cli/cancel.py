@@ -1,8 +1,7 @@
 from typing import List
 
-from scheduler.api.client import SchedulerClient
-from scheduler.core.config import load_config
-from scheduler.core.exceptions import ConnectionException, JobNotFoundException
+from scheduler.api import SchedulerClient
+from scheduler.core import load_config, ConnectionException, JobNotFoundException
 
 
 def cancel_command(job_ids: List[str], force: bool = False) -> int:

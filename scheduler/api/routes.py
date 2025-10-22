@@ -10,9 +10,7 @@ from scheduler.api.schemas import (
     JobSubmitRequest, JobResponse, JobListResponse,
     NodeRegisterRequest, NodeHeartbeat, NodeResponse
 )
-from scheduler.core.models import JobStatus, GPUStats
-from scheduler.core.exceptions import JobNotFoundException, NodeNotFoundException
-from scheduler.core import constants
+from scheduler.core import JobStatus, GPUStats, JobNotFoundException, NodeNotFoundException, constants
 
 logger = logging.getLogger(__name__)
 

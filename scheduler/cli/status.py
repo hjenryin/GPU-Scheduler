@@ -1,6 +1,6 @@
-from scheduler.core.config import load_config
-from scheduler.api.client import SchedulerClient
-from scheduler.tui.app import run_tui
+from scheduler.core import load_config
+from scheduler.api import SchedulerClient
+from scheduler.tui import run_tui
 import logging
 
 logger = logging.getLogger(__name__)

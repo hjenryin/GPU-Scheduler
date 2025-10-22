@@ -3,11 +3,8 @@ from textual.binding import Binding
 import logging
 from typing import Optional
 
-from scheduler.api.client import SchedulerClient
-from scheduler.tui.screens.cluster import ClusterScreen
-from scheduler.tui.screens.nodes import NodesScreen
-from scheduler.tui.screens.jobs import JobsScreen
-from scheduler.tui.screens.gpus import GPUsScreen
+from scheduler.api import SchedulerClient
+from scheduler.tui.screens import ClusterScreen, NodesScreen, JobsScreen, GPUsScreen
 
 logger = logging.getLogger(__name__)
 

@@ -1,9 +1,8 @@
 from typing import List, Optional
 import logging
 
-from scheduler.core.config import Config
-from scheduler.core.models import Job, Node
-from scheduler.storage.backend import StorageBackend
+from scheduler.core import Config, Job, Node
+from scheduler.storage import StorageBackend
 
 logger = logging.getLogger(__name__)
 

@@ -42,7 +42,7 @@ class SchedulerClient:
             self.head_address = address
         else:
             # Auto-detect from config
-            self.head_address = f"{config.get('head_node', {}).get('host', 'localhost')}:{config.get('head_node', {}).get('port', constants.DEFAULT_HEAD_PORT)}"
+            self.head_address = f"{config.get('head_node', {}).get('host', 'localhost')}:{config.get('head_node', {}).get('port', constants.DEFAULT_PORT)}"
 
         # Parse and validate address
         host, port = parse_address(self.head_address)
