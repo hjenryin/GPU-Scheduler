@@ -213,7 +213,6 @@ class JobRequirement:
         Raises:
             InvalidRequirementException: If requirement string is invalid
         """
-        self._requirement_str = requirement_str
         self._alternatives = self._parse_requirements(requirement_str)
 
     def _parse_requirements(self, req_str: str) -> List[Tuple[Optional[str], int]]:
@@ -278,11 +277,25 @@ class JobRequirement:
                     return True
         return False
 
-    def __str__(self) -> str:
-        """String representation of requirement.
+    def serialize(self) -> str:
+        """Serialize to requirement string for JSON/API transmission.
 
         Returns:
-            Human-readable requirement string
+            Machine-readable requirement string (e.g., "2", "gpu1:4", "gpu1:2,gpu2:4")
+        """
+        parts = []
+        for node_name, num_gpus in self._alternatives:
+            if node_name is None:
+                parts.append(str(num_gpus))
+            else:
+                parts.append(f"{node_name}:{num_gpus}")
+        return ",".join(parts)
+
+    def __str__(self) -> str:
+        """String representation of requirement for human display.
+
+        Returns:
+            Human-readable requirement string (e.g., "2 GPUs on any node")
         """
         parts = []
         for node_name, num_gpus in self._alternatives:
@@ -398,7 +411,7 @@ class Job:
             'job_id': self.job_id,
             'name': self.name,
             'script': self.script,
-            'requirements': str(self.requirements),
+            'requirements': self.requirements.serialize(),
             'script_args': self.script_args,
             'working_dir': self.working_dir,
             'env_vars': self.env_vars,
