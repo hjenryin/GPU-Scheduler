@@ -16,6 +16,8 @@ from scheduler.head.persistence import PersistenceManager
 @pytest.fixture
 def full_system(temp_dir):
     """Create a complete system setup"""
+    from scheduler.storage import FileBackend
+
     config = Config(
         temp_dir=temp_dir,
         log_dir=temp_dir,
@@ -25,7 +27,8 @@ def full_system(temp_dir):
         job_startup_grace=30
     )
 
-    persistence = PersistenceManager(storage_dir=temp_dir)
+    backend = FileBackend(storage_dir=temp_dir)
+    persistence = PersistenceManager(backend=backend, config=config)
     job_manager = JobManager(persistence=persistence, config=config)
     node_manager = NodeManager(persistence=persistence, config=config)
     scheduler = Scheduler(job_manager, node_manager, config)
@@ -271,10 +274,13 @@ class TestJobLifecycle:
 
     def test_persistence_across_restart(self, temp_dir):
         """Test that state is preserved across restarts"""
+        from scheduler.storage import FileBackend
+
         config = Config(temp_dir=temp_dir, log_dir=temp_dir)
 
         # First instance - submit job and register node
-        persistence1 = PersistenceManager(storage_dir=temp_dir)
+        backend1 = FileBackend(storage_dir=temp_dir)
+        persistence1 = PersistenceManager(backend=backend1, config=config)
         job_manager1 = JobManager(persistence=persistence1, config=config)
         node_manager1 = NodeManager(persistence=persistence1, config=config)
 
@@ -284,7 +290,8 @@ class TestJobLifecycle:
         job_id = job.job_id
 
         # Second instance - simulate restart
-        persistence2 = PersistenceManager(storage_dir=temp_dir)
+        backend2 = FileBackend(storage_dir=temp_dir)
+        persistence2 = PersistenceManager(backend=backend2, config=config)
         job_manager2 = JobManager(persistence=persistence2, config=config)
         node_manager2 = NodeManager(persistence=persistence2, config=config)
 

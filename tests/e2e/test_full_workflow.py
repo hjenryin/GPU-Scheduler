@@ -186,6 +186,7 @@ def full_system(temp_dir):
     from scheduler.head.node_manager import NodeManager
     from scheduler.head.scheduler import Scheduler
     from scheduler.head.persistence import PersistenceManager
+    from scheduler.storage import FileBackend
 
     config = Config(
         temp_dir=temp_dir,
@@ -196,7 +197,8 @@ def full_system(temp_dir):
         job_startup_grace=30
     )
 
-    persistence = PersistenceManager(storage_dir=temp_dir)
+    backend = FileBackend(storage_dir=temp_dir)
+    persistence = PersistenceManager(backend=backend, config=config)
     job_manager = JobManager(persistence=persistence, config=config)
     node_manager = NodeManager(persistence=persistence, config=config)
     scheduler = Scheduler(job_manager, node_manager, config)

@@ -13,6 +13,8 @@ from scheduler.core.config import Config
 from scheduler.head.job_manager import JobManager
 from scheduler.head.node_manager import NodeManager
 from scheduler.head.scheduler import Scheduler
+from scheduler.head.persistence import PersistenceManager
+from scheduler.storage import FileBackend
 
 
 @pytest.fixture
@@ -102,15 +104,22 @@ def sample_job() -> Job:
 
 
 @pytest.fixture
-def job_manager(test_config):
-    """JobManager fixture"""
-    return JobManager(test_config)
+def persistence_manager(temp_dir, test_config):
+    """PersistenceManager fixture"""
+    backend = FileBackend(storage_dir=temp_dir)
+    return PersistenceManager(backend=backend, config=test_config)
 
 
 @pytest.fixture
-def node_manager(test_config):
+def job_manager(persistence_manager, test_config):
+    """JobManager fixture"""
+    return JobManager(persistence=persistence_manager, config=test_config)
+
+
+@pytest.fixture
+def node_manager(persistence_manager, test_config):
     """NodeManager fixture"""
-    return NodeManager(test_config)
+    return NodeManager(persistence=persistence_manager, config=test_config)
 
 
 @pytest.fixture

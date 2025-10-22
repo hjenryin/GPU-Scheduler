@@ -9,9 +9,11 @@ from scheduler.head.persistence import PersistenceManager
 
 
 @pytest.fixture
-def persistence_manager(temp_dir):
+def persistence_manager(temp_dir, test_config):
     """Create persistence manager for testing"""
-    return PersistenceManager(storage_dir=temp_dir)
+    from scheduler.storage import FileBackend
+    backend = FileBackend(storage_dir=temp_dir)
+    return PersistenceManager(backend=backend, config=test_config)
 
 
 @pytest.fixture
