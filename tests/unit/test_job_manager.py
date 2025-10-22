@@ -1,0 +1,244 @@
+"""Unit tests for JobManager"""
+import pytest
+from datetime import datetime
+
+from scheduler.core.models import Job, JobStatus, JobRequirement
+from scheduler.core.exceptions import JobNotFoundException
+from scheduler.head.job_manager import JobManager
+from scheduler.head.persistence import PersistenceManager
+
+
+@pytest.fixture
+def persistence_manager(temp_dir):
+    """Create persistence manager for testing"""
+    return PersistenceManager(storage_dir=temp_dir)
+
+
+@pytest.fixture
+def job_manager(persistence_manager, test_config):
+    """Create job manager for testing"""
+    return JobManager(persistence=persistence_manager, config=test_config)
+
+
+class TestJobManager:
+    """Tests for JobManager class"""
+
+    def test_submit_job_minimal(self, job_manager):
+        """Test submitting job with minimal parameters"""
+        job = job_manager.submit_job(
+            script="/path/to/script.py",
+            requirements="2"
+        )
+
+        assert job.job_id is not None
+        assert job.name == "script.py"
+        assert job.script == "/path/to/script.py"
+        assert job.status == JobStatus.PENDING
+        assert job.submitted_at is not None
+
+    def test_submit_job_full_params(self, job_manager):
+        """Test submitting job with all parameters"""
+        job = job_manager.submit_job(
+            script="/path/to/script.py",
+            requirements="gpu1:4",
+            name="my-job",
+            script_args=["--epochs", "100"],
+            working_dir="/home/user",
+            env_vars={"KEY": "value"},
+            dependencies=["job-000"],
+            priority=5,
+            timeout=3600
+        )
+
+        assert job.name == "my-job"
+        assert job.script_args == ["--epochs", "100"]
+        assert job.working_dir == "/home/user"
+        assert job.env_vars == {"KEY": "value"}
+        assert job.dependencies == ["job-000"]
+        assert job.priority == 5
+        assert job.timeout == 3600
+
+    def test_submit_job_invalid_requirements(self, job_manager):
+        """Test submitting job with invalid requirements raises exception"""
+        from scheduler.core.exceptions import InvalidRequirementException
+
+        with pytest.raises(InvalidRequirementException):
+            job_manager.submit_job(
+                script="/script.py",
+                requirements="invalid"
+            )
+
+    def test_add_job(self, job_manager):
+        """Test adding a job directly"""
+        job = Job(
+            job_id="job-001",
+            name="test",
+            script="/script.py",
+            requirements=JobRequirement("2")
+        )
+
+        job_manager.add_job(job)
+
+        retrieved = job_manager.get_job("job-001")
+        assert retrieved.job_id == "job-001"
+
+    def test_get_job_not_found(self, job_manager):
+        """Test getting non-existent job raises exception"""
+        with pytest.raises(JobNotFoundException):
+            job_manager.get_job("nonexistent")
+
+    def test_get_all_jobs(self, job_manager):
+        """Test getting all jobs"""
+        job1 = job_manager.submit_job("/script1.py", "2")
+        job2 = job_manager.submit_job("/script2.py", "1")
+
+        all_jobs = job_manager.get_all_jobs()
+
+        assert len(all_jobs) == 2
+        job_ids = [j.job_id for j in all_jobs]
+        assert job1.job_id in job_ids
+        assert job2.job_id in job_ids
+
+    def test_get_pending_jobs(self, job_manager):
+        """Test getting pending jobs sorted by priority"""
+        job_low = job_manager.submit_job("/script1.py", "2", priority=1)
+        job_high = job_manager.submit_job("/script2.py", "2", priority=10)
+        job_med = job_manager.submit_job("/script3.py", "2", priority=5)
+
+        # Start one job
+        job_manager.start_job(job_low.job_id, "gpu1", [0, 1])
+
+        pending = job_manager.get_pending_jobs()
+
+        assert len(pending) == 2
+        # Should be sorted by priority (high to low)
+        assert pending[0].job_id == job_high.job_id
+        assert pending[1].job_id == job_med.job_id
+
+    def test_get_running_jobs(self, job_manager):
+        """Test getting running jobs"""
+        job1 = job_manager.submit_job("/script1.py", "2")
+        job2 = job_manager.submit_job("/script2.py", "2")
+
+        # Start job1
+        job_manager.start_job(job1.job_id, "gpu1", [0, 1])
+
+        running = job_manager.get_running_jobs()
+
+        assert len(running) == 1
+        assert running[0].job_id == job1.job_id
+
+    def test_get_completed_job_ids(self, job_manager):
+        """Test getting completed job IDs"""
+        job1 = job_manager.submit_job("/script1.py", "2")
+        job2 = job_manager.submit_job("/script2.py", "2")
+
+        # Complete job1
+        job_manager.start_job(job1.job_id, "gpu1", [0, 1])
+        job_manager.complete_job(job1.job_id, exit_code=0)
+
+        completed_ids = job_manager.get_completed_job_ids()
+
+        assert len(completed_ids) == 1
+        assert job1.job_id in completed_ids
+
+    def test_start_job(self, job_manager):
+        """Test starting a job"""
+        job = job_manager.submit_job("/script.py", "2")
+
+        job_manager.start_job(job.job_id, "gpu1", [0, 1])
+
+        updated = job_manager.get_job(job.job_id)
+        assert updated.status == JobStatus.RUNNING
+        assert updated.assigned_node == "gpu1"
+        assert updated.assigned_gpus == [0, 1]
+        assert updated.started_at is not None
+
+    def test_complete_job(self, job_manager):
+        """Test completing a job"""
+        job = job_manager.submit_job("/script.py", "2")
+        job_manager.start_job(job.job_id, "gpu1", [0, 1])
+
+        job_manager.complete_job(job.job_id, exit_code=0)
+
+        updated = job_manager.get_job(job.job_id)
+        assert updated.status == JobStatus.COMPLETED
+        assert updated.exit_code == 0
+        assert updated.completed_at is not None
+
+    def test_fail_job(self, job_manager):
+        """Test failing a job"""
+        job = job_manager.submit_job("/script.py", "2")
+        job_manager.start_job(job.job_id, "gpu1", [0, 1])
+
+        job_manager.fail_job(job.job_id, exit_code=1, error_message="Out of memory")
+
+        updated = job_manager.get_job(job.job_id)
+        assert updated.status == JobStatus.FAILED
+        assert updated.exit_code == 1
+        assert updated.error_message == "Out of memory"
+        assert updated.completed_at is not None
+
+    def test_cancel_job_pending(self, job_manager):
+        """Test canceling a pending job"""
+        job = job_manager.submit_job("/script.py", "2")
+
+        job_manager.cancel_job(job.job_id)
+
+        updated = job_manager.get_job(job.job_id)
+        assert updated.status == JobStatus.CANCELLED
+
+    def test_cancel_job_running(self, job_manager):
+        """Test canceling a running job"""
+        job = job_manager.submit_job("/script.py", "2")
+        job_manager.start_job(job.job_id, "gpu1", [0, 1])
+
+        job_manager.cancel_job(job.job_id)
+
+        updated = job_manager.get_job(job.job_id)
+        assert updated.status == JobStatus.CANCELLED
+
+    def test_get_jobs_by_status(self, job_manager):
+        """Test filtering jobs by status"""
+        job1 = job_manager.submit_job("/script1.py", "2")
+        job2 = job_manager.submit_job("/script2.py", "2")
+        job3 = job_manager.submit_job("/script3.py", "2")
+
+        job_manager.start_job(job1.job_id, "gpu1", [0, 1])
+        job_manager.complete_job(job1.job_id, exit_code=0)
+        job_manager.start_job(job2.job_id, "gpu2", [0, 1])
+
+        pending = job_manager.get_jobs_by_status(JobStatus.PENDING)
+        running = job_manager.get_jobs_by_status(JobStatus.RUNNING)
+        completed = job_manager.get_jobs_by_status(JobStatus.COMPLETED)
+
+        assert len(pending) == 1
+        assert len(running) == 1
+        assert len(completed) == 1
+
+    def test_persistence_integration(self, persistence_manager, test_config):
+        """Test jobs are persisted and loaded"""
+        # Create first manager and add job
+        manager1 = JobManager(persistence=persistence_manager, config=test_config)
+        job = manager1.submit_job("/script.py", "2", name="persistent-job")
+        job_id = job.job_id
+
+        # Create second manager (simulates restart)
+        manager2 = JobManager(persistence=persistence_manager, config=test_config)
+
+        # Job should be loaded
+        loaded_job = manager2.get_job(job_id)
+        assert loaded_job.name == "persistent-job"
+        assert loaded_job.status == JobStatus.PENDING
+
+    def test_update_job_versioned_script(self, job_manager):
+        """Test updating job with versioned script path"""
+        job = job_manager.submit_job("/script.py", "2")
+
+        job_manager.update_job_versioned_script(
+            job.job_id,
+            "/tmp/script.py.scheduler_job001_abc123.py"
+        )
+
+        updated = job_manager.get_job(job.job_id)
+        assert updated.versioned_script_path == "/tmp/script.py.scheduler_job001_abc123.py"

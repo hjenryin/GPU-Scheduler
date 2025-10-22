@@ -1,0 +1,325 @@
+"""Integration tests for complete job lifecycle"""
+import pytest
+from datetime import datetime, timedelta
+
+from scheduler.core.models import (
+    Job, Node, GPU, GPUStats, JobRequirement,
+    JobStatus, NodeStatus
+)
+from scheduler.core.config import Config
+from scheduler.head.job_manager import JobManager
+from scheduler.head.node_manager import NodeManager
+from scheduler.head.scheduler import Scheduler
+from scheduler.head.persistence import PersistenceManager
+
+
+@pytest.fixture
+def full_system(temp_dir):
+    """Create a complete system setup"""
+    config = Config(
+        temp_dir=temp_dir,
+        log_dir=temp_dir,
+        gpu_util_threshold=10.0,
+        gpu_mem_threshold=10.0,
+        gpu_stable_time=60,
+        job_startup_grace=30
+    )
+
+    persistence = PersistenceManager(storage_dir=temp_dir)
+    job_manager = JobManager(persistence=persistence, config=config)
+    node_manager = NodeManager(persistence=persistence, config=config)
+    scheduler = Scheduler(job_manager, node_manager, config)
+
+    return {
+        'config': config,
+        'persistence': persistence,
+        'job_manager': job_manager,
+        'node_manager': node_manager,
+        'scheduler': scheduler
+    }
+
+
+class TestJobLifecycle:
+    """Integration tests for job lifecycle"""
+
+    def test_submit_and_schedule_job(self, full_system):
+        """Test complete flow: submit job -> register node -> schedule"""
+        job_manager = full_system['job_manager']
+        node_manager = full_system['node_manager']
+        scheduler = full_system['scheduler']
+
+        # Submit a job
+        job = job_manager.submit_job(
+            script="/path/to/train.py",
+            requirements="2",
+            name="training-job"
+        )
+
+        assert job.status == JobStatus.PENDING
+
+        # Register a node
+        node_manager.register_node("gpu1", "192.168.1.10", 4)
+
+        # Send heartbeat with free GPUs
+        stats = []
+        stable_time = datetime.now() - timedelta(seconds=70)
+        for i in range(4):
+            stats.append(GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300))
+
+        node_manager.update_heartbeat("gpu1", stats)
+
+        # Manually set stability for testing
+        node = node_manager.get_node("gpu1")
+        for gpu in node.gpus:
+            gpu.stable_since = stable_time
+
+        # Run scheduling
+        scheduler.schedule_cycle()
+
+        # Check job was scheduled
+        updated_job = job_manager.get_job(job.job_id)
+        assert updated_job.status == JobStatus.RUNNING
+        assert updated_job.assigned_node == "gpu1"
+        assert len(updated_job.assigned_gpus) == 2
+
+        # Check GPUs are assigned
+        node = node_manager.get_node("gpu1")
+        assigned_count = sum(1 for gpu in node.gpus if gpu.assigned_job_id == job.job_id)
+        assert assigned_count == 2
+
+    def test_job_completion_releases_resources(self, full_system):
+        """Test that completing a job releases GPUs"""
+        job_manager = full_system['job_manager']
+        node_manager = full_system['node_manager']
+        scheduler = full_system['scheduler']
+
+        # Setup node
+        node_manager.register_node("gpu1", "192.168.1.10", 2)
+        stats = [
+            GPUStats(0, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300),
+            GPUStats(1, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300)
+        ]
+        node_manager.update_heartbeat("gpu1", stats)
+
+        stable_time = datetime.now() - timedelta(seconds=70)
+        node = node_manager.get_node("gpu1")
+        for gpu in node.gpus:
+            gpu.stable_since = stable_time
+
+        # Submit and schedule job
+        job = job_manager.submit_job("/script.py", "2")
+        scheduler.schedule_cycle()
+
+        # Verify job is running
+        assert job_manager.get_job(job.job_id).status == JobStatus.RUNNING
+
+        # Complete the job
+        job_manager.complete_job(job.job_id, exit_code=0)
+
+        # Release GPUs
+        node_manager.release_gpus_from_job("gpu1", [0, 1])
+
+        # Check GPUs are released
+        node = node_manager.get_node("gpu1")
+        assert all(gpu.assigned_job_id is None for gpu in node.gpus)
+
+    def test_multiple_jobs_scheduling(self, full_system):
+        """Test scheduling multiple jobs across different nodes"""
+        job_manager = full_system['job_manager']
+        node_manager = full_system['node_manager']
+        scheduler = full_system['scheduler']
+
+        # Register two nodes
+        for node_name in ["gpu1", "gpu2"]:
+            node_manager.register_node(node_name, f"192.168.1.{10 if node_name == 'gpu1' else 11}", 2)
+
+            stats = [
+                GPUStats(0, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300),
+                GPUStats(1, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300)
+            ]
+            node_manager.update_heartbeat(node_name, stats)
+
+            stable_time = datetime.now() - timedelta(seconds=70)
+            node = node_manager.get_node(node_name)
+            for gpu in node.gpus:
+                gpu.stable_since = stable_time
+
+        # Submit multiple jobs
+        job1 = job_manager.submit_job("/script1.py", "2", priority=1)
+        job2 = job_manager.submit_job("/script2.py", "2", priority=2)
+        job3 = job_manager.submit_job("/script3.py", "2", priority=3)
+
+        # Run scheduling
+        scheduler.schedule_cycle()
+
+        # Check that 2 jobs were scheduled (we have 2 nodes with 2 GPUs each)
+        running_jobs = job_manager.get_running_jobs()
+        assert len(running_jobs) == 2
+
+        # Highest priority jobs should be running
+        running_ids = [j.job_id for j in running_jobs]
+        assert job2.job_id in running_ids or job3.job_id in running_ids
+
+    def test_dependency_chain_execution(self, full_system):
+        """Test jobs with dependencies execute in order"""
+        job_manager = full_system['job_manager']
+        node_manager = full_system['node_manager']
+        scheduler = full_system['scheduler']
+
+        # Setup node
+        node_manager.register_node("gpu1", "192.168.1.10", 2)
+        stats = [
+            GPUStats(0, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300),
+            GPUStats(1, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300)
+        ]
+        node_manager.update_heartbeat("gpu1", stats)
+
+        stable_time = datetime.now() - timedelta(seconds=70)
+        node = node_manager.get_node("gpu1")
+        for gpu in node.gpus:
+            gpu.stable_since = stable_time
+
+        # Submit jobs with dependencies
+        job1 = job_manager.submit_job("/preprocess.py", "1", name="preprocess")
+        job2 = job_manager.submit_job(
+            "/train.py", "1",
+            name="train",
+            dependencies=[job1.job_id]
+        )
+
+        # First scheduling cycle - only job1 should run
+        scheduler.schedule_cycle()
+
+        assert job_manager.get_job(job1.job_id).status == JobStatus.RUNNING
+        assert job_manager.get_job(job2.job_id).status == JobStatus.PENDING
+
+        # Complete job1
+        job_manager.complete_job(job1.job_id, exit_code=0)
+        node_manager.release_gpus_from_job("gpu1", [0])
+
+        # Reset GPU stability
+        node = node_manager.get_node("gpu1")
+        node.gpus[0].stable_since = stable_time
+
+        # Second scheduling cycle - job2 should run now
+        scheduler.schedule_cycle()
+
+        assert job_manager.get_job(job2.job_id).status == JobStatus.RUNNING
+
+    def test_grace_period_prevents_scheduling(self, full_system):
+        """Test that grace period prevents new jobs from being scheduled"""
+        job_manager = full_system['job_manager']
+        node_manager = full_system['node_manager']
+        scheduler = full_system['scheduler']
+
+        # Setup node
+        node_manager.register_node("gpu1", "192.168.1.10", 2)
+        stats = [
+            GPUStats(0, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300),
+            GPUStats(1, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300)
+        ]
+        node_manager.update_heartbeat("gpu1", stats)
+
+        stable_time = datetime.now() - timedelta(seconds=70)
+        node = node_manager.get_node("gpu1")
+        for gpu in node.gpus:
+            gpu.stable_since = stable_time
+
+        # Submit and schedule first job
+        job1 = job_manager.submit_job("/script1.py", "1")
+        scheduler.schedule_cycle()
+
+        # Node should be in grace period
+        node = node_manager.get_node("gpu1")
+        assert node.is_in_grace_period() is True
+
+        # Submit second job
+        job2 = job_manager.submit_job("/script2.py", "1")
+
+        # Try to schedule - should not schedule due to grace period
+        scheduler.schedule_cycle()
+
+        assert job_manager.get_job(job2.job_id).status == JobStatus.PENDING
+
+    def test_node_disconnection_handling(self, full_system):
+        """Test handling of node disconnection"""
+        job_manager = full_system['job_manager']
+        node_manager = full_system['node_manager']
+
+        # Register node and send heartbeat
+        node_manager.register_node("gpu1", "192.168.1.10", 2)
+        stats = [
+            GPUStats(0, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300),
+            GPUStats(1, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300)
+        ]
+        node_manager.update_heartbeat("gpu1", stats)
+
+        node = node_manager.get_node("gpu1")
+        assert node.status == NodeStatus.CONNECTED
+
+        # Simulate time passing (node disconnects)
+        node.last_heartbeat = datetime.now() - timedelta(seconds=100)
+
+        # Check timeouts
+        disconnected = node_manager.check_node_timeouts()
+
+        assert len(disconnected) == 1
+        assert "gpu1" in disconnected
+
+        node = node_manager.get_node("gpu1")
+        assert node.status == NodeStatus.DISCONNECTED
+
+    def test_persistence_across_restart(self, temp_dir):
+        """Test that state is preserved across restarts"""
+        config = Config(temp_dir=temp_dir, log_dir=temp_dir)
+
+        # First instance - submit job and register node
+        persistence1 = PersistenceManager(storage_dir=temp_dir)
+        job_manager1 = JobManager(persistence=persistence1, config=config)
+        node_manager1 = NodeManager(persistence=persistence1, config=config)
+
+        job = job_manager1.submit_job("/script.py", "2", name="persistent-job")
+        node_manager1.register_node("gpu1", "192.168.1.10", 4)
+
+        job_id = job.job_id
+
+        # Second instance - simulate restart
+        persistence2 = PersistenceManager(storage_dir=temp_dir)
+        job_manager2 = JobManager(persistence=persistence2, config=config)
+        node_manager2 = NodeManager(persistence=persistence2, config=config)
+
+        # State should be loaded
+        loaded_job = job_manager2.get_job(job_id)
+        loaded_node = node_manager2.get_node("gpu1")
+
+        assert loaded_job.name == "persistent-job"
+        assert loaded_node.num_gpus == 4
+
+    def test_high_priority_job_preemption_simulation(self, full_system):
+        """Test that high priority jobs are scheduled before low priority"""
+        job_manager = full_system['job_manager']
+        node_manager = full_system['node_manager']
+        scheduler = full_system['scheduler']
+
+        # Setup node
+        node_manager.register_node("gpu1", "192.168.1.10", 2)
+        stats = [
+            GPUStats(0, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300),
+            GPUStats(1, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300)
+        ]
+        node_manager.update_heartbeat("gpu1", stats)
+
+        stable_time = datetime.now() - timedelta(seconds=70)
+        node = node_manager.get_node("gpu1")
+        for gpu in node.gpus:
+            gpu.stable_since = stable_time
+
+        # Submit low priority job first, then high priority
+        low_job = job_manager.submit_job("/low.py", "2", priority=1)
+        high_job = job_manager.submit_job("/high.py", "2", priority=100)
+
+        # Schedule - high priority should be scheduled
+        scheduler.schedule_cycle()
+
+        assert job_manager.get_job(high_job.job_id).status == JobStatus.RUNNING
+        assert job_manager.get_job(low_job.job_id).status == JobStatus.PENDING
