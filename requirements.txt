@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+requests
+pydantic
+pyyaml
+textual  
+click
+nvidia-ml-py  # or pynvml
+psutil
+
+# Development dependencies (optional, for development environment)
+# pytest
+# black

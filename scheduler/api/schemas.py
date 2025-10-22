@@ -1,0 +1,83 @@
+from typing import Dict, List, Optional
+
+from pydantic import BaseModel
+from scheduler.core.models import Job, Node
+
+class JobSubmitRequest(BaseModel):
+    """Job submission request schema"""
+    script: str
+    requirements: str
+    name: Optional[str] = None
+    script_args: Optional[List[str]] = None
+    working_dir: Optional[str] = None
+    env_vars: Optional[Dict[str, str]] = None
+    dependencies: Optional[List[str]] = None
+    priority: int = 0
+    timeout: Optional[int] = None
+
+
+class JobResponse(BaseModel):
+    """Job response schema"""
+    job_id: str
+    name: str
+    script: str
+    requirements: str
+    status: str
+    submitted_at: str
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    assigned_node: Optional[str] = None
+    assigned_gpus: Optional[List[int]] = None
+    exit_code: Optional[int] = None
+    error_message: Optional[str] = None
+
+    @classmethod
+    def from_job(cls, job: Job) -> 'JobResponse':
+        """Create response from Job model"""
+        pass
+
+
+class JobListResponse(BaseModel):
+    """Job list response schema"""
+    jobs: List[JobResponse]
+    total: int
+
+
+class NodeRegisterRequest(BaseModel):
+    """Node registration request schema"""
+    node_name: str
+    address: str
+    num_gpus: int
+
+
+class NodeHeartbeat(BaseModel):
+    """Node heartbeat request schema"""
+    gpu_stats: List[dict]  # List of GPUStats dicts
+
+
+class GPUResponse(BaseModel):
+    """GPU response schema"""
+    gpu_id: int
+    utilization: float
+    memory_used: int
+    memory_total: int
+    temperature: int
+    power_draw: int
+    assigned_job_id: Optional[str] = None
+    stable_since: Optional[str] = None
+
+
+class NodeResponse(BaseModel):
+    """Node response schema"""
+    node_name: str
+    address: str
+    num_gpus: int
+    status: str
+    gpus: List[GPUResponse]
+    last_heartbeat: Optional[str] = None
+    registered_at: str
+
+    @classmethod
+    def from_node(cls, node: Node) -> 'NodeResponse':
+        """Create response from Node model"""
+        pass
