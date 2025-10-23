@@ -202,11 +202,563 @@ pytest --pdb --pdbcls=IPython.terminal.debugger:Pdb
 pytest -s --log-cli-level=DEBUG
 ```
 
-## Known Issues and Limitations
+## Test Coverage Status
+
+### ✅ What IS Tested (90%+ coverage)
+
+The test suite has **excellent coverage** of the core business logic:
+
+- ✅ **Core Data Models** (`tests/unit/test_models.py`)
+  - GPUStats, GPU, JobRequirement, Job, Node
+  - Serialization, validation, edge cases
+
+- ✅ **Configuration Management** (`tests/unit/test_config.py`)
+  - Config loading, saving, initialization
+  - YAML parsing, defaults, validation
+
+- ✅ **Job Manager** (`tests/unit/test_job_manager.py`)
+  - Job submission, lifecycle, status management
+  - Priority queues, dependency tracking
+
+- ✅ **Node Manager** (`tests/unit/test_node_manager.py`)
+  - Node registration, heartbeat handling
+  - GPU assignment/release, timeout detection
+
+- ✅ **Scheduling Algorithm** (`tests/unit/test_scheduler.py`)
+  - Resource matching, dependency resolution
+  - Grace periods, GPU stability, priority ordering
+
+- ✅ **Integration Workflows** (`tests/integration/test_job_lifecycle.py`)
+  - Complete job workflows across components
+  - Multi-node scenarios, persistence
+
+- ✅ **End-to-End Simulations** (`tests/e2e/test_full_workflow.py`)
+  - Full system workflows (simulated, not actual processes)
+
+- ✅ **Python API Client** (`tests/unit/test_python_client.py`)
+  - `SchedulerClient` class methods (39 tests, ~90% coverage)
+  - Job submission, retrieval, cancellation, log operations
+  - Node management and worker operations
+  - Exception handling and request/response serialization
+
+### ❌ What is NOT Tested (Critical Gaps)
+
+The following **user-facing interfaces require test coverage**:
+
+#### 1. **CLI Commands** (0% coverage) - ⚠️ CRITICAL
+
+All `scheduler` CLI commands are untested:
+
+**Missing tests:**
+
+- `scheduler start --head` - head node startup
+- `scheduler start --address=...` - worker node startup
+- `scheduler stop` - graceful shutdown
+- `scheduler submit --req ... script.py` - job submission
+- `scheduler jobs --filter running` - job listing
+- `scheduler logs -f job_id` - log streaming
+- `scheduler cancel job_id` - job cancellation
+- `scheduler config init/show/set/get` - configuration commands
+- `scheduler status` - TUI interface
+- Argument parsing and validation
+- Output formatting (table, JSON, YAML)
+- Exit code handling
+
+**Impact:** Users running CLI commands may encounter argument parsing errors, formatting issues, or unexpected behavior.
+
+**Files:** `scheduler/cli/*.py` (~1000 lines total, 0% tested)
+
+#### 2. **HTTP API Endpoints** (0% coverage) - ⚠️ CRITICAL
+
+The HTTP API documented in API_REFERENCE.md is untested:
+
+**Missing tests:**
+
+- `POST /api/v1/jobs` - job submission endpoint
+- `GET /api/v1/jobs` - job listing endpoint
+- `GET /api/v1/jobs/{id}` - job details endpoint
+- `DELETE /api/v1/jobs/{id}` - job cancellation endpoint
+- `GET /api/v1/jobs/{id}/logs` - log streaming endpoint
+- `POST /api/v1/nodes/register` - node registration endpoint
+- `POST /api/v1/nodes/{name}/heartbeat` - heartbeat endpoint
+- `GET /api/v1/nodes` - node listing endpoint
+- `GET /api/v1/workers/{name}/jobs/next` - job polling endpoint
+- `POST /api/v1/workers/jobs/{id}/complete` - completion endpoint
+- Request schema validation
+- HTTP status codes (200, 400, 404, 500)
+- Error response formatting
+- Authentication/authorization (if implemented)
+
+**Impact:** Direct HTTP API users (curl, custom tools) may encounter unvalidated requests, incorrect status codes, or malformed responses.
+
+**Files:** `scheduler/api/routes.py`, `scheduler/head/api_server.py` (~500 lines, 0% tested)
+
+#### 3. **Worker Components** (0% coverage) - ⚠️ CRITICAL
+
+Worker daemon components are untested:
+
+**Missing tests:**
+
+- GPU monitoring (`scheduler/worker/gpu_monitor.py`)
+  - nvidia-smi parsing
+  - GPU statistics collection
+  - Stability detection
+- Job executor (`scheduler/worker/job_executor.py`)
+  - Process spawning and management
+  - CUDA_VISIBLE_DEVICES assignment
+  - Log capture and streaming
+  - Exit code handling
+- Heartbeat sender (`scheduler/worker/daemon.py`)
+  - Periodic heartbeat sending
+  - Connection retry logic
+  - Job polling
+- File handler (`scheduler/worker/file_handler.py`)
+  - Script versioning and storage
+  - Working directory setup
+
+**Impact:** Actual job execution, GPU monitoring, and worker-head communication are not validated.
+
+**Files:** `scheduler/worker/*.py` (~800 lines, 0% tested)
+
+#### 4. **True End-to-End Tests** (0% coverage) - ⚠️ HIGH
+
+Current E2E tests simulate workflows but don't test actual system integration:
+
+**Missing tests:**
+
+- Start actual head process (not in-memory)
+- Start actual worker processes
+- HTTP communication between real processes
+- Process lifecycle management
+- Network disconnection/reconnection
+- Concurrent job execution
+- Real GPU detection (with mocked nvidia-smi)
+
+**Impact:** Integration issues between components running as separate processes may not be caught.
+
+### ⚠️ What is Partially Tested
+
+#### 5. **Environment Variables** (Partial coverage)
+
+- ✅ Tested: `env_vars` parameter is stored in Job
+- ❌ Missing: Actual environment variable propagation during job execution
+- ❌ Missing: CUDA_VISIBLE_DEVICES assignment verification
+
+#### 6. **Job Timeout** (Partial coverage)
+
+- ✅ Tested: `timeout` parameter is stored in Job
+- ❌ Missing: Timeout enforcement during job execution
+- ❌ Missing: Timeout cancellation logic
+
+#### 7. **File Versioning** (Partial coverage)
+
+- ✅ Tested: `versioned_script_path` is assigned to Job
+- ❌ Missing: Actual file copying and versioning logic
+- ❌ Missing: Version cleanup and storage management
+
+### Known Limitations
 
 1. **GPU Hardware**: Tests do not require actual GPUs - GPU functionality is mocked
-2. **Network Communication**: API tests use in-process calls, not actual HTTP
-3. **Process Execution**: Job execution is simulated, not actually run
+2. **Network Communication**: Tests use in-process function calls, not actual HTTP requests/responses
+3. **Process Execution**: Job execution is simulated, not actually spawned as subprocesses
+4. **TUI Interface**: Interactive terminal interface is not tested (difficult to automate)
+
+---
+
+## Test Coverage Roadmap
+
+This roadmap addresses the critical testing gaps identified above.
+
+### Phase 1: HTTP API Endpoint Tests (CRITICAL - Week 1-2)
+
+**Goal:** Test the HTTP API endpoints that handle requests.
+
+**New test file:** `tests/integration/test_api_endpoints.py`
+
+**Approach:**
+- Use FastAPI's `TestClient` for testing without starting actual server
+- Test all endpoints documented in API_REFERENCE.md
+- Verify request validation, status codes, response schemas
+
+**Example test structure:**
+
+```python
+from fastapi.testclient import TestClient
+from scheduler.head.api_server import create_app
+
+@pytest.fixture
+def api_client(job_manager, node_manager):
+    """Create test client with test dependencies"""
+    app = create_app(job_manager, node_manager)
+    return TestClient(app)
+
+class TestJobEndpoints:
+    def test_submit_job_success(self, api_client):
+        """Test POST /api/v1/jobs"""
+        response = api_client.post("/api/v1/jobs", json={
+            "script": "train.py",
+            "requirements": "2"
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "job_id" in data
+        assert data["status"] == "PENDING"
+
+    def test_submit_job_invalid_requirements(self, api_client):
+        """Test invalid requirements return 400"""
+        response = api_client.post("/api/v1/jobs", json={
+            "script": "train.py",
+            "requirements": "invalid"
+        })
+
+        assert response.status_code == 400
+        assert "error" in response.json()
+
+    def test_get_job_not_found(self, api_client):
+        """Test GET /api/v1/jobs/{id} for non-existent job"""
+        response = api_client.get("/api/v1/jobs/nonexistent")
+
+        assert response.status_code == 404
+```
+
+**Test coverage targets:**
+- All endpoints in `scheduler/api/routes.py`
+- Request schema validation
+- HTTP status codes (200, 400, 404, 500)
+- Error response formatting
+- Edge cases (empty lists, missing fields, etc.)
+
+**Estimated effort:** 5-7 days
+
+### Phase 3: CLI Command Tests (CRITICAL - Week 3-4)
+
+**Goal:** Test CLI commands that users run in terminal.
+
+**New test file:** `tests/integration/test_cli_commands.py`
+
+**Approach:**
+- Use `click.testing.CliRunner` for testing Click-based CLI
+- Mock subprocess calls for start/stop commands
+- Verify argument parsing, output formatting, exit codes
+
+**Example test structure:**
+
+```python
+from click.testing import CliRunner
+from scheduler.cli.main import cli
+from unittest.mock import patch
+
+class TestCLISubmit:
+    def setup_method(self):
+        self.runner = CliRunner()
+
+    @patch('scheduler.cli.submit.SchedulerClient')
+    def test_submit_simple_job(self, mock_client_class):
+        """Test: scheduler submit --req 2 train.py"""
+        mock_client = mock_client_class.return_value
+        mock_client.submit_job.return_value = Mock(
+            job_id="job_123",
+            status=JobStatus.PENDING
+        )
+
+        result = self.runner.invoke(cli, [
+            'submit', '--req', '2', 'train.py'
+        ])
+
+        assert result.exit_code == 0
+        assert "job_123" in result.output
+        mock_client.submit_job.assert_called_once_with(
+            script="train.py",
+            requirements="2",
+            name=None,
+            # ... other args
+        )
+
+    def test_submit_invalid_requirements(self):
+        """Test invalid --req shows error"""
+        result = self.runner.invoke(cli, [
+            'submit', '--req', '', 'train.py'
+        ])
+
+        assert result.exit_code != 0
+        assert "Invalid requirement" in result.output
+
+class TestCLIJobs:
+    @patch('scheduler.cli.jobs.SchedulerClient')
+    def test_jobs_list_table_format(self, mock_client_class):
+        """Test: scheduler jobs (default table format)"""
+        mock_client = mock_client_class.return_value
+        mock_client.list_jobs.return_value = [
+            Mock(job_id="job_1", name="test", status=JobStatus.RUNNING)
+        ]
+
+        result = self.runner.invoke(cli, ['jobs'])
+
+        assert result.exit_code == 0
+        assert "job_1" in result.output
+```
+
+**Test coverage targets:**
+- All CLI commands in `scheduler/cli/`
+- Argument parsing and validation
+- Output formatting (table, JSON, YAML)
+- Exit codes
+- Error messages
+
+**Estimated effort:** 5-7 days
+
+### Phase 3: Worker Component Tests (CRITICAL - Week 3-4)
+
+**Goal:** Test worker daemon components that execute jobs.
+
+**New test files:**
+- `tests/unit/test_worker_gpu_monitor.py`
+- `tests/unit/test_worker_job_executor.py`
+- `tests/unit/test_worker_daemon.py`
+
+**Approach:**
+- Mock `subprocess` calls to nvidia-smi
+- Mock `subprocess.Popen` for job execution
+- Test GPU monitoring, job execution, heartbeat logic
+
+**Example test structure:**
+
+```python
+from scheduler.worker.gpu_monitor import GPUMonitor
+from unittest.mock import patch, Mock
+
+class TestGPUMonitor:
+    @patch('scheduler.worker.gpu_monitor.subprocess.run')
+    def test_collect_gpu_stats(self, mock_run):
+        """Test nvidia-smi parsing"""
+        mock_run.return_value = Mock(
+            returncode=0,
+            stdout="""
+0, 10, 1024, 16384, 45, 50
+1, 95, 15000, 16384, 78, 200
+"""
+        )
+
+        monitor = GPUMonitor()
+        stats = monitor.collect_gpu_stats()
+
+        assert len(stats) == 2
+        assert stats[0].gpu_id == 0
+        assert stats[0].utilization == 10
+        assert stats[1].utilization == 95
+
+class TestJobExecutor:
+    @patch('scheduler.worker.job_executor.subprocess.Popen')
+    def test_execute_job_success(self, mock_popen):
+        """Test successful job execution"""
+        mock_process = Mock()
+        mock_process.wait.return_value = 0
+        mock_process.pid = 12345
+        mock_popen.return_value = mock_process
+
+        executor = JobExecutor()
+        exit_code = executor.execute_job(
+            script="train.py",
+            assigned_gpus=[0, 1],
+            env_vars={"KEY": "value"}
+        )
+
+        assert exit_code == 0
+        # Verify CUDA_VISIBLE_DEVICES was set
+        call_kwargs = mock_popen.call_args[1]
+        assert call_kwargs['env']['CUDA_VISIBLE_DEVICES'] == '0,1'
+```
+
+**Test coverage targets:**
+- GPU monitoring and nvidia-smi parsing
+- Job execution with process management
+- CUDA_VISIBLE_DEVICES assignment
+- Log capture and streaming
+- Heartbeat sending logic
+- File versioning
+
+**Estimated effort:** 7-10 days
+
+### Phase 4: True End-to-End Tests (HIGH - Week 4-5)
+
+**Goal:** Test complete system with actual processes communicating via HTTP.
+
+**New test file:** `tests/e2e/test_real_processes.py`
+
+**Approach:**
+- Use `multiprocessing` to start actual head and worker processes
+- Test real HTTP communication
+- Mock only external dependencies (nvidia-smi, job scripts)
+
+**Example test structure:**
+
+```python
+import pytest
+import multiprocessing
+import time
+from scheduler.head.daemon import run_head
+from scheduler.worker.daemon import run_worker
+
+@pytest.fixture(scope="module")
+def running_cluster(tmp_path_factory):
+    """Start actual head and worker processes"""
+    temp_dir = tmp_path_factory.mktemp("cluster")
+
+    # Start head process
+    head_proc = multiprocessing.Process(
+        target=run_head,
+        kwargs={"port": 8265, "temp_dir": str(temp_dir)}
+    )
+    head_proc.start()
+    time.sleep(2)  # Wait for startup
+
+    # Start worker process
+    worker_proc = multiprocessing.Process(
+        target=run_worker,
+        kwargs={
+            "address": "localhost:8265",
+            "num_gpus": 2,
+            "temp_dir": str(temp_dir)
+        }
+    )
+    worker_proc.start()
+    time.sleep(2)
+
+    yield {"head": head_proc, "worker": worker_proc}
+
+    # Cleanup
+    head_proc.terminate()
+    worker_proc.terminate()
+    head_proc.join()
+    worker_proc.join()
+
+def test_full_job_workflow_real_processes(running_cluster):
+    """Test job submission through real HTTP"""
+    from scheduler import SchedulerClient
+
+    client = SchedulerClient(address="localhost:8265")
+
+    # Submit job
+    job = client.submit_job("echo 'test'", "1")
+    assert job.job_id is not None
+
+    # Wait for completion
+    max_wait = 30
+    for _ in range(max_wait):
+        job = client.get_job(job.job_id)
+        if job.status in [JobStatus.COMPLETED, JobStatus.FAILED]:
+            break
+        time.sleep(1)
+
+    assert job.status == JobStatus.COMPLETED
+```
+
+**Test coverage targets:**
+- Process startup and shutdown
+- HTTP communication between processes
+- Job execution across process boundaries
+- Network error handling
+- Concurrent job execution
+
+**Estimated effort:** 5-7 days
+
+### Phase 5: Partial Coverage Improvements (MEDIUM - Week 5-6)
+
+**Goal:** Fill in partial test coverage gaps.
+
+**Areas to address:**
+- Environment variable propagation verification
+- Job timeout enforcement testing
+- File versioning and cleanup testing
+
+**New tests to add:**
+- `test_env_vars_propagation` in `test_worker_job_executor.py`
+- `test_timeout_enforcement` in `test_worker_job_executor.py`
+- `test_file_versioning` in `test_worker_file_handler.py`
+
+**Estimated effort:** 3-5 days
+
+---
+
+## Implementation Priority Summary
+
+| Phase | Component | Priority | Estimated Days | Dependencies |
+|-------|-----------|----------|----------------|--------------|
+| 1 | HTTP API Tests | CRITICAL | 5-7 | None |
+| 2 | CLI Tests | CRITICAL | 5-7 | None |
+| 3 | Worker Tests | CRITICAL | 7-10 | None |
+| 4 | True E2E Tests | HIGH | 5-7 | Phases 1-3 |
+| 5 | Partial Coverage | MEDIUM | 3-5 | Phase 3 |
+
+**Total estimated time:** 26-39 days (5-8 weeks) for one developer
+
+---
+
+## Getting Started with Test Development
+
+### 1. Set up test dependencies
+
+Add to `requirements-dev.txt`:
+```
+pytest>=7.0
+pytest-cov>=4.0
+pytest-asyncio>=0.21
+pytest-mock>=3.10
+responses>=0.23  # For mocking HTTP requests
+```
+
+### 2. Start with Phase 1 (Python API)
+
+```bash
+# Create test file
+touch tests/unit/test_python_client.py
+
+# Run only this test file during development
+pytest tests/unit/test_python_client.py -v
+
+# Check coverage
+pytest tests/unit/test_python_client.py --cov=scheduler.api.client --cov-report=term-missing
+```
+
+### 3. Use TDD approach
+
+For each new test file:
+1. Write test for simplest functionality
+2. Run test (should fail)
+3. Verify test catches the right thing
+4. Repeat for all methods/scenarios
+
+### 4. CI Integration
+
+Update GitHub Actions / CI pipeline:
+```yaml
+- name: Run unit tests (fast)
+  run: pytest tests/unit/ -v
+
+- name: Run integration tests
+  run: pytest tests/integration/ -v
+
+- name: Run E2E tests (slow)
+  run: pytest tests/e2e/ -v --timeout=300
+
+- name: Coverage report
+  run: pytest --cov=scheduler --cov-report=xml --cov-report=term-missing
+```
+
+---
+
+## Success Metrics
+
+After completing the roadmap:
+
+- **Python API Coverage:** >90%
+- **HTTP API Coverage:** >90%
+- **CLI Coverage:** >80%
+- **Worker Components:** >85%
+- **Overall Coverage:** >70% (up from current ~40-50%)
+
+Most importantly: **All three user-facing interfaces (Python API, CLI, HTTP) will have test coverage**, significantly reducing the risk of bugs in production.
 
 ## Performance Tests
 
