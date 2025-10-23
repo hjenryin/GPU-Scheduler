@@ -189,27 +189,23 @@ class TestJobRequirement:
         with pytest.raises(InvalidRequirementException):
             JobRequirement("abc")
 
-    def test_matches_node_any_node(self):
-        """Test requirement matches any node"""
+    def test_requirement_serialization(self):
+        """Test requirement serialization and string representation"""
         req = JobRequirement("2")
-        assert req.matches_node("gpu1", available_gpus=2) is True
-        assert req.matches_node("gpu2", available_gpus=3) is True
-        assert req.matches_node("gpu1", available_gpus=1) is False
+        assert req.serialize() == "2"
+        assert "any node" in str(req).lower()
 
-    def test_matches_node_specific(self):
-        """Test requirement matches specific node"""
+    def test_requirement_node_specific_serialization(self):
+        """Test node-specific requirement serialization"""
         req = JobRequirement("gpu1:4")
-        assert req.matches_node("gpu1", available_gpus=4) is True
-        assert req.matches_node("gpu1", available_gpus=5) is True
-        assert req.matches_node("gpu2", available_gpus=4) is False
-        assert req.matches_node("gpu1", available_gpus=3) is False
+        assert req.serialize() == "gpu1:4"
+        assert "gpu1" in str(req)
 
-    def test_matches_node_alternatives(self):
-        """Test requirement with alternatives"""
+    def test_requirement_alternatives_serialization(self):
+        """Test requirement with alternatives serialization"""
         req = JobRequirement("gpu1:2,gpu2:4")
-        assert req.matches_node("gpu1", available_gpus=2) is True
-        assert req.matches_node("gpu2", available_gpus=4) is True
-        assert req.matches_node("gpu3", available_gpus=4) is False
+        assert req.serialize() == "gpu1:2,gpu2:4"
+        assert " OR " in str(req)
 
 
 class TestJob:

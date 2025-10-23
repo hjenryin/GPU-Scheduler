@@ -260,23 +260,6 @@ class JobRequirement:
         """
         return self._alternatives
 
-    def matches_node(self, node_name: str, available_gpus: int) -> bool:
-        """Check if a node satisfies this requirement.
-
-        Args:
-            node_name: Name of the node to check
-            available_gpus: Number of available GPUs on the node
-
-        Returns:
-            True if node satisfies any alternative in the requirement
-        """
-        for req_node, req_gpus in self._alternatives:
-            # Check if this alternative matches
-            if req_node is None or req_node == node_name:
-                if available_gpus >= req_gpus:
-                    return True
-        return False
-
     def serialize(self) -> str:
         """Serialize to requirement string for JSON/API transmission.
 

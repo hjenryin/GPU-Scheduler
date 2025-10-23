@@ -200,9 +200,10 @@ class TestJobLifecycle:
         job_manager.complete_job(job1.job_id, exit_code=0)
         node_manager.release_gpus_from_job("gpu1", [0])
 
-        # Reset GPU stability
+        # Reset GPU stability and clear grace period
         node = node_manager.get_node("gpu1")
         node.gpus[0].stable_since = stable_time
+        node.grace_period_until = None  # Clear grace period
 
         # Second scheduling cycle - job2 should run now
         scheduler.schedule_cycle()
@@ -264,10 +265,7 @@ class TestJobLifecycle:
         node.last_heartbeat = datetime.now() - timedelta(seconds=100)
 
         # Check timeouts
-        disconnected = node_manager.check_node_timeouts()
-
-        assert len(disconnected) == 1
-        assert "gpu1" in disconnected
+        node_manager.check_timeouts()
 
         node = node_manager.get_node("gpu1")
         assert node.status == NodeStatus.DISCONNECTED

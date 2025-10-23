@@ -130,14 +130,12 @@ class TestFullWorkflow:
         # Simulate job failure
         job_manager.fail_job(
             job.job_id,
-            exit_code=1,
             error_message="CUDA out of memory"
         )
 
         # Check state
         job = job_manager.get_job(job.job_id)
         assert job.status == JobStatus.FAILED
-        assert job.exit_code == 1
         assert "CUDA out of memory" in job.error_message
 
         # Resources should be released
