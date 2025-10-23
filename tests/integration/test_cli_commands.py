@@ -4,7 +4,6 @@ Integration tests for CLI commands.
 Tests all scheduler CLI commands using direct function calls with mocked dependencies.
 """
 
-import sys
 import os
 import json
 import pytest
@@ -13,16 +12,6 @@ import shutil
 from unittest.mock import patch, Mock, MagicMock, mock_open
 from io import StringIO
 from datetime import datetime
-
-# Mock textual and TUI dependencies before importing CLI modules
-sys.modules['textual'] = Mock()
-sys.modules['textual.app'] = Mock()
-sys.modules['textual.widgets'] = Mock()
-sys.modules['textual.containers'] = Mock()
-sys.modules['textual.screen'] = Mock()
-sys.modules['scheduler.tui'] = Mock()
-sys.modules['scheduler.tui.app'] = Mock()
-sys.modules['scheduler.tui.screens'] = Mock()
 
 # Import models and exceptions
 from scheduler.core.models import Job, JobStatus, JobRequirement

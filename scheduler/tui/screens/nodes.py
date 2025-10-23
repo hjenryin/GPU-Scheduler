@@ -3,7 +3,7 @@ from textual.screen import Screen
 from textual.app import ComposeResult
 from textual.widgets import Header, Footer, Static, DataTable
 from textual.containers import Container, Horizontal, Vertical
-from scheduler.api import Node, Job
+from scheduler.core import Node, Job  # Import from peer submodule's public API
 from scheduler.tui.utils import create_gpu_utilization_bar, format_gpu_memory
 
 

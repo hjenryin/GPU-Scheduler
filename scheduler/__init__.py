@@ -3,35 +3,27 @@
 
 __version__ = "0.1.0"
 
-# Expose core models for easy imports
+# Expose public APIs from submodules
+# Each import uses the submodule's __init__.py to maintain proper boundaries
 
-from scheduler.core.models import (
+from scheduler.core import (
     Job,
     Node,
     GPU,
     JobRequirement,
     JobStatus,
     NodeStatus,
-)
-
-# Expose core exceptions
-
-from scheduler.core.exceptions import (
     SchedulerException,
     NodeNotFoundException,
     JobNotFoundException,
     InvalidRequirementException,
     ConnectionException,
     ValidationException,
+    Config,
+    load_config,
 )
 
-# Expose configuration
-
-from scheduler.core.config import Config, load_config
-
-# Expose API client for external use
-
-from scheduler.api.client import SchedulerClient
+from scheduler.api import SchedulerClient
 
 __all__ = [
     # Version

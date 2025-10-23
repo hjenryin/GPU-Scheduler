@@ -2,7 +2,7 @@ from textual.screen import Screen
 from textual.app import ComposeResult
 from textual.widgets import Header, Footer, Static, Button
 from textual.containers import Container, Horizontal, VerticalScroll
-from scheduler.api import Job
+from scheduler.core import Job  # Import from peer submodule's public API
 from scheduler.tui.utils import format_runtime
 
 
