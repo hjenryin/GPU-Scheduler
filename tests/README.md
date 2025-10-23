@@ -249,34 +249,31 @@ The test suite has **excellent coverage** of the core business logic:
   - Request validation, HTTP status codes, error responses
   - Response schema validation
 
+- ✅ **CLI Commands** (`tests/integration/test_cli_commands.py`) - **NEW!**
+  - All scheduler CLI commands (72 tests, **86% coverage**)
+  - `scheduler submit` - job submission with all options (11 tests)
+  - `scheduler jobs` - job listing, filtering, formats (7 tests)
+  - `scheduler logs` - log viewing, streaming, stderr (7 tests)
+  - `scheduler cancel` - job cancellation (4 tests)
+  - `scheduler config` - configuration management (10 tests)
+  - `scheduler start` - head/worker startup, all modes (**17 tests, 100% coverage!**)
+  - `scheduler stop` - graceful/force shutdown (5 tests)
+  - `scheduler status` - TUI launch (3 tests)
+  - Argument parsing, error handling, exit codes (8 tests)
+  - **Per-module coverage:**
+    - `start.py`: 100% (111/111 lines)
+    - `config.py`: 94% (47 lines, 3 missing)
+    - `jobs.py`: 87%, `logs.py`: 87%
+    - `status.py`: 85%, `cancel.py`: 85%
+    - `stop.py`: 82%, `submit.py`: 82%
+    - `main.py`: 67% (argparse routing)
+  - **Bug fixed:** `config.py` referenced non-existent constant
+
 ### ❌ What is NOT Tested (Critical Gaps)
 
-The following **user-facing interfaces require test coverage**:
+The following **components still require test coverage**:
 
-#### 1. **CLI Commands** (0% coverage) - ⚠️ CRITICAL
-
-All `scheduler` CLI commands are untested:
-
-**Missing tests:**
-
-- `scheduler start --head` - head node startup
-- `scheduler start --address=...` - worker node startup
-- `scheduler stop` - graceful shutdown
-- `scheduler submit --req ... script.py` - job submission
-- `scheduler jobs --filter running` - job listing
-- `scheduler logs -f job_id` - log streaming
-- `scheduler cancel job_id` - job cancellation
-- `scheduler config init/show/set/get` - configuration commands
-- `scheduler status` - TUI interface
-- Argument parsing and validation
-- Output formatting (table, JSON, YAML)
-- Exit code handling
-
-**Impact:** Users running CLI commands may encounter argument parsing errors, formatting issues, or unexpected behavior.
-
-**Files:** `scheduler/cli/*.py` (~1000 lines total, 0% tested)
-
-#### 2. **Worker Components** (0% coverage) - ⚠️ CRITICAL
+#### 1. **Worker Components** (0% coverage) - ⚠️ CRITICAL
 
 Worker daemon components are untested:
 
@@ -303,7 +300,7 @@ Worker daemon components are untested:
 
 **Files:** `scheduler/worker/*.py` (~800 lines, 0% tested)
 
-#### 3. **True End-to-End Tests** (0% coverage) - ⚠️ HIGH
+#### 2. **True End-to-End Tests** (0% coverage) - ⚠️ HIGH
 
 Current E2E tests simulate workflows but don't test actual system integration:
 
@@ -321,19 +318,19 @@ Current E2E tests simulate workflows but don't test actual system integration:
 
 ### ⚠️ What is Partially Tested
 
-#### 4. **Environment Variables** (Partial coverage)
+#### 3. **Environment Variables** (Partial coverage)
 
 - ✅ Tested: `env_vars` parameter is stored in Job
 - ❌ Missing: Actual environment variable propagation during job execution
 - ❌ Missing: CUDA_VISIBLE_DEVICES assignment verification
 
-#### 5. **Job Timeout** (Partial coverage)
+#### 4. **Job Timeout** (Partial coverage)
 
 - ✅ Tested: `timeout` parameter is stored in Job
 - ❌ Missing: Timeout enforcement during job execution
 - ❌ Missing: Timeout cancellation logic
 
-#### 6. **File Versioning** (Partial coverage)
+#### 5. **File Versioning** (Partial coverage)
 
 - ✅ Tested: `versioned_script_path` is assigned to Job
 - ❌ Missing: Actual file copying and versioning logic
@@ -350,90 +347,14 @@ Current E2E tests simulate workflows but don't test actual system integration:
 
 ## Test Coverage Roadmap
 
-This roadmap addresses the remaining critical testing gaps.
+This roadmap outlines the remaining critical testing gaps to address.
 
-### Phase 1: CLI Command Tests (CRITICAL - Week 1-2)
-
-**Goal:** Test CLI commands that users run in terminal.
-
-**New test file:** `tests/integration/test_cli_commands.py`
-
-**Approach:**
-- Use `click.testing.CliRunner` for testing Click-based CLI
-- Mock subprocess calls for start/stop commands
-- Verify argument parsing, output formatting, exit codes
-
-**Example test structure:**
-
-```python
-from click.testing import CliRunner
-from scheduler.cli.main import cli
-from unittest.mock import patch
-
-class TestCLISubmit:
-    def setup_method(self):
-        self.runner = CliRunner()
-
-    @patch('scheduler.cli.submit.SchedulerClient')
-    def test_submit_simple_job(self, mock_client_class):
-        """Test: scheduler submit --req 2 train.py"""
-        mock_client = mock_client_class.return_value
-        mock_client.submit_job.return_value = Mock(
-            job_id="job_123",
-            status=JobStatus.PENDING
-        )
-
-        result = self.runner.invoke(cli, [
-            'submit', '--req', '2', 'train.py'
-        ])
-
-        assert result.exit_code == 0
-        assert "job_123" in result.output
-        mock_client.submit_job.assert_called_once_with(
-            script="train.py",
-            requirements="2",
-            name=None,
-            # ... other args
-        )
-
-    def test_submit_invalid_requirements(self):
-        """Test invalid --req shows error"""
-        result = self.runner.invoke(cli, [
-            'submit', '--req', '', 'train.py'
-        ])
-
-        assert result.exit_code != 0
-        assert "Invalid requirement" in result.output
-
-class TestCLIJobs:
-    @patch('scheduler.cli.jobs.SchedulerClient')
-    def test_jobs_list_table_format(self, mock_client_class):
-        """Test: scheduler jobs (default table format)"""
-        mock_client = mock_client_class.return_value
-        mock_client.list_jobs.return_value = [
-            Mock(job_id="job_1", name="test", status=JobStatus.RUNNING)
-        ]
-
-        result = self.runner.invoke(cli, ['jobs'])
-
-        assert result.exit_code == 0
-        assert "job_1" in result.output
-```
-
-**Test coverage targets:**
-- All CLI commands in `scheduler/cli/`
-- Argument parsing and validation
-- Output formatting (table, JSON, YAML)
-- Exit codes
-- Error messages
-
-**Estimated effort:** 5-7 days
-
-### Phase 2: Worker Component Tests (CRITICAL - Week 3-4)
+### Phase 1: Worker Component Tests (CRITICAL - Next Priority)
 
 **Goal:** Test worker daemon components that execute jobs.
 
 **New test files:**
+
 - `tests/unit/test_worker_gpu_monitor.py`
 - `tests/unit/test_worker_job_executor.py`
 - `tests/unit/test_worker_daemon.py`
@@ -501,7 +422,7 @@ class TestJobExecutor:
 
 **Estimated effort:** 7-10 days
 
-### Phase 3: True End-to-End Tests (HIGH - Week 5-6)
+### Phase 2: True End-to-End Tests (HIGH)
 
 **Goal:** Test complete system with actual processes communicating via HTTP.
 
@@ -584,16 +505,18 @@ def test_full_job_workflow_real_processes(running_cluster):
 
 **Estimated effort:** 5-7 days
 
-### Phase 4: Partial Coverage Improvements (MEDIUM - Week 7)
+### Phase 3: Partial Coverage Improvements (MEDIUM)
 
 **Goal:** Fill in partial test coverage gaps.
 
 **Areas to address:**
+
 - Environment variable propagation verification
 - Job timeout enforcement testing
 - File versioning and cleanup testing
 
 **New tests to add:**
+
 - `test_env_vars_propagation` in `test_worker_job_executor.py`
 - `test_timeout_enforcement` in `test_worker_job_executor.py`
 - `test_file_versioning` in `test_worker_file_handler.py`
@@ -604,14 +527,13 @@ def test_full_job_workflow_real_processes(running_cluster):
 
 ## Implementation Priority Summary
 
-| Phase | Component | Priority | Estimated Days | Dependencies |
-|-------|-----------|----------|----------------|--------------|
-| 1 | CLI Tests | CRITICAL | 5-7 | None |
-| 2 | Worker Tests | CRITICAL | 7-10 | None |
-| 3 | True E2E Tests | HIGH | 5-7 | Phases 1-2 |
-| 4 | Partial Coverage | MEDIUM | 3-5 | Phase 2 |
+| Phase | Component | Priority | Estimated Days | Status |
+|-------|-----------|----------|----------------|--------|
+| 1 | Worker Tests | CRITICAL | 7-10 | 📋 TODO |
+| 2 | True E2E Tests | HIGH | 5-7 | 📋 TODO |
+| 3 | Partial Coverage | MEDIUM | 3-5 | 📋 TODO |
 
-**Total estimated time:** 21-32 days (4-6 weeks) for one developer
+**Total estimated time:** 15-22 days (3-4 weeks) for one developer
 
 ---
 
@@ -619,26 +541,28 @@ def test_full_job_workflow_real_processes(running_cluster):
 
 ### 1. Set up test dependencies
 
-Add to `requirements-dev.txt`:
+All dependencies already in `requirements-dev.txt`:
+
 ```
-pytest>=7.0
-pytest-cov>=4.0
-pytest-asyncio>=0.21
-pytest-mock>=3.10
-responses>=0.23  # For mocking HTTP requests
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.11.0
 ```
 
-### 2. Start with Phase 1 (CLI Commands)
+### 2. Start with Phase 1 (Worker Components)
 
 ```bash
-# Create test file
-touch tests/integration/test_cli_commands.py
+# Create test files
+touch tests/unit/test_worker_gpu_monitor.py
+touch tests/unit/test_worker_job_executor.py
+touch tests/unit/test_worker_daemon.py
 
-# Run only this test file during development
-pytest tests/integration/test_cli_commands.py -v
+# Run only worker tests during development
+pytest tests/unit/test_worker_* -v
 
 # Check coverage
-pytest tests/integration/test_cli_commands.py --cov=scheduler.cli --cov-report=term-missing
+pytest tests/unit/test_worker_* --cov=scheduler.worker --cov-report=term-missing
 ```
 
 ### 3. Use TDD approach
@@ -671,18 +595,20 @@ Update GitHub Actions / CI pipeline:
 ## Success Metrics
 
 **Current status:**
+
 - ✅ **Python API Coverage:** ~90% (ACHIEVED)
 - ✅ **HTTP API Coverage:** 91% routes, 100% schemas (ACHIEVED)
-- **CLI Coverage:** 0% (TODO)
-- **Worker Components:** 0% (TODO)
-- **Overall Coverage:** ~50%
+- ✅ **CLI Coverage:** 86% (ACHIEVED) - **NEW!**
+- ❌ **Worker Components:** 0% (TODO)
+- **Overall Coverage:** ~60% (up from ~50%)
 
-**After completing the roadmap:**
-- **CLI Coverage:** >80%
+**After completing remaining roadmap (Phases 1-3):**
+
 - **Worker Components:** >85%
-- **Overall Coverage:** >70%
+- **True E2E Coverage:** Full system integration tested
+- **Overall Coverage:** >75%
 
-Most importantly: **All three user-facing interfaces (Python API, CLI, HTTP) will have test coverage**, significantly reducing the risk of bugs in production. Two of three interfaces are now complete!
+**Major Achievement:** ✅ **All three user-facing interfaces (Python API, CLI, HTTP) now have comprehensive test coverage!** This significantly reduces the risk of bugs in production affecting end users.
 
 ## Performance Tests
 

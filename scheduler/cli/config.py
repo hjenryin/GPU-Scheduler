@@ -30,7 +30,7 @@ def config_command(
     try:
         if command == "init":
             init_config()
-            print(f"Configuration initialized at {constants.DEFAULT_CONFIG_FILE}")
+            print(f"Configuration initialized at {constants.CONFIG_FILE_PATH}")
             return 0
 
         elif command == "show":

@@ -10,6 +10,7 @@ Last Updated: 2025-10-21
 3.  [Stopping the Scheduler](#stopping-the-scheduler)
 4.  [Cluster Status](#cluster-status)
 5.  [Job Submission](#job-submission)
+6.  [Python API](#python-api)
 
 ---
 
@@ -20,7 +21,10 @@ This system provides distributed job scheduling across multiple GPU machines wit
 **Key Components:**
 - **Head Node**: Central orchestrator that manages job queue and machine registry
 - **Worker Nodes**: GPU machines that execute jobs
-- **Client CLI**: Command-line interface for job submission and monitoring
+- **Client Interfaces**:
+  - Command-line interface (CLI) for interactive use
+  - Python API for programmatic integration
+  - HTTP REST API for advanced usage
 
 **No Sudo Required**: All operations use user-space directories (`~/.scheduler/`) and ports >= 1024.
 
@@ -276,3 +280,304 @@ The command returns the job ID which can be captured:
 JOB_ID=$(scheduler submit --req 2 --async train.py | grep "Job ID" | awk '{print $3}')
 echo $JOB_ID  # job_abc123def456
 ````
+
+---
+
+## Python API
+
+For programmatic job submission and cluster management, the scheduler provides a Python client API.
+
+### Installation
+
+```bash
+pip install gpu-scheduler
+```
+
+### Quick Start
+
+```python
+from scheduler import SchedulerClient
+
+# Connect to head node
+client = SchedulerClient(address="head-node:8265")
+
+# Submit a job
+job = client.submit_job(
+    script="train.py",
+    requirements="2",
+    name="my-training-job"
+)
+print(f"Submitted job {job.job_id}")
+
+# List running jobs
+jobs = client.list_jobs(status_filter="running")
+for job in jobs:
+    print(f"{job.job_id}: {job.name} on {job.assigned_node}")
+
+# Get logs
+logs = client.get_job_logs(job.job_id)
+print(logs)
+```
+
+### API Reference
+
+#### SchedulerClient
+
+```python
+from scheduler import SchedulerClient
+
+# Initialize client
+client = SchedulerClient(
+    address="head-node:8265",  # Optional, auto-detects from config if not provided
+    config=None                # Optional Config instance
+)
+```
+
+#### Submit Job
+
+```python
+job = client.submit_job(
+    script="train.py",                    # Required: script path
+    requirements="2",                     # Required: resource requirements
+    name="job-name",                      # Optional: human-readable name
+    script_args=["--epochs", "100"],      # Optional: script arguments
+    working_dir="/path/to/dir",           # Optional: working directory
+    env_vars={"KEY": "value"},            # Optional: environment variables
+    dependencies=["job_id1", "job_id2"],  # Optional: job dependencies
+    priority=10,                          # Optional: priority (default 0)
+    timeout=3600                          # Optional: timeout in seconds
+)
+
+# Returns Job object with:
+# - job.job_id
+# - job.status (JobStatus enum)
+# - job.submitted_at
+# - job.assigned_node
+# - job.assigned_gpus
+```
+
+#### List Jobs
+
+```python
+jobs = client.list_jobs(
+    status_filter="running",  # Optional: "pending", "running", "completed", "failed", "cancelled"
+    limit=50                  # Optional: max number of jobs to return
+)
+# Returns list of Job objects
+```
+
+#### Get Job Details
+
+```python
+job = client.get_job(job_id="job_abc123")
+print(f"Status: {job.status}")
+print(f"Node: {job.assigned_node}")
+print(f"GPUs: {job.assigned_gpus}")
+print(f"Runtime: {job.runtime()}")  # Returns timedelta or None
+```
+
+#### Cancel Job
+
+```python
+client.cancel_job(job_id="job_abc123")
+```
+
+#### Get Job Logs
+
+```python
+# Get all logs
+logs = client.get_job_logs(job_id="job_abc123")
+
+# Get last 100 lines
+logs = client.get_job_logs(job_id="job_abc123", lines=100)
+
+# Get stderr instead of stdout
+logs = client.get_job_logs(job_id="job_abc123", stderr=True)
+```
+
+#### Stream Job Logs
+
+```python
+# Real-time log streaming
+for line in client.stream_job_logs(job_id="job_abc123"):
+    print(line)
+```
+
+#### List Nodes
+
+```python
+nodes = client.list_nodes()
+for node in nodes:
+    print(f"{node.node_name}: {node.num_gpus} GPUs")
+    for gpu in node.gpus:
+        print(f"  GPU {gpu.gpu_id}: {gpu.stats.utilization}% util")
+```
+
+#### Get Node Details
+
+```python
+node = client.get_node(node_name="gpu-server-01")
+print(f"Connected: {node.status == NodeStatus.CONNECTED}")
+print(f"Free GPUs: {len(node.get_free_gpus())}")
+```
+
+#### Health Check
+
+```python
+if client.health_check():
+    print("Head node is healthy")
+else:
+    print("Head node is unreachable")
+```
+
+### Exception Handling
+
+```python
+from scheduler import (
+    ConnectionException,
+    JobNotFoundException,
+    NodeNotFoundException,
+    ValidationException
+)
+
+try:
+    job = client.submit_job("train.py", "invalid-req")
+except ValidationException as e:
+    print(f"Invalid parameters: {e}")
+except ConnectionException as e:
+    print(f"Cannot connect to head node: {e}")
+
+try:
+    job = client.get_job("nonexistent_id")
+except JobNotFoundException as e:
+    print(f"Job not found: {e}")
+```
+
+### Data Models
+
+The Python API exposes these data models:
+
+```python
+from scheduler import (
+    Job,              # Job information
+    Node,             # Node information
+    GPU,              # GPU information
+    JobRequirement,   # Resource requirements
+    JobStatus,        # Enum: PENDING, RUNNING, COMPLETED, FAILED, CANCELLED
+    NodeStatus        # Enum: CONNECTED, DISCONNECTED
+)
+
+# Example: Check job status
+if job.status == JobStatus.RUNNING:
+    print(f"Job is running on {job.assigned_node}")
+
+# Example: Parse requirements
+req = JobRequirement("gpu1:2,gpu2:4")
+print(req.alternatives)  # [{'node': 'gpu1', 'num_gpus': 2}, {'node': 'gpu2', 'num_gpus': 4}]
+```
+
+### Configuration
+
+The client uses the same configuration as the CLI:
+
+```python
+from scheduler import Config, load_config
+
+# Load from default location (~/.scheduler/config.yaml)
+config = load_config()
+
+# Create custom config
+config = Config.from_dict({
+    "head_node": {
+        "host": "custom-head",
+        "port": 9000
+    }
+})
+
+# Use with client
+client = SchedulerClient(config=config)
+```
+
+### Example: Batch Job Submission
+
+```python
+from scheduler import SchedulerClient
+
+client = SchedulerClient(address="head:8265")
+
+# Submit multiple jobs with dependencies
+jobs = []
+for i in range(5):
+    job = client.submit_job(
+        script=f"experiment_{i}.py",
+        requirements="2",
+        name=f"exp-{i}",
+        env_vars={"EXPERIMENT_ID": str(i)}
+    )
+    jobs.append(job)
+    print(f"Submitted {job.job_id}")
+
+# Submit analysis job that depends on all experiments
+analysis_job = client.submit_job(
+    script="analyze_results.py",
+    requirements="1",
+    dependencies=[job.job_id for job in jobs],
+    name="analysis"
+)
+print(f"Submitted analysis job {analysis_job.job_id} (depends on {len(jobs)} jobs)")
+```
+
+### Example: Monitoring Loop
+
+```python
+from scheduler import SchedulerClient, JobStatus
+import time
+
+client = SchedulerClient()
+
+job = client.submit_job("train.py", "4", name="training")
+print(f"Submitted {job.job_id}")
+
+# Monitor until completion
+while True:
+    job = client.get_job(job.job_id)
+
+    if job.status == JobStatus.COMPLETED:
+        print(f"Job completed successfully (exit code: {job.exit_code})")
+        print(client.get_job_logs(job.job_id, lines=20))
+        break
+    elif job.status == JobStatus.FAILED:
+        print(f"Job failed: {job.error_message}")
+        break
+    elif job.status == JobStatus.RUNNING:
+        print(f"Running on {job.assigned_node}, GPUs {job.assigned_gpus}")
+    else:
+        print(f"Status: {job.status}")
+
+    time.sleep(5)
+```
+
+### Example: Integration with ML Pipeline
+
+```python
+from scheduler import SchedulerClient
+import mlflow
+
+client = SchedulerClient()
+
+# Submit training job
+job = client.submit_job(
+    script="train.py",
+    requirements="4",
+    env_vars={
+        "MLFLOW_TRACKING_URI": mlflow.get_tracking_uri(),
+        "MLFLOW_EXPERIMENT_ID": "123"
+    }
+)
+
+# Log to MLflow
+with mlflow.start_run():
+    mlflow.log_param("scheduler_job_id", job.job_id)
+    mlflow.log_param("gpus_requested", 4)
+    mlflow.set_tag("scheduler_node", job.assigned_node or "pending")
+```

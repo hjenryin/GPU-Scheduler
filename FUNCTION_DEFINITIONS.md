@@ -163,29 +163,25 @@ class JobRequirement:
     @property
     def alternatives(self) -> List[Tuple[Optional[str], int]]:
         """Get list of alternative requirements.
-        
+
         Returns:
             List of (node_name, num_gpus) tuples. node_name is None for any node.
         """
         pass
-    
-    def matches_node(self, node_name: str, available_gpus: int) -> bool:
-        """Check if a node satisfies this requirement.
-        
-        Args:
-            node_name: Name of the node to check
-            available_gpus: Number of available GPUs on the node
-            
+
+    def serialize(self) -> str:
+        """Serialize to requirement string for JSON/API transmission.
+
         Returns:
-            True if node satisfies any alternative in the requirement
+            Machine-readable requirement string (e.g., "2", "gpu1:4", "gpu1:2,gpu2:4")
         """
         pass
-    
+
     def __str__(self) -> str:
-        """String representation of requirement.
-        
+        """String representation of requirement for human display.
+
         Returns:
-            Human-readable requirement string
+            Human-readable requirement string (e.g., "2 GPUs on any node")
         """
         pass
 

@@ -13,6 +13,8 @@ Last Updated: 2025-10-21
 6. [Job Management](#job-management)
 7. [Configuration](#configuration)
 8. [Environment Variables](#environment-variables)
+9. [Python API](#python-api)
+10. [HTTP API Reference (Advanced)](#api-endpoint-reference-advanced)
 
 ---
 
@@ -830,6 +832,83 @@ All commands return standard exit codes:
 | `4` | Job/node not found |
 | `5` | Permission denied |
 | `6` | Timeout |
+
+---
+
+## Python API
+
+For programmatic integration, the scheduler provides a Python client library. This is the recommended way to interact with the scheduler from Python scripts and applications.
+
+### Installation
+
+```bash
+pip install gpu-scheduler
+```
+
+### Quick Start
+
+```python
+from scheduler import SchedulerClient
+
+# Connect to scheduler
+client = SchedulerClient(address="head-node:8265")
+
+# Submit job
+job = client.submit_job(
+    script="train.py",
+    requirements="2",
+    name="my-job"
+)
+print(f"Job {job.job_id} submitted")
+
+# Monitor job
+job = client.get_job(job.job_id)
+print(f"Status: {job.status}")
+```
+
+### Complete API Documentation
+
+See the [Python API section in README.md](README.md#python-api) for:
+- Complete API reference for `SchedulerClient`
+- All available methods (submit, list, cancel, logs, etc.)
+- Exception handling
+- Data models (Job, Node, GPU, etc.)
+- Configuration options
+- Usage examples (batch submission, monitoring, ML integration)
+
+### Key Methods
+
+- `submit_job()` - Submit a new job
+- `list_jobs()` - List jobs with optional filtering
+- `get_job()` - Get job details
+- `cancel_job()` - Cancel a job
+- `get_job_logs()` - Get job logs
+- `stream_job_logs()` - Stream logs in real-time
+- `list_nodes()` - List all nodes
+- `get_node()` - Get node details
+- `health_check()` - Check head node health
+
+### Example: Submit and Monitor
+
+```python
+from scheduler import SchedulerClient, JobStatus
+import time
+
+client = SchedulerClient()
+
+# Submit
+job = client.submit_job("train.py", "4", name="training")
+
+# Monitor
+while True:
+    job = client.get_job(job.job_id)
+    if job.status in [JobStatus.COMPLETED, JobStatus.FAILED]:
+        break
+    print(f"Status: {job.status}, Node: {job.assigned_node}")
+    time.sleep(5)
+
+print(client.get_job_logs(job.job_id, lines=50))
+```
 
 ---
 
