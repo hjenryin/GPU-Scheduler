@@ -241,6 +241,14 @@ The test suite has **excellent coverage** of the core business logic:
   - Node management and worker operations
   - Exception handling and request/response serialization
 
+- ✅ **HTTP API Endpoints** (`tests/integration/test_api_endpoints.py`)
+  - All HTTP API endpoints (44 tests, 91% coverage on routes.py, 100% on schemas.py)
+  - Job endpoints: submit, get, list, cancel
+  - Node endpoints: register, heartbeat, list, get details
+  - Worker endpoints: poll job, complete, fail
+  - Request validation, HTTP status codes, error responses
+  - Response schema validation
+
 ### ❌ What is NOT Tested (Critical Gaps)
 
 The following **user-facing interfaces require test coverage**:
@@ -268,32 +276,7 @@ All `scheduler` CLI commands are untested:
 
 **Files:** `scheduler/cli/*.py` (~1000 lines total, 0% tested)
 
-#### 2. **HTTP API Endpoints** (0% coverage) - ⚠️ CRITICAL
-
-The HTTP API documented in API_REFERENCE.md is untested:
-
-**Missing tests:**
-
-- `POST /api/v1/jobs` - job submission endpoint
-- `GET /api/v1/jobs` - job listing endpoint
-- `GET /api/v1/jobs/{id}` - job details endpoint
-- `DELETE /api/v1/jobs/{id}` - job cancellation endpoint
-- `GET /api/v1/jobs/{id}/logs` - log streaming endpoint
-- `POST /api/v1/nodes/register` - node registration endpoint
-- `POST /api/v1/nodes/{name}/heartbeat` - heartbeat endpoint
-- `GET /api/v1/nodes` - node listing endpoint
-- `GET /api/v1/workers/{name}/jobs/next` - job polling endpoint
-- `POST /api/v1/workers/jobs/{id}/complete` - completion endpoint
-- Request schema validation
-- HTTP status codes (200, 400, 404, 500)
-- Error response formatting
-- Authentication/authorization (if implemented)
-
-**Impact:** Direct HTTP API users (curl, custom tools) may encounter unvalidated requests, incorrect status codes, or malformed responses.
-
-**Files:** `scheduler/api/routes.py`, `scheduler/head/api_server.py` (~500 lines, 0% tested)
-
-#### 3. **Worker Components** (0% coverage) - ⚠️ CRITICAL
+#### 2. **Worker Components** (0% coverage) - ⚠️ CRITICAL
 
 Worker daemon components are untested:
 
@@ -320,7 +303,7 @@ Worker daemon components are untested:
 
 **Files:** `scheduler/worker/*.py` (~800 lines, 0% tested)
 
-#### 4. **True End-to-End Tests** (0% coverage) - ⚠️ HIGH
+#### 3. **True End-to-End Tests** (0% coverage) - ⚠️ HIGH
 
 Current E2E tests simulate workflows but don't test actual system integration:
 
@@ -338,19 +321,19 @@ Current E2E tests simulate workflows but don't test actual system integration:
 
 ### ⚠️ What is Partially Tested
 
-#### 5. **Environment Variables** (Partial coverage)
+#### 4. **Environment Variables** (Partial coverage)
 
 - ✅ Tested: `env_vars` parameter is stored in Job
 - ❌ Missing: Actual environment variable propagation during job execution
 - ❌ Missing: CUDA_VISIBLE_DEVICES assignment verification
 
-#### 6. **Job Timeout** (Partial coverage)
+#### 5. **Job Timeout** (Partial coverage)
 
 - ✅ Tested: `timeout` parameter is stored in Job
 - ❌ Missing: Timeout enforcement during job execution
 - ❌ Missing: Timeout cancellation logic
 
-#### 7. **File Versioning** (Partial coverage)
+#### 6. **File Versioning** (Partial coverage)
 
 - ✅ Tested: `versioned_script_path` is assigned to Job
 - ❌ Missing: Actual file copying and versioning logic
@@ -367,71 +350,9 @@ Current E2E tests simulate workflows but don't test actual system integration:
 
 ## Test Coverage Roadmap
 
-This roadmap addresses the critical testing gaps identified above.
+This roadmap addresses the remaining critical testing gaps.
 
-### Phase 1: HTTP API Endpoint Tests (CRITICAL - Week 1-2)
-
-**Goal:** Test the HTTP API endpoints that handle requests.
-
-**New test file:** `tests/integration/test_api_endpoints.py`
-
-**Approach:**
-- Use FastAPI's `TestClient` for testing without starting actual server
-- Test all endpoints documented in API_REFERENCE.md
-- Verify request validation, status codes, response schemas
-
-**Example test structure:**
-
-```python
-from fastapi.testclient import TestClient
-from scheduler.head.api_server import create_app
-
-@pytest.fixture
-def api_client(job_manager, node_manager):
-    """Create test client with test dependencies"""
-    app = create_app(job_manager, node_manager)
-    return TestClient(app)
-
-class TestJobEndpoints:
-    def test_submit_job_success(self, api_client):
-        """Test POST /api/v1/jobs"""
-        response = api_client.post("/api/v1/jobs", json={
-            "script": "train.py",
-            "requirements": "2"
-        })
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "job_id" in data
-        assert data["status"] == "PENDING"
-
-    def test_submit_job_invalid_requirements(self, api_client):
-        """Test invalid requirements return 400"""
-        response = api_client.post("/api/v1/jobs", json={
-            "script": "train.py",
-            "requirements": "invalid"
-        })
-
-        assert response.status_code == 400
-        assert "error" in response.json()
-
-    def test_get_job_not_found(self, api_client):
-        """Test GET /api/v1/jobs/{id} for non-existent job"""
-        response = api_client.get("/api/v1/jobs/nonexistent")
-
-        assert response.status_code == 404
-```
-
-**Test coverage targets:**
-- All endpoints in `scheduler/api/routes.py`
-- Request schema validation
-- HTTP status codes (200, 400, 404, 500)
-- Error response formatting
-- Edge cases (empty lists, missing fields, etc.)
-
-**Estimated effort:** 5-7 days
-
-### Phase 3: CLI Command Tests (CRITICAL - Week 3-4)
+### Phase 1: CLI Command Tests (CRITICAL - Week 1-2)
 
 **Goal:** Test CLI commands that users run in terminal.
 
@@ -508,7 +429,7 @@ class TestCLIJobs:
 
 **Estimated effort:** 5-7 days
 
-### Phase 3: Worker Component Tests (CRITICAL - Week 3-4)
+### Phase 2: Worker Component Tests (CRITICAL - Week 3-4)
 
 **Goal:** Test worker daemon components that execute jobs.
 
@@ -580,7 +501,7 @@ class TestJobExecutor:
 
 **Estimated effort:** 7-10 days
 
-### Phase 4: True End-to-End Tests (HIGH - Week 4-5)
+### Phase 3: True End-to-End Tests (HIGH - Week 5-6)
 
 **Goal:** Test complete system with actual processes communicating via HTTP.
 
@@ -663,7 +584,7 @@ def test_full_job_workflow_real_processes(running_cluster):
 
 **Estimated effort:** 5-7 days
 
-### Phase 5: Partial Coverage Improvements (MEDIUM - Week 5-6)
+### Phase 4: Partial Coverage Improvements (MEDIUM - Week 7)
 
 **Goal:** Fill in partial test coverage gaps.
 
@@ -685,13 +606,12 @@ def test_full_job_workflow_real_processes(running_cluster):
 
 | Phase | Component | Priority | Estimated Days | Dependencies |
 |-------|-----------|----------|----------------|--------------|
-| 1 | HTTP API Tests | CRITICAL | 5-7 | None |
-| 2 | CLI Tests | CRITICAL | 5-7 | None |
-| 3 | Worker Tests | CRITICAL | 7-10 | None |
-| 4 | True E2E Tests | HIGH | 5-7 | Phases 1-3 |
-| 5 | Partial Coverage | MEDIUM | 3-5 | Phase 3 |
+| 1 | CLI Tests | CRITICAL | 5-7 | None |
+| 2 | Worker Tests | CRITICAL | 7-10 | None |
+| 3 | True E2E Tests | HIGH | 5-7 | Phases 1-2 |
+| 4 | Partial Coverage | MEDIUM | 3-5 | Phase 2 |
 
-**Total estimated time:** 26-39 days (5-8 weeks) for one developer
+**Total estimated time:** 21-32 days (4-6 weeks) for one developer
 
 ---
 
@@ -708,17 +628,17 @@ pytest-mock>=3.10
 responses>=0.23  # For mocking HTTP requests
 ```
 
-### 2. Start with Phase 1 (Python API)
+### 2. Start with Phase 1 (CLI Commands)
 
 ```bash
 # Create test file
-touch tests/unit/test_python_client.py
+touch tests/integration/test_cli_commands.py
 
 # Run only this test file during development
-pytest tests/unit/test_python_client.py -v
+pytest tests/integration/test_cli_commands.py -v
 
 # Check coverage
-pytest tests/unit/test_python_client.py --cov=scheduler.api.client --cov-report=term-missing
+pytest tests/integration/test_cli_commands.py --cov=scheduler.cli --cov-report=term-missing
 ```
 
 ### 3. Use TDD approach
@@ -750,15 +670,19 @@ Update GitHub Actions / CI pipeline:
 
 ## Success Metrics
 
-After completing the roadmap:
+**Current status:**
+- ✅ **Python API Coverage:** ~90% (ACHIEVED)
+- ✅ **HTTP API Coverage:** 91% routes, 100% schemas (ACHIEVED)
+- **CLI Coverage:** 0% (TODO)
+- **Worker Components:** 0% (TODO)
+- **Overall Coverage:** ~50%
 
-- **Python API Coverage:** >90%
-- **HTTP API Coverage:** >90%
+**After completing the roadmap:**
 - **CLI Coverage:** >80%
 - **Worker Components:** >85%
-- **Overall Coverage:** >70% (up from current ~40-50%)
+- **Overall Coverage:** >70%
 
-Most importantly: **All three user-facing interfaces (Python API, CLI, HTTP) will have test coverage**, significantly reducing the risk of bugs in production.
+Most importantly: **All three user-facing interfaces (Python API, CLI, HTTP) will have test coverage**, significantly reducing the risk of bugs in production. Two of three interfaces are now complete!
 
 ## Performance Tests
 
