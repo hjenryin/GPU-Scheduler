@@ -183,7 +183,8 @@ class SchedulerClient:
             ConnectionException: If cannot connect
         """
         try:
-            response = self.session.post(f"{self.base_url}/jobs/{job_id}/cancel", timeout=30)
+            # Fixed: Use DELETE method to /jobs/{job_id} (not POST to /cancel)
+            response = self.session.delete(f"{self.base_url}/jobs/{job_id}", timeout=30)
             if response.status_code == 404:
                 raise JobNotFoundException(f"Job {job_id} not found")
             response.raise_for_status()
@@ -399,8 +400,9 @@ class SchedulerClient:
         params = {"timeout": timeout}
 
         try:
+            # Fixed: Use /workers/{node_name}/jobs/next (not /poll)
             response = self.session.get(
-                f"{self.base_url}/workers/{node_name}/poll",
+                f"{self.base_url}/workers/{node_name}/jobs/next",
                 params=params,
                 timeout=timeout + 5  # Add buffer to request timeout
             )
@@ -429,10 +431,13 @@ class SchedulerClient:
         Raises:
             ConnectionException: If cannot connect
         """
-        payload = {"exit_code": exit_code}
-
+        # Fixed: Send exit_code as query parameter (not JSON body)
         try:
-            response = self.session.post(f"{self.base_url}/workers/jobs/{job_id}/complete", json=payload, timeout=30)
+            response = self.session.post(
+                f"{self.base_url}/workers/jobs/{job_id}/complete",
+                params={"exit_code": exit_code},
+                timeout=30
+            )
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to report completion for job {job_id}: {e}")
@@ -449,10 +454,13 @@ class SchedulerClient:
         Raises:
             ConnectionException: If cannot connect
         """
-        payload = {"error_message": error_message}
-
+        # Fixed: Send error_message as query parameter (not JSON body)
         try:
-            response = self.session.post(f"{self.base_url}/workers/jobs/{job_id}/fail", json=payload, timeout=30)
+            response = self.session.post(
+                f"{self.base_url}/workers/jobs/{job_id}/fail",
+                params={"error_message": error_message},
+                timeout=30
+            )
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to report failure for job {job_id}: {e}")
