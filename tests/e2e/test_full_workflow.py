@@ -186,13 +186,19 @@ def full_system(temp_dir):
     from scheduler.head.persistence import PersistenceManager
     from scheduler.storage import FileBackend
 
+    from scheduler.core.config import HeadConfig, WorkerConfig
+
     config = Config(
-        temp_dir=temp_dir,
-        log_dir=temp_dir,
-        gpu_util_threshold=10.0,
-        gpu_mem_threshold=10.0,
-        gpu_stable_time=60,
-        job_startup_grace=30
+        head=HeadConfig(heartbeat_timeout=30),
+        worker=WorkerConfig(
+            temp_dir=temp_dir,
+            log_dir=temp_dir,
+            work_dir=temp_dir,
+            gpu_util_threshold=10.0,
+            gpu_mem_threshold=10.0,
+            gpu_stable_time=60,
+            job_startup_grace=30
+        )
     )
 
     backend = FileBackend(storage_dir=temp_dir)

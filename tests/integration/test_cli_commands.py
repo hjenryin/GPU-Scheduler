@@ -1057,9 +1057,7 @@ class TestCLIStop:
 class TestCLIMain:
     """Test main CLI entry point and argument parsing.
 
-    Note: Testing main() with mocking is complex because it imports command functions
-    at module level. The individual command functions are thoroughly tested above.
-    Main primarily provides argument parsing and routing via argparse.
+    Tests actual command routing through argparse with mocked command functions.
     """
 
     @patch('sys.argv', ['scheduler'])
@@ -1074,6 +1072,325 @@ class TestCLIMain:
         from scheduler.cli.main import main
         assert callable(main)
 
+    @patch('sys.argv', ['scheduler', 'start', '--head'])
+    @patch('scheduler.cli.main.start_command')
+    def test_main_routes_start_command(self, mock_start_cmd):
+        """Test main() routes to start_command with parsed args."""
+        from scheduler.cli.main import main
+        mock_start_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        mock_start_cmd.assert_called_once()
+        call_kwargs = mock_start_cmd.call_args[1]
+        assert call_kwargs['head'] is True
+
+    @patch('sys.argv', ['scheduler', 'stop', '--force'])
+    @patch('scheduler.cli.main.stop_command')
+    def test_main_routes_stop_command(self, mock_stop_cmd):
+        """Test main() routes to stop_command with parsed args."""
+        from scheduler.cli.main import main
+        mock_stop_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        mock_stop_cmd.assert_called_once_with(force=True)
+
+    @patch('sys.argv', ['scheduler', 'submit', 'train.py', '--req', '2', '--name', 'my_job'])
+    @patch('scheduler.cli.main.submit_command')
+    def test_main_routes_submit_command(self, mock_submit_cmd):
+        """Test main() routes to submit_command with parsed args."""
+        from scheduler.cli.main import main
+        mock_submit_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        mock_submit_cmd.assert_called_once()
+        call_kwargs = mock_submit_cmd.call_args[1]
+        assert call_kwargs['script'] == 'train.py'
+        assert call_kwargs['req'] == '2'
+        assert call_kwargs['name'] == 'my_job'
+
+    @patch('sys.argv', ['scheduler', 'jobs', '--format', 'json', '--limit', '10'])
+    @patch('scheduler.cli.main.jobs_command')
+    def test_main_routes_jobs_command(self, mock_jobs_cmd):
+        """Test main() routes to jobs_command with parsed args."""
+        from scheduler.cli.main import main
+        mock_jobs_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        mock_jobs_cmd.assert_called_once()
+        call_kwargs = mock_jobs_cmd.call_args[1]
+        assert call_kwargs['format'] == 'json'
+        assert call_kwargs['limit'] == 10
+
+    @patch('sys.argv', ['scheduler', 'jobs', 'job_123', 'job_456'])
+    @patch('scheduler.cli.main.jobs_command')
+    def test_main_routes_jobs_with_ids(self, mock_jobs_cmd):
+        """Test main() routes jobs command with specific job IDs."""
+        from scheduler.cli.main import main
+        mock_jobs_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        call_kwargs = mock_jobs_cmd.call_args[1]
+        assert call_kwargs['job_ids'] == ['job_123', 'job_456']
+
+    @patch('sys.argv', ['scheduler', 'logs', 'job_123', '-f', '--stderr'])
+    @patch('scheduler.cli.main.logs_command')
+    def test_main_routes_logs_command(self, mock_logs_cmd):
+        """Test main() routes to logs_command with parsed args."""
+        from scheduler.cli.main import main
+        mock_logs_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        mock_logs_cmd.assert_called_once()
+        call_kwargs = mock_logs_cmd.call_args[1]
+        assert call_kwargs['job_id'] == 'job_123'
+        assert call_kwargs['follow'] is True
+        assert call_kwargs['stderr'] is True
+
+    @patch('sys.argv', ['scheduler', 'cancel', 'job_1', 'job_2'])
+    @patch('scheduler.cli.main.cancel_command')
+    def test_main_routes_cancel_command(self, mock_cancel_cmd):
+        """Test main() routes to cancel_command with parsed args."""
+        from scheduler.cli.main import main
+        mock_cancel_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        mock_cancel_cmd.assert_called_once()
+        call_kwargs = mock_cancel_cmd.call_args[1]
+        assert call_kwargs['job_ids'] == ['job_1', 'job_2']
+
+    @patch('sys.argv', ['scheduler', 'config', 'init'])
+    @patch('scheduler.cli.main.config_command')
+    def test_main_routes_config_init(self, mock_config_cmd):
+        """Test main() routes to config_command for init."""
+        from scheduler.cli.main import main
+        mock_config_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        mock_config_cmd.assert_called_once()
+        call_kwargs = mock_config_cmd.call_args[1]
+        assert call_kwargs['command'] == 'init'
+
+    @patch('sys.argv', ['scheduler', 'config', 'set', 'head_node.port', '9000'])
+    @patch('scheduler.cli.main.config_command')
+    def test_main_routes_config_set(self, mock_config_cmd):
+        """Test main() routes to config_command for set."""
+        from scheduler.cli.main import main
+        mock_config_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        mock_config_cmd.assert_called_once()
+        call_kwargs = mock_config_cmd.call_args[1]
+        assert call_kwargs['command'] == 'set'
+        assert call_kwargs['key'] == 'head_node.port'
+        assert call_kwargs['value'] == '9000'
+
+    @patch('sys.argv', ['scheduler', 'status'])
+    @patch('scheduler.cli.main.status_command')
+    def test_main_routes_status_command(self, mock_status_cmd):
+        """Test main() routes to status_command."""
+        from scheduler.cli.main import main
+        mock_status_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        mock_status_cmd.assert_called_once()
+
+    @patch('sys.argv', ['scheduler', 'start', '--head'])
+    @patch('scheduler.cli.main.start_command')
+    def test_main_handles_keyboard_interrupt(self, mock_start_cmd):
+        """Test main() handles KeyboardInterrupt gracefully."""
+        from scheduler.cli.main import main
+        mock_start_cmd.side_effect = KeyboardInterrupt()
+
+        exit_code = main()
+
+        assert exit_code == 130
+
+    @patch('sys.argv', ['scheduler', 'submit', 'train.py'])
+    @patch('scheduler.cli.main.submit_command')
+    def test_main_handles_generic_exception(self, mock_submit_cmd):
+        """Test main() handles generic exceptions."""
+        from scheduler.cli.main import main
+        mock_submit_cmd.side_effect = RuntimeError("Unexpected error")
+
+        exit_code = main()
+
+        assert exit_code == 1
+
+    @patch('sys.argv', ['scheduler', 'submit', 'script.py', 'arg1', 'arg2', '--req', '1'])
+    @patch('scheduler.cli.main.submit_command')
+    def test_main_submit_with_script_args(self, mock_submit_cmd):
+        """Test main() handles submit with script arguments."""
+        from scheduler.cli.main import main
+        mock_submit_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        call_kwargs = mock_submit_cmd.call_args[1]
+        assert call_kwargs['script'] == 'script.py'
+        assert call_kwargs['script_args'] == ['arg1', 'arg2']
+
+    @patch('sys.argv', ['scheduler', 'start', '--address', 'localhost:8265', '--port', '9000'])
+    @patch('scheduler.cli.main.start_command')
+    def test_main_start_with_all_options(self, mock_start_cmd):
+        """Test main() handles start command with all options."""
+        from scheduler.cli.main import main
+        mock_start_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        call_kwargs = mock_start_cmd.call_args[1]
+        assert call_kwargs['address'] == 'localhost:8265'
+        assert call_kwargs['port'] == 9000
+        assert call_kwargs['head'] is False
+
+    @patch('sys.argv', ['scheduler', 'jobs', '--filter', 'running', '--format', 'table'])
+    @patch('scheduler.cli.main.jobs_command')
+    def test_main_jobs_with_filter(self, mock_jobs_cmd):
+        """Test main() handles jobs command with status filter."""
+        from scheduler.cli.main import main
+        mock_jobs_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        call_kwargs = mock_jobs_cmd.call_args[1]
+        assert call_kwargs['filter'] == 'running'
+        assert call_kwargs['format'] == 'table'
+
+    @patch('sys.argv', ['scheduler', 'logs', 'job_123', '-n', '50', '--both'])
+    @patch('scheduler.cli.main.logs_command')
+    def test_main_logs_with_lines_and_both(self, mock_logs_cmd):
+        """Test main() handles logs command with line limit and both streams."""
+        from scheduler.cli.main import main
+        mock_logs_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        call_kwargs = mock_logs_cmd.call_args[1]
+        assert call_kwargs['job_id'] == 'job_123'
+        assert call_kwargs['lines'] == 50
+        assert call_kwargs['both'] is True
+
+    @patch('sys.argv', ['scheduler', 'config', 'show'])
+    @patch('scheduler.cli.main.config_command')
+    def test_main_config_show(self, mock_config_cmd):
+        """Test main() handles config show command."""
+        from scheduler.cli.main import main
+        mock_config_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        call_kwargs = mock_config_cmd.call_args[1]
+        assert call_kwargs['command'] == 'show'
+
+    @patch('sys.argv', ['scheduler', 'config', 'get', 'head_node.port'])
+    @patch('scheduler.cli.main.config_command')
+    def test_main_config_get(self, mock_config_cmd):
+        """Test main() handles config get command."""
+        from scheduler.cli.main import main
+        mock_config_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        call_kwargs = mock_config_cmd.call_args[1]
+        assert call_kwargs['command'] == 'get'
+        assert call_kwargs['key'] == 'head_node.port'
+
+    @patch('sys.argv', ['scheduler', 'start', '--head', '--port', '9000', '--node-name', 'test-node', '--num-gpus', '4', '--log-level', 'DEBUG'])
+    @patch('scheduler.cli.main.start_command')
+    def test_main_start_head_with_all_args(self, mock_start_cmd):
+        """Test main() handles start command with all arguments."""
+        from scheduler.cli.main import main
+        mock_start_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        call_kwargs = mock_start_cmd.call_args[1]
+        assert call_kwargs['head'] is True
+        assert call_kwargs['port'] == 9000
+        assert call_kwargs['node_name'] == 'test-node'
+        assert call_kwargs['num_gpus'] == 4
+        assert call_kwargs['log_level'] == 'DEBUG'
+
+    @patch('sys.argv', ['scheduler', 'submit', 'train.py', '--req', '2', '--priority', '5', '--async'])
+    @patch('scheduler.cli.main.submit_command')
+    def test_main_submit_with_async_flag(self, mock_submit_cmd):
+        """Test main() handles submit with async flag."""
+        from scheduler.cli.main import main
+        mock_submit_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        call_kwargs = mock_submit_cmd.call_args[1]
+        assert call_kwargs['async_submit'] is True
+
+    @patch('sys.argv', ['scheduler', 'submit', 'train.py', '--req', '1', '--log-to-driver'])
+    @patch('scheduler.cli.main.submit_command')
+    def test_main_submit_with_log_to_driver(self, mock_submit_cmd):
+        """Test main() handles submit with log-to-driver flag."""
+        from scheduler.cli.main import main
+        mock_submit_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        call_kwargs = mock_submit_cmd.call_args[1]
+        assert call_kwargs['log_to_driver'] is True
+
+    @patch('sys.argv', ['scheduler', 'jobs'])
+    @patch('scheduler.cli.main.jobs_command')
+    def test_main_jobs_without_job_ids(self, mock_jobs_cmd):
+        """Test main() handles jobs command without specific IDs."""
+        from scheduler.cli.main import main
+        mock_jobs_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        call_kwargs = mock_jobs_cmd.call_args[1]
+        # When no job_ids provided, should be None
+        assert call_kwargs['job_ids'] is None
+
+    @patch('sys.argv', ['scheduler', 'start', '--address', '192.168.1.100:8265'])
+    @patch('scheduler.cli.main.start_command')
+    def test_main_start_worker_with_address(self, mock_start_cmd):
+        """Test main() handles start worker with address."""
+        from scheduler.cli.main import main
+        mock_start_cmd.return_value = 0
+
+        exit_code = main()
+
+        assert exit_code == 0
+        call_kwargs = mock_start_cmd.call_args[1]
+        assert call_kwargs['address'] == '192.168.1.100:8265'
+        assert call_kwargs['head'] is False
 
 class TestCLIExitCodes:
     """Test that CLI commands return proper exit codes."""
@@ -1151,6 +1468,17 @@ class TestCLIStatus:
         exit_code = status_command()
 
         assert exit_code == 0  # Graceful exit
+
+    @patch('scheduler.cli.status.load_config')
+    def test_status_command_generic_error(self, mock_load_config):
+        """Test status command handles generic errors."""
+        from scheduler.cli.status import status_command
+
+        mock_load_config.side_effect = RuntimeError("Config file corrupted")
+
+        exit_code = status_command()
+
+        assert exit_code == 1
 
 
 class TestCLIEdgeCases:

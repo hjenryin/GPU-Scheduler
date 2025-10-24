@@ -30,10 +30,12 @@ class TestSchedulerClientInitialization:
 
     def test_client_initialization_without_address(self):
         """Test client auto-detects address from config"""
-        mock_config = Mock()
-        mock_config.get.side_effect = lambda key, default=None: {
-            'head_node': {'host': 'configured-host', 'port': 8888}
-        }.get(key, default)
+        from scheduler.core.config import Config, HeadConfig
+
+        mock_config = Config(
+            address="configured-host:8888",
+            head=HeadConfig(port=8888)
+        )
 
         with patch('scheduler.api.client.load_config', return_value=mock_config):
             client = SchedulerClient()
@@ -43,14 +45,16 @@ class TestSchedulerClientInitialization:
 
     def test_client_initialization_with_custom_config(self):
         """Test client initializes with custom config"""
-        mock_config = Mock()
-        mock_config.get.side_effect = lambda key, default=None: {
-            'head_node': {'host': 'custom-host', 'port': 7777}
-        }.get(key, default)
+        from scheduler.core.config import Config, HeadConfig
 
-        client = SchedulerClient(config=mock_config)
+        custom_config = Config(
+            address="custom-host:7777",
+            head=HeadConfig(port=7777)
+        )
 
-        assert client.config == mock_config
+        client = SchedulerClient(config=custom_config)
+
+        assert client.config == custom_config
         assert "custom-host:7777" in client.base_url
 
     def test_client_session_has_retry_strategy(self):

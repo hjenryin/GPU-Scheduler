@@ -17,14 +17,19 @@ from scheduler.head.persistence import PersistenceManager
 def full_system(temp_dir):
     """Create a complete system setup"""
     from scheduler.storage import FileBackend
+    from scheduler.core.config import HeadConfig, WorkerConfig
 
     config = Config(
-        temp_dir=temp_dir,
-        log_dir=temp_dir,
-        gpu_util_threshold=10.0,
-        gpu_mem_threshold=10.0,
-        gpu_stable_time=60,
-        job_startup_grace=30
+        head=HeadConfig(heartbeat_timeout=30),
+        worker=WorkerConfig(
+            temp_dir=temp_dir,
+            log_dir=temp_dir,
+            work_dir=temp_dir,
+            gpu_util_threshold=10.0,
+            gpu_mem_threshold=10.0,
+            gpu_stable_time=60,
+            job_startup_grace=30
+        )
     )
 
     backend = FileBackend(storage_dir=temp_dir)
@@ -273,8 +278,9 @@ class TestJobLifecycle:
     def test_persistence_across_restart(self, temp_dir):
         """Test that state is preserved across restarts"""
         from scheduler.storage import FileBackend
+        from scheduler.core.config import WorkerConfig
 
-        config = Config(temp_dir=temp_dir, log_dir=temp_dir)
+        config = Config(worker=WorkerConfig(temp_dir=temp_dir, log_dir=temp_dir, work_dir=temp_dir))
 
         # First instance - submit job and register node
         backend1 = FileBackend(storage_dir=temp_dir)

@@ -28,18 +28,27 @@ def temp_dir():
 @pytest.fixture
 def test_config(temp_dir):
     """Test configuration fixture"""
+    from scheduler.core.config import HeadConfig, WorkerConfig, StorageConfig, ClientConfig
+
     return Config(
         address="localhost:8265",
-        port=8265,
-        temp_dir=temp_dir,
-        log_dir=temp_dir,
-        heartbeat_timeout=30,
-        scheduling_interval=10,
-        gpu_poll_interval=5,
-        gpu_util_threshold=10.0,
-        gpu_mem_threshold=10.0,
-        gpu_stable_time=60,
-        job_startup_grace=30
+        head=HeadConfig(
+            port=8265,
+            heartbeat_timeout=30,
+            scheduling_interval=10
+        ),
+        worker=WorkerConfig(
+            temp_dir=temp_dir,
+            log_dir=temp_dir,
+            work_dir=temp_dir,
+            gpu_poll_interval=5,
+            gpu_util_threshold=10.0,
+            gpu_mem_threshold=10.0,
+            gpu_stable_time=60,
+            job_startup_grace=30
+        ),
+        storage=StorageConfig(),
+        client=ClientConfig()
     )
 
 

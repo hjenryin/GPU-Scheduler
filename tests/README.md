@@ -12,9 +12,13 @@ tests/
 │   ├── test_config.py    # Tests for configuration
 │   ├── test_scheduler.py # Tests for scheduling algorithm
 │   ├── test_job_manager.py    # Tests for job management
-│   └── test_node_manager.py   # Tests for node management
+│   ├── test_node_manager.py   # Tests for node management
+│   ├── test_python_client.py  # Tests for Python API client
+│   └── test_cli_main.py       # Tests for CLI main entry point (NEW!)
 ├── integration/          # Integration tests
-│   └── test_job_lifecycle.py  # Tests for job lifecycle workflows
+│   ├── test_job_lifecycle.py  # Tests for job lifecycle workflows
+│   ├── test_api_endpoints.py  # Tests for HTTP API endpoints
+│   └── test_cli_commands.py   # Tests for CLI commands
 └── e2e/                  # End-to-end tests
     └── test_full_workflow.py   # Full system workflow tests
 ```
@@ -249,8 +253,8 @@ The test suite has **excellent coverage** of the core business logic:
   - Request validation, HTTP status codes, error responses
   - Response schema validation
 
-- ✅ **CLI Commands** (`tests/integration/test_cli_commands.py`) - **NEW!**
-  - All scheduler CLI commands (72 tests, **86% coverage**)
+- ✅ **CLI Commands** (`tests/integration/test_cli_commands.py` + `tests/unit/test_cli_main.py`) - **NEW!**
+  - All scheduler CLI commands (88 tests, **88% coverage**)
   - `scheduler submit` - job submission with all options (11 tests)
   - `scheduler jobs` - job listing, filtering, formats (7 tests)
   - `scheduler logs` - log viewing, streaming, stderr (7 tests)
@@ -260,13 +264,18 @@ The test suite has **excellent coverage** of the core business logic:
   - `scheduler stop` - graceful/force shutdown (5 tests)
   - `scheduler status` - TUI launch (3 tests)
   - Argument parsing, error handling, exit codes (8 tests)
+  - **NEW:** CLI main entry point (`test_cli_main.py`) - 16 unit tests
+    - Command routing for all 8 CLI commands
+    - Exception handling (KeyboardInterrupt, generic errors)
+    - Argument parsing verification
+    - `main.py`: **96% coverage** (up from 67%)
   - **Per-module coverage:**
+    - `main.py`: **96%** (79 lines, 3 missing) ⬆️
     - `start.py`: 100% (111/111 lines)
     - `config.py`: 94% (47 lines, 3 missing)
     - `jobs.py`: 87%, `logs.py`: 87%
     - `status.py`: 85%, `cancel.py`: 85%
     - `stop.py`: 82%, `submit.py`: 82%
-    - `main.py`: 67% (argparse routing)
   - **Bug fixed:** `config.py` referenced non-existent constant
 
 ### ❌ What is NOT Tested (Critical Gaps)
@@ -505,23 +514,7 @@ def test_full_job_workflow_real_processes(running_cluster):
 
 **Estimated effort:** 5-7 days
 
-### Phase 3: Partial Coverage Improvements (MEDIUM)
-
-**Goal:** Fill in partial test coverage gaps.
-
-**Areas to address:**
-
-- Environment variable propagation verification
-- Job timeout enforcement testing
-- File versioning and cleanup testing
-
-**New tests to add:**
-
-- `test_env_vars_propagation` in `test_worker_job_executor.py`
-- `test_timeout_enforcement` in `test_worker_job_executor.py`
-- `test_file_versioning` in `test_worker_file_handler.py`
-
-**Estimated effort:** 3-5 days
+**Note:** Environment variable propagation, job timeout enforcement, and file versioning tests should be integrated into Phase 1 worker tests.
 
 ---
 
@@ -531,9 +524,8 @@ def test_full_job_workflow_real_processes(running_cluster):
 |-------|-----------|----------|----------------|--------|
 | 1 | Worker Tests | CRITICAL | 7-10 | 📋 TODO |
 | 2 | True E2E Tests | HIGH | 5-7 | 📋 TODO |
-| 3 | Partial Coverage | MEDIUM | 3-5 | 📋 TODO |
 
-**Total estimated time:** 15-22 days (3-4 weeks) for one developer
+**Total estimated time:** 12-17 days (2.5-3.5 weeks) for one developer
 
 ---
 
@@ -598,11 +590,11 @@ Update GitHub Actions / CI pipeline:
 
 - ✅ **Python API Coverage:** ~90% (ACHIEVED)
 - ✅ **HTTP API Coverage:** 91% routes, 100% schemas (ACHIEVED)
-- ✅ **CLI Coverage:** 86% (ACHIEVED) - **NEW!**
+- ✅ **CLI Coverage:** 88% overall, 96% for main.py (ACHIEVED) - **IMPROVED!**
 - ❌ **Worker Components:** 0% (TODO)
-- **Overall Coverage:** ~60% (up from ~50%)
+- **Overall Coverage:** ~62% (up from ~50%)
 
-**After completing remaining roadmap (Phases 1-3):**
+**After completing remaining roadmap (Phases 1-2):**
 
 - **Worker Components:** >85%
 - **True E2E Coverage:** Full system integration tested
