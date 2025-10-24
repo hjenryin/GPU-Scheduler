@@ -4,7 +4,7 @@ import time
 import threading
 from typing import Optional
 
-from scheduler.core import Config, PermissionDeniedException, constants
+from scheduler.core import Config, PermissionDeniedException
 from scheduler.storage import FileBackend, SQLiteBackend
 from scheduler.head.persistence import PersistenceManager
 from scheduler.head.job_manager import JobManager
@@ -30,17 +30,12 @@ class Orchestrator:
         self.scheduler_thread: Optional[threading.Thread] = None
 
         # Initialize storage backend
-        storage_config = config.get('storage', {})
-        backend_type = storage_config.get('backend', 'file')
-
-        if backend_type == 'sqlite':
-            db_path = storage_config.get('db_path', constants.DEFAULT_DB_PATH)
-            backend = SQLiteBackend(db_path)
-            logger.info(f"Using SQLite backend at {db_path}")
+        if config.storage.backend == 'sqlite':
+            backend = SQLiteBackend(config.storage.db_path)
+            logger.info(f"Using SQLite backend at {config.storage.db_path}")
         else:
-            data_dir = storage_config.get('data_dir', constants.DEFAULT_DATA_DIR)
-            backend = FileBackend(data_dir)
-            logger.info(f"Using file backend at {data_dir}")
+            backend = FileBackend(config.storage.data_dir)
+            logger.info(f"Using file backend at {config.storage.data_dir}")
 
         # Initialize persistence layer
         persistence = PersistenceManager(backend)
@@ -50,14 +45,10 @@ class Orchestrator:
         self.node_manager = NodeManager(persistence, config)
 
         # Initialize scheduler
-        heartbeat_timeout = config.get('head_node', {}).get('heartbeat_timeout', constants.DEFAULT_HEARTBEAT_TIMEOUT)
-        schedule_interval = config.get('head_node', {}).get('schedule_interval', constants.DEFAULT_SCHEDULE_INTERVAL)
-
         self.scheduler = Scheduler(
             self.job_manager,
             self.node_manager,
-            schedule_interval=schedule_interval,
-            heartbeat_timeout=heartbeat_timeout
+            config
         )
 
         # Initialize API server

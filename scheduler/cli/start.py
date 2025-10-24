@@ -4,7 +4,7 @@ import socket
 import logging
 from typing import Optional
 
-from scheduler.core import load_config, save_config, ValidationException, ConnectionException, PermissionDeniedException, constants
+from scheduler.core import Config, load_config, ValidationException, ConnectionException, PermissionDeniedException, constants
 from scheduler.head import Orchestrator
 from scheduler.worker import WorkerDaemon, SingletonDaemon
 
@@ -63,32 +63,36 @@ def start_command(
     if head and address:
         print("Warning: --address ignored when starting as head node")
 
-    # Load or create configuration
+    # Load base configuration
     try:
-        config = load_config()
+        base_config = load_config()
     except:
-        config = {}
+        base_config = Config()
 
-    # Update config with CLI arguments
+    # Build config dict for customization
+    config_dict = base_config.to_dict()
+
+    # Update with CLI arguments
     if temp_dir:
-        config.setdefault('worker', {})['work_dir'] = os.path.expanduser(temp_dir)
+        config_dict.setdefault('worker', {})['work_dir'] = os.path.expanduser(temp_dir)
     if log_dir:
-        config.setdefault('worker', {})['log_dir'] = os.path.expanduser(log_dir)
+        config_dict.setdefault('worker', {})['log_dir'] = os.path.expanduser(log_dir)
 
-    # Merge kwargs into config
+    # Merge kwargs and set address
     if head:
-        config.setdefault('head_node', {})['port'] = port
+        config_dict.setdefault('head', {})['port'] = port
         for key, value in kwargs.items():
             if key.startswith('heartbeat_') or key.startswith('scheduling_'):
-                config['head_node'][key] = value
+                config_dict.setdefault('head', {})[key] = value
     else:
-        config.setdefault('head_node', {})['host'] = address.split(':')[0] if ':' in address else address
-        if ':' in address:
-            config['head_node']['port'] = int(address.split(':')[1])
-
+        # For worker, set the address field to connect to head
+        config_dict['address'] = address
         for key, value in kwargs.items():
             if key.startswith('gpu_') or key.startswith('job_'):
-                config.setdefault('worker', {})[key] = value
+                config_dict.setdefault('worker', {})[key] = value
+
+    # Create final Config object from customized dict
+    config = Config.from_dict(config_dict)
 
     try:
         if head:
@@ -121,11 +125,11 @@ def start_command(
         return 1
 
 
-def _start_head_node(config: dict, block: bool) -> int:
+def _start_head_node(config: Config, block: bool) -> int:
     """Start head node orchestrator."""
     print("Starting scheduler as HEAD NODE...")
-    print(f"Port: {config.get('head_node', {}).get('port', constants.DEFAULT_PORT)}")
-    print(f"API: http://localhost:{config.get('head_node', {}).get('port', constants.DEFAULT_PORT)}/api/v1")
+    print(f"Port: {config.head.port}")
+    print(f"API: http://localhost:{config.head.port}/api/v1")
 
     # Check for existing head node
     lockfile = os.path.expanduser("~/.scheduler/head.lock")
@@ -153,7 +157,7 @@ def _start_head_node(config: dict, block: bool) -> int:
         singleton.release_lock()
 
 
-def _start_worker_node(config: dict, node_name: Optional[str], num_gpus: Optional[int], block: bool) -> int:
+def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optional[int], block: bool) -> int:
     """Start worker node daemon."""
     # Determine node name
     if not node_name:
@@ -162,9 +166,8 @@ def _start_worker_node(config: dict, node_name: Optional[str], num_gpus: Optiona
     print(f"Starting scheduler as WORKER NODE...")
     print(f"Node name: {node_name}")
 
-    head_host = config.get('head_node', {}).get('host', 'localhost')
-    head_port = config.get('head_node', {}).get('port', constants.DEFAULT_PORT)
-    print(f"Connecting to head node: {head_host}:{head_port}")
+    # Display connection info
+    print(f"Connecting to head node: {config.address}")
 
     # Check for existing worker
     lockfile = os.path.expanduser(f"~/.scheduler/worker-{node_name}.lock")

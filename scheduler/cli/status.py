@@ -20,8 +20,8 @@ def status_command() -> int:
         # Load configuration
         config = load_config()
 
-        # Get head node address
-        address = config.get('head', {}).get('address', 'localhost:8265')
+        # Get head node address from config or use default
+        address = config.address if config.address else f'localhost:{config.head.port}'
 
         # Create client and run TUI
         client = SchedulerClient(address=address, config=config)

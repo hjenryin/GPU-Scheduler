@@ -31,6 +31,7 @@ from scheduler.core.utils import (
     generate_versioned_filename,
     is_port_available,
     get_local_ip,
+    ensure_dir_exists,
 )
 
 from scheduler.core.constants import (
@@ -79,6 +80,7 @@ __all__ = [
     "generate_versioned_filename",
     "is_port_available",
     "get_local_ip",
+    "ensure_dir_exists",
     # Constants
     "DEFAULT_PORT",
     "DEFAULT_HEARTBEAT_TIMEOUT",

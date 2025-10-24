@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 from scheduler.head.job_manager import JobManager
 from scheduler.head.node_manager import NodeManager
-from scheduler.core import Config, PermissionDeniedException, DEFAULT_PORT
+from scheduler.core import Config, PermissionDeniedException
 from scheduler.api.routes import create_app
 
 logger = logging.getLogger(__name__)
@@ -35,9 +35,8 @@ class APIServer:
         self.config = config
 
         # Get server configuration
-        head_config = config.get('head_node', {})
-        self.host = head_config.get('host', '0.0.0.0')
-        self.port = head_config.get('port', DEFAULT_PORT)
+        self.host = '0.0.0.0'
+        self.port = config.head.port
 
         # Create FastAPI app
         self.app = create_app(job_manager, node_manager)

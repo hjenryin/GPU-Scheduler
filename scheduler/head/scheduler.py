@@ -117,9 +117,9 @@ class Scheduler:
 
                 # Get free and stable GPUs
                 free_gpus = node.get_free_gpus(
-                    self.config.gpu_util_threshold,
-                    self.config.gpu_mem_threshold,
-                    self.config.gpu_stable_time
+                    self.config.worker.gpu_util_threshold,
+                    self.config.worker.gpu_mem_threshold,
+                    self.config.worker.gpu_stable_time
                 )
 
                 # Check if enough GPUs are available

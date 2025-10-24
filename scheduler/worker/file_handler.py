@@ -4,10 +4,7 @@ import logging
 import time
 from datetime import datetime
 
-from scheduler.core.config import Config
-from scheduler.core.exceptions import PermissionDeniedException
-from scheduler.core import constants
-from scheduler.core.utils import ensure_dir_exists, generate_versioned_filename
+from scheduler.core import Config, PermissionDeniedException, generate_versioned_filename, ensure_dir_exists
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +22,8 @@ class FileHandler:
         self.config = config
 
         # Get worker configuration
-        worker_config = config.get('worker', {})
-        self.work_dir = worker_config.get('work_dir', constants.DEFAULT_WORKER_DIR)
-        self.log_dir = worker_config.get('log_dir', os.path.join(self.work_dir, 'logs'))
+        self.work_dir = os.path.expanduser(config.worker.work_dir)
+        self.log_dir = os.path.expanduser(config.worker.log_dir)
 
         # Ensure directories exist
         ensure_dir_exists(self.work_dir)

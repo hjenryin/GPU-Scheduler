@@ -4,7 +4,7 @@ import signal
 import time
 from typing import Optional
 
-from scheduler.core import Config, ConnectionException, constants, get_local_ip
+from scheduler.core import Config, ConnectionException, get_local_ip
 from scheduler.worker.gpu_monitor import GPUMonitor
 from scheduler.worker.job_executor import JobExecutor
 from scheduler.worker.heartbeat import HeartbeatSender
@@ -30,16 +30,14 @@ class WorkerDaemon:
         self.node_name = node_name
         self.running = False
 
-        # Get head node address
-        head_config = config.get('head_node', {})
-        head_host = head_config.get('host', 'localhost')
-        head_port = head_config.get('port', constants.DEFAULT_PORT)
-        self.head_address = f"{head_host}:{head_port}"
+        # Get head node address (from config.address or construct from head config)
+        if config.address:
+            self.head_address = config.address
+        else:
+            self.head_address = f"localhost:{config.head.port}"
 
         # Get worker address
-        worker_config = config.get('worker', {})
-        worker_port = worker_config.get('port', constants.DEFAULT_WORKER_PORT)
-        self.worker_address = f"{get_local_ip()}:{worker_port}"
+        self.worker_address = f"{get_local_ip()}:{config.worker.port}"
 
         # Initialize GPU monitor
         self.gpu_monitor = GPUMonitor(config)

@@ -24,7 +24,7 @@ class GPUMonitor:
         self.latest_stats: List[GPUStats] = []
         self.monitoring = False
         self.monitor_thread: Optional[threading.Thread] = None
-        self.poll_interval = config.get('worker', {}).get('gpu_poll_interval', 5)  # seconds
+        self.poll_interval = config.worker.gpu_poll_interval
 
         # Try to initialize pynvml
         try:

@@ -40,9 +40,11 @@ class SchedulerClient:
         # Determine head node address
         if address:
             self.head_address = address
+        elif config.address:
+            self.head_address = config.address
         else:
-            # Auto-detect from config
-            self.head_address = f"{config.get('head_node', {}).get('host', 'localhost')}:{config.get('head_node', {}).get('port', constants.DEFAULT_PORT)}"
+            # Default to localhost with configured port
+            self.head_address = f"localhost:{config.head.port}"
 
         # Parse and validate address
         host, port = parse_address(self.head_address)

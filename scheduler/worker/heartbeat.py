@@ -3,7 +3,7 @@ import threading
 import time
 from typing import Optional
 
-from scheduler.core import Config, Job, constants
+from scheduler.core import Config, Job
 from scheduler.worker.gpu_monitor import GPUMonitor
 from scheduler.api import SchedulerClient
 
@@ -38,8 +38,7 @@ class HeartbeatSender:
         self.client = SchedulerClient(address=head_address, config=config)
 
         # Get heartbeat configuration
-        worker_config = config.get('worker', {})
-        self.heartbeat_interval = worker_config.get('heartbeat_interval', constants.DEFAULT_HEARTBEAT_INTERVAL)
+        self.heartbeat_interval = config.worker.heartbeat_interval
 
         # Thread control
         self.running = False

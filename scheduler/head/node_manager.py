@@ -115,8 +115,8 @@ class NodeManager:
                 if stats.gpu_id < len(node.gpus):
                     node.gpus[stats.gpu_id].update_stats(
                         stats,
-                        self.config.gpu_util_threshold,
-                        self.config.gpu_mem_threshold
+                        self.config.worker.gpu_util_threshold,
+                        self.config.worker.gpu_mem_threshold
                     )
 
         # Update heartbeat timestamp
@@ -160,7 +160,7 @@ class NodeManager:
         Check for node heartbeat timeouts and mark as disconnected.
         """
         now = datetime.now()
-        timeout = timedelta(seconds=self.config.heartbeat_timeout)
+        timeout = timedelta(seconds=self.config.head.heartbeat_timeout)
 
         for node in self.nodes.values():
             if node.status == NodeStatus.CONNECTED:
@@ -183,7 +183,7 @@ class NodeManager:
         if not node:
             raise NodeNotFoundException(f"Node {node_name} not found")
 
-        node.start_grace_period(self.config.job_startup_grace)
+        node.start_grace_period(self.config.worker.job_startup_grace)
         self.persistence.save_node(node)
         logger.debug(f"Grace period started for node {node_name}")
 
