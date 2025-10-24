@@ -138,7 +138,15 @@ async def list_jobs_route(
     limit: Optional[int] = None
 ) -> JobListResponse:
     """GET /api/v1/jobs - List jobs"""
-    status_filter = JobStatus(status) if status else None
+    status_filter = None
+    if status:
+        try:
+            status_filter = JobStatus(status)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status value: {status}. Valid values are: {', '.join([s.value for s in JobStatus])}"
+            )
     jobs = _job_manager.list_jobs(status_filter=status_filter, limit=limit)
     job_responses = [JobResponse.from_job(j) for j in jobs]
     return JobListResponse(jobs=job_responses, total=len(job_responses))

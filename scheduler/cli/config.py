@@ -35,7 +35,9 @@ def config_command(
 
         elif command == "show":
             config = load_config()
-            print(yaml.dump(config, default_flow_style=False))
+            # Convert Config object to dict for display
+            config_dict = config.to_dict() if hasattr(config, 'to_dict') else config
+            print(yaml.dump(config_dict, default_flow_style=False))
             return 0
 
         elif command == "get":
@@ -43,26 +45,34 @@ def config_command(
                 print("Error: key required for 'get' command")
                 return 2
             config = load_config()
-            # Support nested keys with dots: head_node.port
+            # Convert Config object to dict
+            config_dict = config.to_dict() if hasattr(config, 'to_dict') else config
+            # Support nested keys with dots: head.port or head_node.port
             keys = key.split('.')
-            value_out = config
+            value_out = config_dict
             for k in keys:
-                value_out = value_out.get(k, {})
+                if isinstance(value_out, dict):
+                    value_out = value_out.get(k, {})
+                else:
+                    value_out = {}
+                    break
             print(value_out if value_out else "")
-            return 0
+            return 0 if value_out else 1
 
         elif command == "set":
             if not key or value is None:
                 print("Error: key and value required for 'set' command")
                 return 2
             config = load_config()
+            # Convert Config object to dict
+            config_dict = config.to_dict() if hasattr(config, 'to_dict') else config
             # Support nested keys
             keys = key.split('.')
-            current = config
+            current = config_dict
             for k in keys[:-1]:
                 current = current.setdefault(k, {})
             current[keys[-1]] = value
-            save_config(config)
+            save_config(config_dict)
             print(f"Set {key} = {value}")
             return 0
 
