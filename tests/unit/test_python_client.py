@@ -498,7 +498,6 @@ class TestNodeMethods:
                         "temperature": 65,
                         "power_draw": 150,
                         "power_limit": 250,
-                        "assigned_job_id": None,
                         "stable_since": "2025-01-01T00:00:00"
                     }
                 ]
@@ -791,7 +790,6 @@ class TestResponseParsing:
                     "temperature": 70,
                     "power_draw": 200,
                     "power_limit": 250,
-                    "assigned_job_id": "job_123",
                     "stable_since": "2025-01-01T00:30:00"
                 },
                 {
@@ -802,7 +800,6 @@ class TestResponseParsing:
                     "temperature": 45,
                     "power_draw": 50,
                     "power_limit": 250,
-                    "assigned_job_id": None,
                     "stable_since": "2025-01-01T00:00:00"
                 }
             ]
@@ -813,8 +810,9 @@ class TestResponseParsing:
         assert node.node_name == "worker-1"
         assert node.num_gpus == 2
         assert len(node.gpus) == 2
-        assert node.gpus[0].assigned_job_id == "job_123"
-        assert node.gpus[1].assigned_job_id is None
+        # Verify GPU stats are properly parsed
+        assert node.gpus[0].stats.utilization == 75
+        assert node.gpus[1].stats.utilization == 10
         assert isinstance(node.gpus[0].stable_since, datetime)
 
 

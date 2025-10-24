@@ -59,11 +59,15 @@ class TestFullWorkflow:
         assert job.status == JobStatus.COMPLETED
         assert job.exit_code == 0
 
-        # Step 6: GPUs released
-        node_manager.release_gpus_from_job("gpu1", job.assigned_gpus)
+        # Step 6: Simulate GPU usage dropping after job completion (detected by monitoring)
+        # GPUs become available naturally when actual usage drops
+        from scheduler.core.models import GPUStats
+        low_usage_stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(4)]
+        node_manager.update_heartbeat("gpu1", low_usage_stats)
 
         node = node_manager.get_node("gpu1")
-        assert all(gpu.assigned_job_id is None for gpu in node.gpus[:2])
+        # GPUs should start becoming stable again after low usage is detected
+        assert all(gpu.stable_since is not None for gpu in node.gpus[:2])
 
     def test_multi_job_multi_node_workflow(self, full_system):
         """Test workflow with multiple jobs and nodes"""
@@ -138,10 +142,14 @@ class TestFullWorkflow:
         assert job.status == JobStatus.FAILED
         assert "CUDA out of memory" in job.error_message
 
-        # Resources should be released
-        node_manager.release_gpus_from_job("gpu1", [0, 1])
+        # Simulate GPU usage dropping after job fails (detected by monitoring)
+        from scheduler.core.models import GPUStats
+        low_usage_stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(2)]
+        node_manager.update_heartbeat("gpu1", low_usage_stats)
+
+        # GPUs become available naturally when actual usage drops
         node = node_manager.get_node("gpu1")
-        assert all(gpu.assigned_job_id is None for gpu in node.gpus)
+        assert all(gpu.stable_since is not None for gpu in node.gpus)
 
     def test_job_cancellation_workflow(self, full_system):
         """Test canceling a job"""
@@ -172,8 +180,14 @@ class TestFullWorkflow:
         job = job_manager.get_job(job.job_id)
         assert job.status == JobStatus.CANCELLED
 
-        # Resources released
-        node_manager.release_gpus_from_job("gpu1", [0, 1])
+        # Simulate GPU usage dropping after job is cancelled (detected by monitoring)
+        from scheduler.core.models import GPUStats
+        low_usage_stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(2)]
+        node_manager.update_heartbeat("gpu1", low_usage_stats)
+
+        # GPUs become available naturally when actual usage drops
+        node = node_manager.get_node("gpu1")
+        assert all(gpu.stable_since is not None for gpu in node.gpus)
 
 
 @pytest.fixture

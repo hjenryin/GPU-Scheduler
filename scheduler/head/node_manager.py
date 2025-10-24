@@ -105,7 +105,6 @@ class NodeManager:
                 gpu = GPU(
                     gpu_id=stats.gpu_id,
                     stats=stats,
-                    assigned_job_id=None,
                     stable_since=None
                 )
                 # Call update_stats to initialize stable_since if GPU is free
@@ -192,51 +191,3 @@ class NodeManager:
         node.start_grace_period(self.config.worker.job_startup_grace)
         self.persistence.save_node(node)
         logger.debug(f"Grace period started for node {node_name}")
-
-    def assign_gpus_to_job(
-        self,
-        node_name: str,
-        gpu_ids: List[int],
-        job_id: str
-    ):
-        """
-        Assign GPUs to a job.
-
-        Args:
-            node_name: Node name
-            gpu_ids: GPU IDs to assign
-            job_id: Job ID
-
-        Raises:
-            NodeNotFoundException: If node not found
-        """
-        node = self.nodes.get(node_name)
-        if not node:
-            raise NodeNotFoundException(f"Node {node_name} not found")
-
-        node.assign_gpus(gpu_ids, job_id)
-        self.persistence.save_node(node)
-        logger.debug(f"GPUs {gpu_ids} assigned to job {job_id} on node {node_name}")
-
-    def release_gpus_from_job(
-        self,
-        node_name: str,
-        gpu_ids: List[int]
-    ):
-        """
-        Release GPUs from a job.
-
-        Args:
-            node_name: Node name
-            gpu_ids: GPU IDs to release
-
-        Raises:
-            NodeNotFoundException: If node not found
-        """
-        node = self.nodes.get(node_name)
-        if not node:
-            raise NodeNotFoundException(f"Node {node_name} not found")
-
-        node.release_gpus(gpu_ids)
-        self.persistence.save_node(node)
-        logger.debug(f"GPUs {gpu_ids} released on node {node_name}")

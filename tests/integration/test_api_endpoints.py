@@ -567,10 +567,8 @@ class TestWorkerEndpoints:
         job.assigned_gpus = [0, 1]
         job.status = JobStatus.RUNNING
 
-        # Assign GPUs to node
-        node = node_manager.get_node("gpu-node-1")
-        node.gpus[0].assigned_job_id = job_id
-        node.gpus[1].assigned_job_id = job_id
+        # Note: We no longer track assigned_job_id - GPU availability is determined
+        # by actual usage monitoring via pynvml
 
         # Complete the job
         response = api_client.post(f"/api/v1/workers/jobs/{job_id}/complete?exit_code=0")
@@ -637,9 +635,8 @@ class TestWorkerEndpoints:
         job.assigned_gpus = [0]
         job.status = JobStatus.RUNNING
 
-        # Assign GPU to node
-        node = node_manager.get_node("gpu-node-1")
-        node.gpus[0].assigned_job_id = job_id
+        # Note: We no longer track assigned_job_id - GPU availability is determined
+        # by actual usage monitoring via pynvml
 
         # Complete with error exit code
         response = api_client.post(f"/api/v1/workers/jobs/{job_id}/complete?exit_code=1")
@@ -699,10 +696,8 @@ class TestWorkerEndpoints:
         job.assigned_gpus = [0, 1]
         job.status = JobStatus.RUNNING
 
-        # Assign GPUs to node
-        node = node_manager.get_node("gpu-node-1")
-        node.gpus[0].assigned_job_id = job_id
-        node.gpus[1].assigned_job_id = job_id
+        # Note: We no longer track assigned_job_id - GPU availability is determined
+        # by actual usage monitoring via pynvml
 
         # Fail the job
         response = api_client.post(

@@ -567,7 +567,6 @@ class SchedulerClient:
                 gpu = GPU(
                     gpu_id=gpu_data["gpu_id"],
                     stats=stats,
-                    assigned_job_id=gpu_data.get("assigned_job_id"),
                     stable_since=stable_since
                 )
                 node.gpus.append(gpu)

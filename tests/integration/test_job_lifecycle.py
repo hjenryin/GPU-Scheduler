@@ -90,13 +90,13 @@ class TestJobLifecycle:
         assert updated_job.assigned_node == "gpu1"
         assert len(updated_job.assigned_gpus) == 2
 
-        # Check GPUs are assigned
-        node = node_manager.get_node("gpu1")
-        assigned_count = sum(1 for gpu in node.gpus if gpu.assigned_job_id == job.job_id)
-        assert assigned_count == 2
+        # Verify the job got the suggested GPUs via assigned_gpus
+        # (these will be passed as CUDA_VISIBLE_DEVICES)
+        assert updated_job.assigned_gpus is not None
+        assert len(updated_job.assigned_gpus) == 2
 
-    def test_job_completion_releases_resources(self, full_system):
-        """Test that completing a job releases GPUs"""
+    def test_job_completion_frees_resources(self, full_system):
+        """Test that completing a job allows GPUs to become available via monitoring"""
         job_manager = full_system['job_manager']
         node_manager = full_system['node_manager']
         scheduler = full_system['scheduler']
@@ -121,15 +121,26 @@ class TestJobLifecycle:
         # Verify job is running
         assert job_manager.get_job(job.job_id).status == JobStatus.RUNNING
 
+        # Simulate job running - GPUs show high usage
+        high_usage_stats = [
+            GPUStats(0, 85.0, 14*1024**3, 16*1024**3, 72, 280, 300),
+            GPUStats(1, 85.0, 14*1024**3, 16*1024**3, 72, 280, 300)
+        ]
+        node_manager.update_heartbeat("gpu1", high_usage_stats)
+
         # Complete the job
         job_manager.complete_job(job.job_id, exit_code=0)
 
-        # Release GPUs
-        node_manager.release_gpus_from_job("gpu1", [0, 1])
+        # Simulate GPU usage dropping after job completes (detected by monitoring)
+        low_usage_stats = [
+            GPUStats(0, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300),
+            GPUStats(1, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300)
+        ]
+        node_manager.update_heartbeat("gpu1", low_usage_stats)
 
-        # Check GPUs are released
+        # GPUs should start becoming stable again
         node = node_manager.get_node("gpu1")
-        assert all(gpu.assigned_job_id is None for gpu in node.gpus)
+        assert all(gpu.stable_since is not None for gpu in node.gpus)
 
     def test_multiple_jobs_scheduling(self, full_system):
         """Test scheduling multiple jobs across different nodes"""
@@ -203,10 +214,12 @@ class TestJobLifecycle:
 
         # Complete job1
         job_manager.complete_job(job1.job_id, exit_code=0)
-        node_manager.release_gpus_from_job("gpu1", [0])
 
+        # Simulate GPU becoming free after job1 completes (detected by monitoring)
         # Reset GPU stability and clear grace period
         node = node_manager.get_node("gpu1")
+        low_usage_stats = GPUStats(0, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300)
+        node.gpus[0].update_stats(low_usage_stats, util_threshold=10.0, mem_threshold=10.0)
         node.gpus[0].stable_since = stable_time
         node.grace_period_until = None  # Clear grace period
 

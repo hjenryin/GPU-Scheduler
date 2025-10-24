@@ -114,7 +114,6 @@ class GPU:
         self,
         gpu_id: int,
         stats: GPUStats,
-        assigned_job_id: Optional[str] = None,
         stable_since: Optional[datetime] = None
     ):
         """
@@ -123,12 +122,10 @@ class GPU:
         Args:
             gpu_id: GPU index
             stats: Current GPU statistics
-            assigned_job_id: Job ID if GPU is assigned, None if free
             stable_since: Timestamp when GPU became stable (below threshold)
         """
         self.gpu_id = gpu_id
         self.stats = stats
-        self.assigned_job_id = assigned_job_id
         self.stable_since = stable_since
 
     def update_stats(self, stats: GPUStats, util_threshold: float, mem_threshold: float):
@@ -141,8 +138,10 @@ class GPU:
         """
         self.stats = stats
 
-        # Check if GPU is currently free (not assigned and below thresholds)
-        if self.assigned_job_id is None and stats.is_free(util_threshold, mem_threshold):
+        # Check if GPU is currently free (below thresholds)
+        # Note: We rely purely on actual usage monitoring, not internal job tracking
+        # This allows the scheduler to work in shared GPU environments
+        if stats.is_free(util_threshold, mem_threshold):
             # If it was already stable, keep the timestamp
             if self.stable_since is None:
                 self.stable_since = datetime.now()
@@ -174,7 +173,6 @@ class GPU:
         return {
             'gpu_id': self.gpu_id,
             'stats': self.stats.to_dict(),
-            'assigned_job_id': self.assigned_job_id,
             'stable_since': self.stable_since.isoformat() if self.stable_since else None
         }
 
@@ -195,7 +193,6 @@ class GPU:
         return cls(
             gpu_id=data['gpu_id'],
             stats=GPUStats.from_dict(data['stats']),
-            assigned_job_id=data.get('assigned_job_id'),
             stable_since=stable_since
         )
 
@@ -522,15 +519,15 @@ class Node:
             stable_time: Required stable time in seconds
 
         Returns:
-            List of GPU IDs that are free and stable
+            List of GPU IDs that are free and stable (based on actual usage)
         """
         free_gpus = []
         for gpu in self.gpus:
-            # Check if GPU is not assigned and is stable
-            if gpu.assigned_job_id is None:
-                if gpu.stats.is_free(util_threshold, mem_threshold):
-                    if gpu.is_stable(stable_time):
-                        free_gpus.append(gpu.gpu_id)
+            # Check if GPU has low usage and is stable
+            # We rely purely on actual GPU monitoring, not internal job tracking
+            if gpu.stats.is_free(util_threshold, mem_threshold):
+                if gpu.is_stable(stable_time):
+                    free_gpus.append(gpu.gpu_id)
         return free_gpus
 
     def is_in_grace_period(self) -> bool:
@@ -550,28 +547,6 @@ class Node:
             duration: Grace period duration in seconds
         """
         self.grace_period_until = datetime.now() + timedelta(seconds=duration)
-
-    def assign_gpus(self, gpu_ids: List[int], job_id: str):
-        """Assign GPUs to a job.
-
-        Args:
-            gpu_ids: List of GPU IDs to assign
-            job_id: Job ID to assign GPUs to
-        """
-        for gpu_id in gpu_ids:
-            if gpu_id < len(self.gpus):
-                self.gpus[gpu_id].assigned_job_id = job_id
-                self.gpus[gpu_id].stable_since = None  # Reset stability
-
-    def release_gpus(self, gpu_ids: List[int]):
-        """Release GPUs from a job.
-
-        Args:
-            gpu_ids: List of GPU IDs to release
-        """
-        for gpu_id in gpu_ids:
-            if gpu_id < len(self.gpus):
-                self.gpus[gpu_id].assigned_job_id = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary representation.

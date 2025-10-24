@@ -243,9 +243,13 @@ async def complete_job_route(job_id: str, exit_code: int):
         if not job:
             raise JobNotFoundException(f"Job {job_id} not found")
 
-        # Release GPUs
-        if job.assigned_node and job.assigned_gpus:
-            _node_manager.release_gpus_from_job(job.assigned_node, job.assigned_gpus)
+        # End grace period on the node (allow new jobs to be scheduled)
+        # Note: We don't "release" GPUs - they become available naturally when
+        # actual usage drops below threshold, as detected by pynvml monitoring
+        if job.assigned_node:
+            node = _node_manager.get_node(job.assigned_node)
+            if node:
+                node.grace_period_until = None
 
         # Mark job complete
         _job_manager.complete_job(job_id, exit_code)
@@ -265,11 +269,9 @@ async def fail_job_route(job_id: str, error_message: str):
         if not job:
             raise JobNotFoundException(f"Job {job_id} not found")
 
-        # Release GPUs
-        if job.assigned_node and job.assigned_gpus:
-            _node_manager.release_gpus_from_job(job.assigned_node, job.assigned_gpus)
-
         # End grace period on the node (allow new jobs to be scheduled)
+        # Note: We don't "release" GPUs - they become available naturally when
+        # actual usage drops below threshold, as detected by pynvml monitoring
         if job.assigned_node:
             node = _node_manager.get_node(job.assigned_node)
             if node:

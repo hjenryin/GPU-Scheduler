@@ -86,7 +86,6 @@ class TestGPU:
 
         assert gpu.gpu_id == 0
         assert gpu.stats == stats
-        assert gpu.assigned_job_id is None
         assert gpu.stable_since is None
 
     def test_update_stats_becomes_stable(self):
@@ -130,13 +129,12 @@ class TestGPU:
     def test_gpu_serialization(self):
         """Test GPU to_dict and from_dict"""
         stats = GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)
-        gpu = GPU(gpu_id=0, stats=stats, assigned_job_id="job-001")
+        gpu = GPU(gpu_id=0, stats=stats)
 
         data = gpu.to_dict()
         gpu_restored = GPU.from_dict(data)
 
         assert gpu_restored.gpu_id == 0
-        assert gpu_restored.assigned_job_id == "job-001"
         assert gpu_restored.stats.utilization == 5.0
 
 
@@ -390,25 +388,34 @@ class TestNode:
         node.grace_period_until = datetime.now() - timedelta(seconds=10)
         assert node.is_in_grace_period() is False
 
-    def test_assign_and_release_gpus(self):
-        """Test GPU assignment and release"""
-        stats = GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)
-        gpus = [GPU(i, stats) for i in range(4)]
+    def test_gpu_availability_monitoring(self):
+        """Test that GPU availability is determined by actual usage, not assignments"""
+        # Create GPUs with low usage (should be considered free)
+        stats_free = GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)
+        gpus = [GPU(i, stats_free) for i in range(4)]
         node = Node("gpu1", "192.168.1.10", 4, gpus=gpus)
 
-        # Assign GPUs to job
-        node.assign_gpus([0, 1], "job-001")
+        # Update GPU stats to mark them as stable
+        for gpu in gpus:
+            gpu.update_stats(stats_free, util_threshold=10, mem_threshold=10)
 
-        assert node.gpus[0].assigned_job_id == "job-001"
-        assert node.gpus[1].assigned_job_id == "job-001"
-        assert node.gpus[2].assigned_job_id is None
-        assert node.gpus[0].stable_since is None  # Reset on assignment
+        # Simulate time passing for stability
+        for gpu in gpus[:2]:
+            gpu.stable_since = datetime.now() - timedelta(seconds=35)
 
-        # Release GPUs
-        node.release_gpus([0, 1])
+        # Get free GPUs - should be available based on actual usage
+        free_gpus = node.get_free_gpus(util_threshold=10, mem_threshold=10, stable_time=30)
+        assert len(free_gpus) >= 2  # At least the stable ones
 
-        assert node.gpus[0].assigned_job_id is None
-        assert node.gpus[1].assigned_job_id is None
+        # Now simulate high usage on some GPUs
+        stats_busy = GPUStats(0, 85.0, 14 * 1024**3, 16 * 1024**3, 72, 280, 300)
+        gpus[0].update_stats(stats_busy, util_threshold=10, mem_threshold=10)
+        gpus[1].update_stats(stats_busy, util_threshold=10, mem_threshold=10)
+
+        # These GPUs should no longer be considered free
+        free_gpus = node.get_free_gpus(util_threshold=10, mem_threshold=10, stable_time=30)
+        assert 0 not in free_gpus
+        assert 1 not in free_gpus
 
     def test_node_serialization(self):
         """Test node to_dict and from_dict"""

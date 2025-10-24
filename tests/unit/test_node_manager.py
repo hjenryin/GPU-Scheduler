@@ -137,36 +137,46 @@ class TestNodeManager:
             # If it raises an exception, it should be a specific one
             assert isinstance(e, (NodeNotFoundException, KeyError))
 
-    def test_assign_gpus_to_job(self, node_manager):
-        """Test assigning GPUs to a job"""
+    def test_gpu_monitoring_based_availability(self, node_manager):
+        """Test that GPU availability is based on actual monitoring, not assignments"""
         node_manager.register_node("gpu1", "192.168.1.10", 4)
 
-        # Initialize GPUs with heartbeat
+        # Initialize GPUs with low usage (free)
         stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(4)]
         node_manager.update_heartbeat("gpu1", stats)
 
-        # Assign GPUs
-        node_manager.assign_gpus_to_job("gpu1", [0, 1], "job-001")
-
         node = node_manager.get_node("gpu1")
-        assert node.gpus[0].assigned_job_id == "job-001"
-        assert node.gpus[1].assigned_job_id == "job-001"
-        assert node.gpus[2].assigned_job_id is None
 
-    def test_release_gpus_from_job(self, node_manager):
-        """Test releasing GPUs from a job"""
-        node_manager.register_node("gpu1", "192.168.1.10", 4)
+        # GPUs should start becoming stable after multiple heartbeats with low usage
+        # Simulate time passing by setting stable_since manually
+        for gpu in node.gpus[:2]:
+            gpu.stable_since = datetime.now() - timedelta(seconds=35)
 
-        stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(4)]
-        node_manager.update_heartbeat("gpu1", stats)
+        # Check that GPUs are considered free based on actual usage
+        free_gpus = node.get_free_gpus(
+            util_threshold=10.0,
+            mem_threshold=10.0,
+            stable_time=30
+        )
+        assert len(free_gpus) >= 2
 
-        # Assign and then release
-        node_manager.assign_gpus_to_job("gpu1", [0, 1], "job-001")
-        node_manager.release_gpus_from_job("gpu1", [0, 1])
+        # Now simulate high usage on some GPUs
+        high_usage_stats = [
+            GPUStats(0, 85.0, 14*1024**3, 16*1024**3, 72, 280, 300),
+            GPUStats(1, 90.0, 15*1024**3, 16*1024**3, 75, 290, 300),
+            GPUStats(2, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300),
+            GPUStats(3, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300),
+        ]
+        node_manager.update_heartbeat("gpu1", high_usage_stats)
 
-        node = node_manager.get_node("gpu1")
-        assert node.gpus[0].assigned_job_id is None
-        assert node.gpus[1].assigned_job_id is None
+        # GPUs with high usage should not be considered free
+        free_gpus = node.get_free_gpus(
+            util_threshold=10.0,
+            mem_threshold=10.0,
+            stable_time=30
+        )
+        assert 0 not in free_gpus
+        assert 1 not in free_gpus
 
     def test_start_node_grace_period(self, node_manager, test_config):
         """Test starting grace period on a node"""
@@ -220,27 +230,25 @@ class TestNodeManager:
         assert node.node_name == "gpu1"
         assert node.address == "192.168.1.10"
 
-    def test_get_jobs_on_node_via_gpus(self, node_manager):
-        """Test getting jobs assigned to a node by checking GPU assignments"""
+    def test_multiple_heartbeats_update_gpu_stats(self, node_manager):
+        """Test that multiple heartbeats properly update GPU statistics"""
         node_manager.register_node("gpu1", "192.168.1.10", 4)
 
-        stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(4)]
-        node_manager.update_heartbeat("gpu1", stats)
+        # First heartbeat with low usage
+        stats1 = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(4)]
+        node_manager.update_heartbeat("gpu1", stats1)
 
-        # Assign different jobs to different GPUs
-        node_manager.assign_gpus_to_job("gpu1", [0, 1], "job-001")
-        node_manager.assign_gpus_to_job("gpu1", [2], "job-002")
-
-        # Get the node and check job assignments through GPUs
         node = node_manager.get_node("gpu1")
-        job_ids = set()
-        for gpu in node.gpus:
-            if gpu.assigned_job_id:
-                job_ids.add(gpu.assigned_job_id)
+        assert node.gpus[0].stats.utilization == 5.0
 
-        assert len(job_ids) == 2
-        assert "job-001" in job_ids
-        assert "job-002" in job_ids
+        # Second heartbeat with high usage
+        stats2 = [GPUStats(i, 85.0, 14*1024**3, 16*1024**3, 72, 280, 300) for i in range(4)]
+        node_manager.update_heartbeat("gpu1", stats2)
+
+        node = node_manager.get_node("gpu1")
+        assert node.gpus[0].stats.utilization == 85.0
+        # GPU should no longer be stable due to high usage
+        assert node.gpus[0].stable_since is None
 
     def test_gpu_stability_tracking(self, node_manager):
         """Test GPU stability is tracked through heartbeats"""

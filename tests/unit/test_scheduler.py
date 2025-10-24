@@ -85,10 +85,12 @@ class TestScheduler:
 
         # Complete dependency
         job_manager.complete_job(dep_job.job_id, exit_code=0)
-        node_manager.release_gpus_from_job("gpu1", [0])
 
+        # Simulate GPU becoming free after job completes (detected by monitoring)
         # Reset GPU stability and clear grace period
         node = node_manager.get_node("gpu1")
+        low_usage_stats = GPUStats(0, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300)
+        node.gpus[0].update_stats(low_usage_stats, util_threshold=10.0, mem_threshold=10.0)
         node.gpus[0].stable_since = stable_time
         node.grace_period_until = None  # Clear grace period
 

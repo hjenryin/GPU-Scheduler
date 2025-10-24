@@ -77,13 +77,12 @@ class Scheduler:
 
         node_name, gpu_ids = result
 
-        # Assign GPUs to job
-        self.node_manager.assign_gpus_to_job(node_name, gpu_ids, job.job_id)
-
         # Start grace period on the node
         self.node_manager.start_node_grace_period(node_name)
 
         # Mark job as started
+        # Note: We only suggest GPUs via CUDA_VISIBLE_DEVICES, not enforce assignments
+        # GPU availability is determined by actual usage monitoring via pynvml
         self.job_manager.start_job(job.job_id, node_name, gpu_ids)
 
         logger.info(f"Job {job.job_id} scheduled on {node_name} with GPUs {gpu_ids}")
