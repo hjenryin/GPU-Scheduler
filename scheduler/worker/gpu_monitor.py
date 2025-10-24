@@ -149,6 +149,9 @@ class GPUMonitor:
                     logger.debug(f"Failed to get GPU {i} power limit: {e}")
                     power_limit = None  # Display N/A, like nvitop
 
+                # Get running processes on this GPU
+                running_job_id = self._get_running_job_id(i)
+
                 stats.append(GPUStats(
                     gpu_id=i,
                     utilization=utilization,
@@ -156,7 +159,8 @@ class GPUMonitor:
                     memory_total=memory_total,
                     temperature=temperature,
                     power_draw=power_draw,
-                    power_limit=power_limit
+                    power_limit=power_limit,
+                    running_job_id=running_job_id
                 ))
 
             return stats
@@ -164,6 +168,34 @@ class GPUMonitor:
             import traceback
             logger.error(f"Full error details: {traceback.format_exc()}")
             raise RuntimeError(f"Failed to poll GPU stats with pynvml: {e}")
+
+    def _get_running_job_id(self, gpu_id: int) -> Optional[str]:
+        """Get the job ID of the process currently running on the specified GPU.
+        
+        Args:
+            gpu_id: GPU index
+            
+        Returns:
+            Job ID if a process is running on the GPU, None otherwise
+        """
+        if not self.use_pynvml:
+            return None
+            
+        try:
+            handle = self.pynvml.nvmlDeviceGetHandleByIndex(gpu_id)
+            processes = self.pynvml.nvmlDeviceGetComputeRunningProcesses(handle)
+            
+            if processes:
+                # For now, return the PID of the first process
+                # In a real implementation, you might want to map this to actual job IDs
+                # by checking process names, command lines, or other identifiers
+                pid = processes[0].pid
+                return f"pid_{pid}"
+            return None
+            
+        except Exception as e:
+            logger.debug(f"Failed to get running processes for GPU {gpu_id}: {e}")
+            return None
 
     def _poll_with_nvidia_smi(self) -> List[GPUStats]:
         """Poll GPU stats using nvidia-smi."""
@@ -211,6 +243,11 @@ class GPUMonitor:
                     except (ValueError, AttributeError):
                         power_limit = None
 
+                    # Try to get running job ID using nvml if available
+                    running_job_id = None
+                    if self.use_pynvml:
+                        running_job_id = self._get_running_job_id(gpu_id)
+
                     stats.append(GPUStats(
                         gpu_id=gpu_id,
                         utilization=utilization,
@@ -218,7 +255,8 @@ class GPUMonitor:
                         memory_total=memory_total,
                         temperature=temperature,
                         power_draw=power_draw,
-                        power_limit=power_limit
+                        power_limit=power_limit,
+                        running_job_id=running_job_id
                     ))
                 except (ValueError, IndexError) as e:
                     logger.warning(f"Failed to parse nvidia-smi line '{line}': {e}")

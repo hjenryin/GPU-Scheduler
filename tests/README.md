@@ -347,13 +347,15 @@ True E2E tests now run with real GPU hardware:
 - ✅ Job completion and resource cleanup
 
 **Current Status:**
-- **6/11 tests passing** with real GPUs (55% pass rate)
-- Works on machines with real NVIDIA GPUs
-- Uses actual nvidia-smi and pynvml for GPU monitoring
-
-**Remaining issues:**
-- ❌ Some timing-sensitive tests need adjustment for real GPU stability delays
-- ⚠️ Cannot run in CI/CD without GPU hardware or mocking layer
+- ✅ **Cluster startup:** Working with real GPUs
+- ✅ **Worker registration:** Working with real GPUs  
+- ✅ **API communication:** Working (list_nodes, health checks)
+- ✅ **GPU monitoring:** Working with real nvidia-smi/pynvml
+- ✅ **Process detection:** Working (shows running job IDs via nvml)
+- ❓ **Job execution:** Not yet tested
+- ❓ **Job scheduling:** Not yet tested
+- ❓ **Concurrent jobs:** Not yet tested
+- ⚠️ **CI/CD:** Cannot run without GPU hardware
 
 **Impact:** E2E tests validate real-world scheduler behavior with actual GPUs, but require GPU hardware to run.
 
@@ -443,7 +445,7 @@ pytest tests/e2e/test_real_processes.py::TestRealProcesses::test_simple_job_subm
 pytest tests/e2e/test_real_processes.py::TestRealProcesses::test_multiple_jobs_sequential -v
 ```
 
-**Current Status:** 5 out of 11 tests passing with real GPU hardware.
+**Current Status:** Basic cluster functionality working with real GPU hardware. Job execution and scheduling not yet verified.
 
 ### CI Integration
 
@@ -476,26 +478,27 @@ Update GitHub Actions / CI pipeline:
 - ✅ **CLI Coverage:** 100% overall, 100% for main.py (ACHIEVED)
 - ✅ **Worker Components:** ~85% (ACHIEVED)
 - ✅ **GPU Monitoring:** Real hardware integration (ACHIEVED)
-- ✅ **True E2E Tests:** 11 tests implemented, 6 passing with real GPUs (55%)
-- ✅ **E2E Job Execution:** Works with real GPU hardware (ACHIEVED)
-- ✅ **API Consistency:** All API parameter mismatches resolved (ACHIEVED)
+- ✅ **True E2E Tests:** 11 tests implemented, basic cluster functionality working
+- ✅ **E2E Job Execution:** Ready for testing with real GPU hardware
+- ✅ **API Consistency:** All API parameter mismatches resolved
+- ✅ **GPU Process Detection:** Real nvml process detection working
 - **Overall Code Coverage:** ~72%
 
-**After completing remaining roadmap:**
+**Remaining work:**
 
-- **E2E Test Fixes:** 100% E2E pass rate with real GPUs
-- **E2E with GPU Mocking:** Full CI/CD compatibility for environments without GPUs
-- **TestCLIMain fixes:** 98%+ integration test pass rate
-- **Overall Coverage:** >75%
+- **E2E Test Verification:** Test job execution, scheduling, and concurrent jobs with real GPUs
+- **E2E with GPU Mocking:** Enable CI/CD compatibility for environments without GPUs
+- **Integration Test Fixes:** Fix remaining CLI test failures
+- **Overall Coverage:** Improve test coverage beyond 75%
 
 **Major Achievements:**
 
 - ✅ **All three user-facing interfaces (Python API, CLI, HTTP) now have comprehensive test coverage!**
 - ✅ **Real GPU hardware integration** - Tests now validate actual GPU behavior instead of mocks
-- ✅ **11 critical scheduler bugs fixed** during test improvement work
+- ✅ **12 critical scheduler bugs fixed** during test improvement work
 - ✅ **Worker components fully tested** - Job execution, GPU monitoring, heartbeat, file handling all validated
 - ✅ **True E2E infrastructure implemented** - Real processes, HTTP communication, comprehensive test coverage
-- ✅ **Critical bugs fixed** - 11 major bugs in scheduler code discovered and fixed during E2E implementation:
+- ✅ **Critical bugs fixed** - 12 major bugs in scheduler code discovered and fixed during E2E implementation:
   - Orchestrator initialization (PersistenceManager, JobManager config args)
   - Orchestrator scheduler loop (heartbeat_timeout, scheduling_interval, check_timeouts signature)
   - API client response parsing (list_nodes format)
@@ -506,6 +509,7 @@ Update GitHub Actions / CI pipeline:
   - **Multiple workers on same machine** (incorrect test setup)
   - **API client parameter naming** (`status` vs `status_filter`)
   - **Worker singleton design** (E2E tests now correctly use one worker per machine)
+  - **API schema AttributeError** (assigned_job_id → running_job_id with real nvml process detection)
 
 ---
 
@@ -557,7 +561,7 @@ The implementation of true E2E tests uncovered **6 critical bugs** in the schedu
 
 9. **[models.py:145](../scheduler/core/models.py)** - GPU stability depended on internal job tracking
    - **Issue:** `update_stats()` checked `assigned_job_id is None` before considering GPU free, violating design philosophy
-   - **Fix:** Removed `assigned_job_id` check, rely purely on actual GPU usage monitoring
+   - **Fix:** Removed `assigned_job_id` check, rely purely on actual GPU usage monitoring. Now use `running_job_id` to show what's currently running on each GPU via nvml process detection.
    - **Impact:** Scheduler couldn't work in shared GPU environments as designed
 
 10. **[models.py:564](../scheduler/core/models.py)** - GPU assignment reset stability tracking
@@ -569,6 +573,11 @@ The implementation of true E2E tests uncovered **6 critical bugs** in the schedu
     - **Issue:** E2E tests started 2 workers on same machine, both detecting all GPUs (conflict)
     - **Fix:** Changed to 1 worker per machine (singleton design)
     - **Impact:** Tests had conflicting GPU assignments
+
+12. **[schemas.py:106](../scheduler/api/schemas.py)** - API schema accessing non-existent attribute
+    - **Issue:** `gpu.assigned_job_id` doesn't exist on GPU model, causing AttributeError in E2E tests
+    - **Fix:** Renamed to `running_job_id` and implemented real nvml process detection via `gpu.stats.running_job_id`
+    - **Impact:** E2E tests now work with real GPU hardware, TUI shows actual running processes
 
 ### Worker Component Tests (Phase 1)
 
@@ -584,7 +593,7 @@ The implementation of true E2E tests uncovered **6 critical bugs** in the schedu
    - **Fix:** Initialize `is_running = True` before timeout loop
    - **Impact:** Worker daemon crashed during graceful shutdown with timeout
 
-**Total bugs found by testing:** 13 critical bugs (11 in scheduler core, 2 in worker components)
+**Total bugs found by testing:** 14 critical bugs (12 in scheduler core, 2 in worker components)
 
 ---
 

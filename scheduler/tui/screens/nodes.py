@@ -134,7 +134,7 @@ class NodesScreen(Screen):
         gpu_table = self.query_one("#gpu-detail-table", DataTable)
         gpu_table.clear()
         for gpu in node.gpus:
-            job_id = "free" if gpu.available else (gpu.assigned_job_id or "-")
+            job_id = "free" if gpu.available else (gpu.stats.running_job_id or "in use")
             gpu_table.add_row(
                 str(gpu.gpu_id),
                 create_gpu_utilization_bar(gpu.utilization, width=10),

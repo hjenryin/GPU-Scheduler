@@ -568,6 +568,7 @@ class TestWorkerEndpoints:
         job.status = JobStatus.RUNNING
 
         # Note: We no longer track assigned_job_id - GPU availability is determined
+        # Now we use running_job_id to show what's currently running via nvml process detection
         # by actual usage monitoring via pynvml
 
         # Complete the job
@@ -636,6 +637,7 @@ class TestWorkerEndpoints:
         job.status = JobStatus.RUNNING
 
         # Note: We no longer track assigned_job_id - GPU availability is determined
+        # Now we use running_job_id to show what's currently running via nvml process detection
         # by actual usage monitoring via pynvml
 
         # Complete with error exit code
@@ -697,6 +699,7 @@ class TestWorkerEndpoints:
         job.status = JobStatus.RUNNING
 
         # Note: We no longer track assigned_job_id - GPU availability is determined
+        # Now we use running_job_id to show what's currently running via nvml process detection
         # by actual usage monitoring via pynvml
 
         # Fail the job

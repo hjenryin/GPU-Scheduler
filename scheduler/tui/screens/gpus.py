@@ -86,9 +86,7 @@ class GPUsScreen(Screen):
         for node in nodes:
             for gpu in node.gpus:
                 status = "Free" if gpu.available else "In Use"
-                job_id = gpu.assigned_job_id if hasattr(gpu, 'assigned_job_id') and gpu.assigned_job_id else "-"
-                if gpu.available:
-                    job_id = "-"
+                job_id = "-" if gpu.available else (gpu.stats.running_job_id or "in use")
 
                 gpu_table.add_row(
                     node.node_name,

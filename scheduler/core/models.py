@@ -35,7 +35,8 @@ class GPUStats:
         memory_total: int,
         temperature: int,
         power_draw: int,
-        power_limit: int
+        power_limit: int,
+        running_job_id: Optional[str] = None
     ):
         """
         Initialize GPU statistics.
@@ -56,6 +57,7 @@ class GPUStats:
         self.temperature = temperature
         self.power_draw = power_draw
         self.power_limit = power_limit
+        self.running_job_id = running_job_id
 
     def to_dict(self) -> dict:
         """Convert to dictionary representation.
@@ -70,7 +72,8 @@ class GPUStats:
             'memory_total': self.memory_total,
             'temperature': self.temperature,
             'power_draw': self.power_draw,
-            'power_limit': self.power_limit
+            'power_limit': self.power_limit,
+            'running_job_id': self.running_job_id
         }
 
     @classmethod
@@ -90,7 +93,8 @@ class GPUStats:
             memory_total=data['memory_total'],
             temperature=data['temperature'],
             power_draw=data['power_draw'],
-            power_limit=data['power_limit']
+            power_limit=data['power_limit'],
+            running_job_id=data.get('running_job_id')
         )
 
     def is_free(self, util_threshold: float, mem_threshold: float) -> bool:
