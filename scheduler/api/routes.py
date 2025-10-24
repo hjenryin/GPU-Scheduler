@@ -269,6 +269,12 @@ async def fail_job_route(job_id: str, error_message: str):
         if job.assigned_node and job.assigned_gpus:
             _node_manager.release_gpus_from_job(job.assigned_node, job.assigned_gpus)
 
+        # End grace period on the node (allow new jobs to be scheduled)
+        if job.assigned_node:
+            node = _node_manager.get_node(job.assigned_node)
+            if node:
+                node.grace_period_until = None
+
         # Mark job failed
         _job_manager.fail_job(job_id, error_message)
 

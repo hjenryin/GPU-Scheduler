@@ -559,7 +559,7 @@ class SchedulerClient:
                     memory_total=gpu_data["memory_total"],
                     temperature=gpu_data["temperature"],
                     power_draw=gpu_data["power_draw"],
-                    power_limit=gpu_data["power_limit"]
+                    power_limit=gpu_data.get("power_limit")
                 )
 
                 stable_since = datetime.fromisoformat(gpu_data["stable_since"]) if gpu_data.get("stable_since") else None

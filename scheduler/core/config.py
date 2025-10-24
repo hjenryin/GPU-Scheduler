@@ -83,6 +83,24 @@ class Config:
     storage: StorageConfig = field(default_factory=StorageConfig)
     client: ClientConfig = field(default_factory=ClientConfig)
 
+    def __post_init__(self):
+        """Validate configuration values after initialization."""
+        # Validate heartbeat_interval vs gpu_stable_time
+        if self.worker.heartbeat_interval > self.worker.gpu_stable_time:
+            raise ValidationException(
+                f"Invalid configuration: heartbeat_interval ({self.worker.heartbeat_interval}s) "
+                f"must be <= gpu_stable_time ({self.worker.gpu_stable_time}s). "
+                f"GPUs cannot be tracked as stable if heartbeats arrive less frequently than the stability window."
+            )
+
+        # Validate gpu_poll_interval vs gpu_stable_time
+        if self.worker.gpu_poll_interval > self.worker.gpu_stable_time:
+            raise ValidationException(
+                f"Invalid configuration: gpu_poll_interval ({self.worker.gpu_poll_interval}s) "
+                f"must be <= gpu_stable_time ({self.worker.gpu_stable_time}s). "
+                f"GPU stability cannot be properly tracked if polling is less frequent than the stability window."
+            )
+
     @classmethod
     def from_dict(cls, config_dict: dict) -> 'Config':
         """

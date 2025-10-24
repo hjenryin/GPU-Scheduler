@@ -1,4 +1,5 @@
 import logging
+import os
 import subprocess
 import threading
 import time
@@ -21,10 +22,17 @@ class GPUMonitor:
         """
         self.config = config
         self.use_pynvml = False
+        self.use_test_mode = False
         self.latest_stats: List[GPUStats] = []
         self.monitoring = False
         self.monitor_thread: Optional[threading.Thread] = None
         self.poll_interval = config.worker.gpu_poll_interval
+
+        # Check for test mode (for E2E tests without real GPUs)
+        if os.environ.get('SCHEDULER_TEST_MODE') == '1':
+            self.use_test_mode = True
+            logger.info("Using test mode for GPU monitoring (mock GPUs)")
+            return  # Skip real GPU initialization
 
         # Try to initialize pynvml
         try:
@@ -93,7 +101,13 @@ class GPUMonitor:
             RuntimeError: If polling fails
         """
         if self.use_pynvml:
-            return self._poll_with_pynvml()
+            try:
+                return self._poll_with_pynvml()
+            except Exception as e:
+                # pynvml can fail in multiprocess environments, fall back to nvidia-smi
+                logger.warning(f"pynvml polling failed, falling back to nvidia-smi: {e}")
+                self.use_pynvml = False
+                return self._poll_with_nvidia_smi()
         else:
             return self._poll_with_nvidia_smi()
 
@@ -117,19 +131,22 @@ class GPUMonitor:
                 # Get temperature
                 try:
                     temperature = self.pynvml.nvmlDeviceGetTemperature(handle, self.pynvml.NVML_TEMPERATURE_GPU)
-                except:
+                except Exception as e:
+                    logger.debug(f"Failed to get GPU {i} temperature: {e}")
                     temperature = 0
 
                 # Get power draw
                 try:
                     power_draw = self.pynvml.nvmlDeviceGetPowerUsage(handle) // 1000  # mW to W
-                except:
+                except Exception as e:
+                    logger.debug(f"Failed to get GPU {i} power draw: {e}")
                     power_draw = 0
 
                 # Get power limit
                 try:
                     power_limit = self.pynvml.nvmlDeviceGetPowerManagementLimit(handle) // 1000  # mW to W
-                except:
+                except Exception as e:
+                    logger.debug(f"Failed to get GPU {i} power limit: {e}")
                     power_limit = None  # Display N/A, like nvitop
 
                 stats.append(GPUStats(
@@ -144,6 +161,8 @@ class GPUMonitor:
 
             return stats
         except Exception as e:
+            import traceback
+            logger.error(f"Full error details: {traceback.format_exc()}")
             raise RuntimeError(f"Failed to poll GPU stats with pynvml: {e}")
 
     def _poll_with_nvidia_smi(self) -> List[GPUStats]:
@@ -179,8 +198,18 @@ class GPUMonitor:
                     memory_used = int(parts[2]) * 1024 * 1024  # MiB to bytes
                     memory_total = int(parts[3]) * 1024 * 1024  # MiB to bytes
                     temperature = int(parts[4])
-                    power_draw = int(float(parts[5]))  # W
-                    power_limit = int(float(parts[6]))  # W
+
+                    # Power draw and limit may be [N/A] or [Not Supported] on some GPUs
+                    try:
+                        power_draw = int(float(parts[5].replace('[N/A]', '0').replace('[Not Supported]', '0')))
+                    except (ValueError, AttributeError):
+                        power_draw = 0
+
+                    try:
+                        power_limit_str = parts[6].replace('[N/A]', '').replace('[Not Supported]', '').strip()
+                        power_limit = int(float(power_limit_str)) if power_limit_str and power_limit_str != '[]' else None
+                    except (ValueError, AttributeError):
+                        power_limit = None
 
                     stats.append(GPUStats(
                         gpu_id=gpu_id,

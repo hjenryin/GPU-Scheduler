@@ -64,12 +64,17 @@ class JobExecutor:
             stdout_file = open(stdout_log, 'w')
             stderr_file = open(stderr_log, 'w')
 
-            # Build command
-            cmd = [job.script]
+            # Build command - use python explicitly for .py files
+            import sys
+            if job.script.endswith('.py'):
+                cmd = [sys.executable, job.script]
+            else:
+                cmd = [job.script]
             if job.script_args:
                 cmd.extend(job.script_args)
 
-            logger.info(f"Executing job {job.job_id}: {' '.join(cmd)}")
+            logger.info(f"Executing job {job.job_id}: {job.script}")
+            logger.info(f"Command: {cmd}")
             logger.info(f"Working directory: {working_dir}")
             logger.info(f"CUDA_VISIBLE_DEVICES: {env['CUDA_VISIBLE_DEVICES']}")
             logger.info(f"Stdout log: {stdout_log}")

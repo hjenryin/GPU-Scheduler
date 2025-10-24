@@ -76,6 +76,7 @@ class GPUResponse(BaseModel):
     memory_total: int
     temperature: int
     power_draw: int
+    power_limit: Optional[int] = None
     assigned_job_id: Optional[str] = None
     stable_since: Optional[str] = None
 
@@ -101,6 +102,7 @@ class NodeResponse(BaseModel):
                 memory_total=gpu.stats.memory_total,
                 temperature=gpu.stats.temperature,
                 power_draw=gpu.stats.power_draw,
+                power_limit=gpu.stats.power_limit,
                 assigned_job_id=gpu.assigned_job_id,
                 stable_since=gpu.stable_since.isoformat() if gpu.stable_since else None
             )
