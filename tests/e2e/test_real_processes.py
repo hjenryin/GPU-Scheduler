@@ -38,7 +38,7 @@ def _run_head_process(port, temp_dir, ready_event):
             head=HeadConfig(
                 port=port,
                 heartbeat_timeout=30,
-                scheduling_interval=2
+                scheduling_interval=1  # Faster scheduling for tests
             ),
             storage=StorageConfig(
                 backend='file',
@@ -82,12 +82,12 @@ def _run_worker_process(head_address, node_name, temp_dir, ready_event):
                 temp_dir=os.path.join(temp_dir, f'worker_{node_name}'),
                 log_dir=os.path.join(temp_dir, f'logs_{node_name}'),
                 work_dir=os.path.join(temp_dir, f'work_{node_name}'),
-                heartbeat_interval=3,  # Fast heartbeats for testing (3s)
-                gpu_poll_interval=3,  # Fast GPU polling for testing (3s)
+                heartbeat_interval=2,  # Fast heartbeats for testing
+                gpu_poll_interval=2,  # Fast GPU polling for testing
                 gpu_util_threshold=10.0,
                 gpu_mem_threshold=10.0,
-                gpu_stable_time=5,  # GPUs must be stable for 5 seconds
-                job_startup_grace=5  # Short for faster tests
+                gpu_stable_time=2,  # Reduced for faster tests with real GPUs
+                job_startup_grace=3  # Reduced for faster tests
             )
         )
 
@@ -119,10 +119,12 @@ def running_cluster(temp_cluster_dir):
 
     This fixture:
     1. Starts a head node on a random available port
-    2. Starts 2 worker nodes with auto-detected GPUs from real hardware
+    2. Starts 1 worker node with auto-detected GPUs from real hardware
     3. Waits for all processes to be ready
     4. Yields connection info
     5. Cleans up all processes on teardown
+
+    Note: Only one worker per physical machine (singleton design)
     """
     # Find an available port
     import socket
@@ -135,8 +137,7 @@ def running_cluster(temp_cluster_dir):
 
     # Events to track when processes are ready
     head_ready = multiprocessing.Event()
-    worker1_ready = multiprocessing.Event()
-    worker2_ready = multiprocessing.Event()
+    worker_ready = multiprocessing.Event()
 
     # Start head process
     head_proc = multiprocessing.Process(
@@ -155,78 +156,22 @@ def running_cluster(temp_cluster_dir):
     # Give API server a moment to fully initialize
     time.sleep(2)
 
-    # Start worker processes (auto-detect GPUs)
-    worker1_proc = multiprocessing.Process(
+    # Start worker process (auto-detect GPUs)
+    worker_proc = multiprocessing.Process(
         target=_run_worker_process,
-        args=(head_address, "worker1", temp_cluster_dir, worker1_ready),
-        name="worker1-process"
+        args=(head_address, "worker1", temp_cluster_dir, worker_ready),
+        name="worker-process"
     )
-    worker1_proc.start()
+    worker_proc.start()
 
-    worker2_proc = multiprocessing.Process(
-        target=_run_worker_process,
-        args=(head_address, "worker2", temp_cluster_dir, worker2_ready),
-        name="worker2-process"
-    )
-    worker2_proc.start()
-
-    # Wait for workers to be ready
-    if not worker1_ready.wait(timeout=10):
-        worker1_proc.terminate()
-        worker2_proc.terminate()
+    # Wait for worker to be ready
+    if not worker_ready.wait(timeout=10):
+        worker_proc.terminate()
         head_proc.terminate()
-        pytest.fail("Worker1 failed to start within 10 seconds")
+        pytest.fail("Worker failed to start within 10 seconds")
 
-    if not worker2_ready.wait(timeout=10):
-        worker2_proc.terminate()
-        worker1_proc.terminate()
-        head_proc.terminate()
-        pytest.fail("Worker2 failed to start within 10 seconds")
-
-    # Give workers time to register and send first heartbeat
+    # Give worker time to register and send first heartbeat
     time.sleep(3)
-
-    # Wait for at least one GPU across the cluster to become stable and available
-    # This is necessary because GPUs need to be below thresholds and stable for gpu_stable_time (5s)
-    # before they can accept jobs
-    # Note: On single-GPU systems with multiple workers, both workers poll the same physical GPU,
-    # so we only need at least one stable GPU in the cluster, not one per node
-    from scheduler.api import SchedulerClient
-    client = SchedulerClient(address=head_address)
-
-    max_wait = 20  # Wait up to 20 seconds for at least one GPU to stabilize
-    gpus_stable = False
-    for _ in range(max_wait):
-        try:
-            nodes = client.list_nodes()
-            if len(nodes) < 2:
-                time.sleep(1)
-                continue
-
-            # Check if cluster has at least one stable GPU (any node)
-            cluster_has_stable_gpu = False
-            for node in nodes:
-                for gpu in node.gpus:
-                    if gpu.assigned_job_id is None and gpu.stable_since is not None:
-                        cluster_has_stable_gpu = True
-                        break
-                if cluster_has_stable_gpu:
-                    break
-
-            if cluster_has_stable_gpu:
-                gpus_stable = True
-                break
-        except:
-            pass  # API might not be ready yet
-
-        time.sleep(1)
-
-    if not gpus_stable:
-        # Cleanup if GPUs didn't stabilize
-        worker1_proc.terminate()
-        worker2_proc.terminate()
-        head_proc.terminate()
-        pytest.fail("No stable GPUs found in cluster within 45 seconds")
 
     cluster_info = {
         'head_address': head_address,
@@ -234,8 +179,7 @@ def running_cluster(temp_cluster_dir):
         'temp_dir': temp_cluster_dir,
         'processes': {
             'head': head_proc,
-            'worker1': worker1_proc,
-            'worker2': worker2_proc
+            'worker': worker_proc
         }
     }
 
@@ -262,19 +206,18 @@ class TestRealProcesses:
     """Test suite for true E2E tests with real processes"""
 
     def test_cluster_startup(self, running_cluster):
-        """Test that head and workers start successfully"""
+        """Test that head and worker start successfully"""
         client = SchedulerClient(address=running_cluster['head_address'])
 
         # Verify head is responding
         try:
             nodes = client.list_nodes()
-            assert len(nodes) == 2, f"Expected 2 workers, got {len(nodes)}"
+            assert len(nodes) == 1, f"Expected 1 worker, got {len(nodes)}"
 
             node_names = {node.node_name for node in nodes}
             assert "worker1" in node_names
-            assert "worker2" in node_names
 
-            # Check that nodes have GPUs (should auto-detect from real hardware)
+            # Check that node has GPUs (should auto-detect from real hardware)
             for node in nodes:
                 assert node.num_gpus >= 1, f"Node {node.node_name} should have at least 1 GPU"
 
@@ -315,7 +258,7 @@ class TestRealProcesses:
 
         # Check final status
         assert job.status == JobStatus.COMPLETED, f"Job status is {job.status}, error: {job.error_message}"
-        assert job.assigned_node in ["worker1", "worker2"]
+        assert job.assigned_node == "worker1"
         assert len(job.assigned_gpus) == 1
 
         # Try to verify logs if available (may not be accessible via API if stored on worker)
@@ -637,7 +580,7 @@ class TestRealProcesses:
         assert len(all_jobs) >= 3, "Should have at least 3 jobs"
 
         # Filter by status
-        completed_jobs = client.list_jobs(status=JobStatus.COMPLETED)
+        completed_jobs = client.list_jobs(status_filter=JobStatus.COMPLETED.value)
         assert len(completed_jobs) > 0, "Should have some completed jobs"
 
 
