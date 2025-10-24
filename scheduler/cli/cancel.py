@@ -4,13 +4,12 @@ from scheduler.api import SchedulerClient
 from scheduler.core import load_config, ConnectionException, JobNotFoundException
 
 
-def cancel_command(job_ids: List[str], force: bool = False) -> int:
+def cancel_command(job_ids: List[str]) -> int:
     """
     Cancel one or more jobs.
 
     Args:
         job_ids: List of job IDs to cancel
-        force: If True, force kill without graceful shutdown
 
     Returns:
         Exit code (0 for success)

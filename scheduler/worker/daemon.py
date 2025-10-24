@@ -125,6 +125,7 @@ class WorkerDaemon:
             timeout = 60  # 60 seconds
             start_time = time.time()
 
+            is_running = True
             while time.time() - start_time < timeout:
                 is_running, exit_code = self.job_executor.get_job_status(self.current_job_pid)
                 if not is_running:

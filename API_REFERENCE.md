@@ -180,17 +180,13 @@ scheduler stop [OPTIONS]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--force` | flag | false | Force stop without graceful shutdown |
 | `--all` | flag | false | Stop all nodes in the cluster (head only) |
 
 **Examples:**
 
 ```bash
-# Stop scheduler on current node
+# Stop scheduler on current node (graceful shutdown)
 scheduler stop
-
-# Force stop (kill immediately)
-scheduler stop --force
 
 # Stop all nodes in cluster (run from head node)
 scheduler stop --all
@@ -622,12 +618,6 @@ scheduler cancel [OPTIONS] JOB_ID...
 |----------|-------------|
 | `JOB_ID` | Job ID(s) to cancel |
 
-**Options:**
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `--force` | flag | false | Force kill without graceful shutdown |
-
 **Examples:**
 ```bash
 # Cancel a specific job
@@ -635,9 +625,6 @@ scheduler cancel job_abc123
 
 # Cancel multiple jobs
 scheduler cancel job_abc123 job_def456 job_ghi789
-
-# Force kill a stuck job
-scheduler cancel --force job_abc123
 ```
 
 ---

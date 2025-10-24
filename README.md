@@ -155,17 +155,13 @@ scheduler stop [OPTIONS]
 
 | Option    | Type | Default | Description                      |
 | --------- | ---- | ------- | -------------------------------- |
-| `--force` | flag | false   | Force stop without graceful shutdown |
 | `--all`   | flag | false   | Stop all nodes in the cluster (head only) |
 
 **Examples:**
 
 ````bash
-# Stop scheduler on current node
+# Stop scheduler on current node (graceful shutdown)
 scheduler stop
-
-# Force stop (kill immediately)
-scheduler stop --force
 
 # Stop all nodes in cluster (run from head node)
 scheduler stop --all

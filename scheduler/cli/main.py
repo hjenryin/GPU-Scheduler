@@ -31,7 +31,6 @@ def main():
 
     # scheduler stop
     stop_parser = subparsers.add_parser('stop', help='Stop scheduler')
-    stop_parser.add_argument('--force', action='store_true', help='Force kill')
 
     # scheduler submit
     submit_parser = subparsers.add_parser('submit', help='Submit a job')
@@ -88,7 +87,7 @@ def main():
                 log_level=args.log_level
             )
         elif args.command == 'stop':
-            return stop_command(force=args.force)
+            return stop_command()
         elif args.command == 'submit':
             return submit_command(
                 script=args.script,

@@ -7,12 +7,11 @@ from scheduler.worker import is_daemon_running
 logger = logging.getLogger(__name__)
 
 
-def stop_command(force: bool = False, all_nodes: bool = False) -> int:
+def stop_command(all_nodes: bool = False) -> int:
     """
     Stop scheduler on current node or all nodes.
 
     Args:
-        force: If True, force kill without graceful shutdown
         all_nodes: If True, stop all nodes in cluster (head only)
 
     Returns:
@@ -28,7 +27,7 @@ def stop_command(force: bool = False, all_nodes: bool = False) -> int:
 
     # Try to stop head node
     head_lockfile = os.path.expanduser("~/.scheduler/head.lock")
-    head_stopped = _stop_daemon(head_lockfile, "head node", force)
+    head_stopped = _stop_daemon(head_lockfile, "head node")
 
     # Try to stop worker nodes (check common lock patterns)
     worker_stopped = False
@@ -38,7 +37,7 @@ def stop_command(force: bool = False, all_nodes: bool = False) -> int:
             if filename.startswith("worker-") and filename.endswith(".lock"):
                 lockfile = os.path.join(scheduler_dir, filename)
                 node_name = filename[7:-5]  # Remove "worker-" and ".lock"
-                if _stop_daemon(lockfile, f"worker node '{node_name}'", force):
+                if _stop_daemon(lockfile, f"worker node '{node_name}'"):
                     worker_stopped = True
 
     if not head_stopped and not worker_stopped:
@@ -48,7 +47,7 @@ def stop_command(force: bool = False, all_nodes: bool = False) -> int:
     return 0
 
 
-def _stop_daemon(lockfile: str, name: str, force: bool) -> bool:
+def _stop_daemon(lockfile: str, name: str) -> bool:
     """
     Stop a daemon by reading its PID from lockfile.
 
@@ -63,14 +62,9 @@ def _stop_daemon(lockfile: str, name: str, force: bool) -> bool:
             pid = int(f.read().strip())
 
         print(f"Stopping {name} (PID {pid})...")
-
-        if force:
-            os.kill(pid, signal.SIGKILL)
-            print(f"Forcefully killed {name}")
-        else:
-            os.kill(pid, signal.SIGTERM)
-            print(f"Sent graceful shutdown signal to {name}")
-            print("(Jobs will complete before shutdown)")
+        os.kill(pid, signal.SIGTERM)
+        print(f"Sent graceful shutdown signal to {name}")
+        print("(Jobs will complete before shutdown)")
 
         # Clean up lockfile
         try:

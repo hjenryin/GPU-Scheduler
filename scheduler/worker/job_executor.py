@@ -128,29 +128,23 @@ class JobExecutor:
                 # Process doesn't exist
                 return (False, -1)  # Unknown exit code
 
-    def terminate_job(self, pid: int, force: bool = False):
+    def terminate_job(self, pid: int):
         """
         Terminate a running job.
 
         Args:
             pid: Process ID
-            force: If True, use SIGKILL instead of SIGTERM
         """
         try:
             if pid in self.processes:
                 process = self.processes[pid]
-                if force:
-                    process.kill()  # SIGKILL
-                    logger.info(f"Killed job with PID {pid}")
-                else:
-                    process.terminate()  # SIGTERM
-                    logger.info(f"Terminated job with PID {pid}")
+                process.terminate()  # SIGTERM
+                logger.info(f"Terminated job with PID {pid}")
                 del self.processes[pid]
             else:
-                # Try to kill process directly
-                sig = signal.SIGKILL if force else signal.SIGTERM
-                os.kill(pid, sig)
-                logger.info(f"Sent signal {sig} to PID {pid}")
+                # Try to kill process directly using SIGTERM
+                os.kill(pid, signal.SIGTERM)
+                logger.info(f"Sent SIGTERM to PID {pid}")
         except OSError as e:
             logger.warning(f"Failed to terminate job with PID {pid}: {e}")
 
