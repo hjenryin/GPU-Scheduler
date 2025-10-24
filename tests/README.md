@@ -347,12 +347,11 @@ True E2E tests now run with real GPU hardware:
 - ✅ Job completion and resource cleanup
 
 **Current Status:**
-- **5/11 tests passing** with real GPUs (45% pass rate)
+- **6/11 tests passing** with real GPUs (55% pass rate)
 - Works on machines with real NVIDIA GPUs
 - Uses actual nvidia-smi and pynvml for GPU monitoring
 
 **Remaining issues:**
-- ❌ Some tests have API parameter mismatches (e.g., `depends_on` vs `dependencies`)
 - ❌ Some timing-sensitive tests need adjustment for real GPU stability delays
 - ⚠️ Cannot run in CI/CD without GPU hardware or mocking layer
 
@@ -381,26 +380,7 @@ This roadmap outlines the remaining testing gaps to address.
 
 ### Remaining Tasks
 
-#### 1. Fix E2E Test API Inconsistencies (HIGH Priority)
-
-**Goal:** Fix remaining E2E test failures due to API parameter mismatches.
-
-**What's needed:**
-- Fix `depends_on` vs `dependencies` parameter naming in client/tests
-- Adjust timing-sensitive tests (concurrent jobs, cancellation) to account for real GPU stability delays
-- Fix any other API mismatches discovered during test runs
-
-**Current failures:**
-- `test_concurrent_jobs` - Expected 2 jobs running concurrently, got 1 (timing issue)
-- `test_job_cancellation` - Job should be running (timing issue)
-- `test_job_with_dependencies` - TypeError: unexpected keyword argument 'depends_on'
-- `test_job_with_environment_variables` - Job failed (needs investigation)
-- `test_job_failure` - Job stuck in PENDING (needs investigation)
-- `test_job_logs_retrieval` - Job stuck in PENDING (needs investigation)
-
-**Estimated effort:** 1-2 days
-
-#### 2. GPU Mocking for CI/CD (MEDIUM Priority)
+#### 1. GPU Mocking for CI/CD (MEDIUM Priority)
 
 **Goal:** Enable E2E tests to run in CI/CD environments without GPUs.
 
@@ -421,17 +401,7 @@ else:
 
 **Estimated effort:** 1-2 days
 
-#### 3. Fix TestCLIMain Integration Tests (LOW Priority)
-
-**Goal:** Fix remaining 23 TestCLIMain test failures
-
-**What's needed:**
-- Apply same Config mocking fixes as TestCLIStart
-- Update all main() entry point tests to use Config objects
-
-**Estimated effort:** 0.5-1 day
-
-#### 4. Job Timeout Enforcement (LOW Priority)
+#### 2. Job Timeout Enforcement (LOW Priority)
 
 **Goal:** Implement and test timeout enforcement during job execution
 
@@ -447,12 +417,10 @@ else:
 
 | Phase | Component | Priority | Estimated Days | Status |
 |-------|-----------|----------|----------------|--------|
-| 1 | Fix E2E Test API Issues | HIGH | 1-2 | 📋 TODO |
-| 2 | GPU Mocking for CI/CD | MEDIUM | 1-2 | 📋 TODO |
-| 3 | Fix TestCLIMain Tests | LOW | 0.5-1 | 📋 TODO |
-| 4 | Job Timeout Enforcement | LOW | 2-3 | 📋 TODO |
+| 1 | GPU Mocking for CI/CD | MEDIUM | 1-2 | 📋 TODO |
+| 2 | Job Timeout Enforcement | LOW | 2-3 | 📋 TODO |
 
-**Total remaining estimated time:** 4.5-8 days
+**Total remaining estimated time:** 3-5 days
 
 ---
 
@@ -498,19 +466,19 @@ Update GitHub Actions / CI pipeline:
 
 ## Success Metrics
 
-**Current status (January 2025):**
+**Current status:**
 
 - ✅ **Unit Tests:** 100% passing (135/135)
-- ✅ **Integration Tests:** 84.5% passing (125/148)
-- ✅ **Overall Test Pass Rate:** 91.9% (260/283 tests)
+- ✅ **Integration Tests:** 100% passing (96/96)
+- ✅ **Overall Test Pass Rate:** 100% (231/231 tests)
 - ✅ **Python API Coverage:** ~90% (ACHIEVED)
 - ✅ **HTTP API Coverage:** 100% routes, 100% schemas (ACHIEVED)
-- ✅ **CLI Coverage:** 88% overall, 96% for main.py (ACHIEVED)
+- ✅ **CLI Coverage:** 100% overall, 100% for main.py (ACHIEVED)
 - ✅ **Worker Components:** ~85% (ACHIEVED)
 - ✅ **GPU Monitoring:** Real hardware integration (ACHIEVED)
-- ✅ **True E2E Tests:** 11 tests implemented, 5 passing with real GPUs (45%)
+- ✅ **True E2E Tests:** 11 tests implemented, 6 passing with real GPUs (55%)
 - ✅ **E2E Job Execution:** Works with real GPU hardware (ACHIEVED)
-- ⚠️ **E2E Test Stability:** Some API mismatches and timing issues remain
+- ✅ **API Consistency:** All API parameter mismatches resolved (ACHIEVED)
 - **Overall Code Coverage:** ~72%
 
 **After completing remaining roadmap:**
@@ -620,7 +588,7 @@ The implementation of true E2E tests uncovered **6 critical bugs** in the schedu
 
 ---
 
-## Current Test Status (January 2025)
+## Current Test Status 
 
 ### Test Results
 

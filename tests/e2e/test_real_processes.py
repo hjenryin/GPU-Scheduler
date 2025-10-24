@@ -424,7 +424,7 @@ class TestRealProcesses:
             script=script2_path,
             requirements="1",
             name="job2-read-file",
-            depends_on=[job1.job_id]
+            dependencies=[job1.job_id]
         )
 
         # Job 2 should start as PENDING (waiting for job1)

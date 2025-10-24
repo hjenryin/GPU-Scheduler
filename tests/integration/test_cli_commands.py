@@ -1084,7 +1084,7 @@ class TestCLIMain:
         call_kwargs = mock_start_cmd.call_args[1]
         assert call_kwargs['head'] is True
 
-    @patch('sys.argv', ['scheduler', 'stop', '--force'])
+    @patch('sys.argv', ['scheduler', 'stop'])
     @patch('scheduler.cli.main.stop_command')
     def test_main_routes_stop_command(self, mock_stop_cmd):
         """Test main() routes to stop_command with parsed args."""
@@ -1094,7 +1094,7 @@ class TestCLIMain:
         exit_code = main()
 
         assert exit_code == 0
-        mock_stop_cmd.assert_called_once_with(force=True)
+        mock_stop_cmd.assert_called_once_with(all_nodes=False)
 
     @patch('sys.argv', ['scheduler', 'submit', 'train.py', '--req', '2', '--name', 'my_job'])
     @patch('scheduler.cli.main.submit_command')
