@@ -38,7 +38,7 @@ class JobResponse(BaseModel):
             job_id=job.job_id,
             name=job.name,
             script=job.script,
-            requirements=str(job.requirements),
+            requirements=job.requirements.serialize(),  # Use serialize() for machine-readable format
             status=job.status.value,
             submitted_at=job.submitted_at.isoformat() if job.submitted_at else "",
             started_at=job.started_at.isoformat() if job.started_at else None,

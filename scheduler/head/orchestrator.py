@@ -38,10 +38,10 @@ class Orchestrator:
             logger.info(f"Using file backend at {config.storage.data_dir}")
 
         # Initialize persistence layer
-        persistence = PersistenceManager(backend)
+        persistence = PersistenceManager(backend, config)
 
         # Initialize managers
-        self.job_manager = JobManager(persistence)
+        self.job_manager = JobManager(persistence, config)
         self.node_manager = NodeManager(persistence, config)
 
         # Initialize scheduler
@@ -192,10 +192,10 @@ class Orchestrator:
                 self.scheduler.schedule_cycle()
 
                 # Check for node timeouts
-                self.node_manager.check_timeouts(self.scheduler.heartbeat_timeout)
+                self.node_manager.check_timeouts()
 
                 # Sleep for schedule interval
-                time.sleep(self.scheduler.schedule_interval)
+                time.sleep(self.config.head.scheduling_interval)
             except Exception as e:
                 logger.error(f"Error in scheduler loop: {e}", exc_info=True)
                 time.sleep(1)  # Brief pause before retrying

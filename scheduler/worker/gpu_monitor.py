@@ -126,13 +126,20 @@ class GPUMonitor:
                 except:
                     power_draw = 0
 
+                # Get power limit
+                try:
+                    power_limit = self.pynvml.nvmlDeviceGetPowerManagementLimit(handle) // 1000  # mW to W
+                except:
+                    power_limit = None  # Display N/A, like nvitop
+
                 stats.append(GPUStats(
                     gpu_id=i,
                     utilization=utilization,
                     memory_used=memory_used,
                     memory_total=memory_total,
                     temperature=temperature,
-                    power_draw=power_draw
+                    power_draw=power_draw,
+                    power_limit=power_limit
                 ))
 
             return stats
@@ -142,11 +149,11 @@ class GPUMonitor:
     def _poll_with_nvidia_smi(self) -> List[GPUStats]:
         """Poll GPU stats using nvidia-smi."""
         try:
-            # Query format: index, utilization.gpu, memory.used, memory.total, temperature.gpu, power.draw
+            # Query format: index, utilization.gpu, memory.used, memory.total, temperature.gpu, power.draw, power.limit
             result = subprocess.run(
                 [
                     'nvidia-smi',
-                    '--query-gpu=index,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw',
+                    '--query-gpu=index,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit',
                     '--format=csv,noheader,nounits'
                 ],
                 capture_output=True,
@@ -163,7 +170,7 @@ class GPUMonitor:
                     continue
 
                 parts = [p.strip() for p in line.split(',')]
-                if len(parts) < 6:
+                if len(parts) < 7:
                     continue
 
                 try:
@@ -173,6 +180,7 @@ class GPUMonitor:
                     memory_total = int(parts[3]) * 1024 * 1024  # MiB to bytes
                     temperature = int(parts[4])
                     power_draw = int(float(parts[5]))  # W
+                    power_limit = int(float(parts[6]))  # W
 
                     stats.append(GPUStats(
                         gpu_id=gpu_id,
@@ -180,7 +188,8 @@ class GPUMonitor:
                         memory_used=memory_used,
                         memory_total=memory_total,
                         temperature=temperature,
-                        power_draw=power_draw
+                        power_draw=power_draw,
+                        power_limit=power_limit
                     ))
                 except (ValueError, IndexError) as e:
                     logger.warning(f"Failed to parse nvidia-smi line '{line}': {e}")

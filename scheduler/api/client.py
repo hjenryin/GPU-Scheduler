@@ -292,7 +292,8 @@ class SchedulerClient:
             response = self.session.get(f"{self.base_url}/nodes", timeout=30)
             response.raise_for_status()
             data = response.json()
-            return [self._node_from_response(node_data) for node_data in data.get("nodes", [])]
+            # API returns a list directly, not a dict with "nodes" key
+            return [self._node_from_response(node_data) for node_data in data]
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to list nodes: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")
