@@ -16,6 +16,7 @@ from datetime import datetime
 # Import models and exceptions
 from scheduler.core.models import Job, JobStatus, JobRequirement
 from scheduler.core.exceptions import ValidationException, ConnectionException, JobNotFoundException, PermissionDeniedException
+from scheduler.core.config import Config, HeadConfig, WorkerConfig
 
 # Import CLI command functions
 from scheduler.cli.submit import submit_command
@@ -30,16 +31,13 @@ from scheduler.cli.stop import stop_command
 @pytest.fixture
 def mock_config():
     """Mock configuration."""
-    return {
-        'head_node': {
-            'host': 'localhost',
-            'port': 8265
-        },
-        'worker': {
-            'work_dir': '/tmp/scheduler',
-            'log_dir': '/tmp/scheduler/logs'
-        }
-    }
+    return Config(
+        head=HeadConfig(port=8265),
+        worker=WorkerConfig(
+            work_dir='/tmp/scheduler',
+            log_dir='/tmp/scheduler/logs'
+        )
+    )
 
 
 @pytest.fixture
@@ -85,7 +83,7 @@ class TestCLISubmit:
         """Test: scheduler submit --req 2 train.py"""
         mock_exists.return_value = True
         mock_abspath.return_value = '/abs/path/train.py'
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -123,7 +121,7 @@ class TestCLISubmit:
         """Test submitting job with name and priority."""
         mock_exists.return_value = True
         mock_abspath.return_value = '/abs/path/train.py'
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -150,7 +148,7 @@ class TestCLISubmit:
         """Test submitting job with environment variables."""
         mock_exists.return_value = True
         mock_abspath.return_value = '/abs/path/train.py'
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -189,7 +187,7 @@ class TestCLISubmit:
         """Test connection error handling."""
         mock_exists.return_value = True
         mock_abspath.return_value = '/abs/path/train.py'
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -211,7 +209,7 @@ class TestCLISubmit:
         """Test validation error handling."""
         mock_exists.return_value = True
         mock_abspath.return_value = '/abs/path/train.py'
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -233,7 +231,7 @@ class TestCLISubmit:
         """Test submitting and waiting for job completion."""
         mock_exists.return_value = True
         mock_abspath.return_value = '/abs/path/train.py'
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         # Create completed job
         completed_job = Job(
@@ -269,7 +267,7 @@ class TestCLIJobs:
     @patch('scheduler.cli.jobs.SchedulerClient')
     def test_jobs_list_empty(self, mock_client_class, mock_load_config):
         """Test listing jobs when none exist."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -284,7 +282,7 @@ class TestCLIJobs:
     @patch('scheduler.cli.jobs.SchedulerClient')
     def test_jobs_list_table_format(self, mock_client_class, mock_load_config, sample_job, running_job):
         """Test listing jobs in table format."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -299,7 +297,7 @@ class TestCLIJobs:
     @patch('scheduler.cli.jobs.SchedulerClient')
     def test_jobs_list_json_format(self, mock_client_class, mock_load_config, sample_job):
         """Test listing jobs in JSON format."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -321,7 +319,7 @@ class TestCLIJobs:
     @patch('scheduler.cli.jobs.SchedulerClient')
     def test_jobs_filter_by_status(self, mock_client_class, mock_load_config, running_job):
         """Test filtering jobs by status."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -336,7 +334,7 @@ class TestCLIJobs:
     @patch('scheduler.cli.jobs.SchedulerClient')
     def test_jobs_get_specific_job(self, mock_client_class, mock_load_config, sample_job):
         """Test getting specific job by ID."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -351,7 +349,7 @@ class TestCLIJobs:
     @patch('scheduler.cli.jobs.SchedulerClient')
     def test_jobs_limit(self, mock_client_class, mock_load_config, sample_job):
         """Test limiting number of jobs returned."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -366,7 +364,7 @@ class TestCLIJobs:
     @patch('scheduler.cli.jobs.SchedulerClient')
     def test_jobs_connection_error(self, mock_client_class, mock_load_config):
         """Test connection error handling."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -384,7 +382,7 @@ class TestCLILogs:
     @patch('scheduler.cli.logs.SchedulerClient')
     def test_logs_get_stdout(self, mock_client_class, mock_load_config):
         """Test getting stdout logs."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -399,7 +397,7 @@ class TestCLILogs:
     @patch('scheduler.cli.logs.SchedulerClient')
     def test_logs_get_stderr(self, mock_client_class, mock_load_config):
         """Test getting stderr logs."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -414,7 +412,7 @@ class TestCLILogs:
     @patch('scheduler.cli.logs.SchedulerClient')
     def test_logs_get_both(self, mock_client_class, mock_load_config):
         """Test getting both stdout and stderr logs."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -429,7 +427,7 @@ class TestCLILogs:
     @patch('scheduler.cli.logs.SchedulerClient')
     def test_logs_with_line_limit(self, mock_client_class, mock_load_config):
         """Test getting logs with custom line limit."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -444,7 +442,7 @@ class TestCLILogs:
     @patch('scheduler.cli.logs.SchedulerClient')
     def test_logs_job_not_found(self, mock_client_class, mock_load_config):
         """Test logs for non-existent job."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -458,7 +456,7 @@ class TestCLILogs:
     @patch('scheduler.cli.logs.SchedulerClient')
     def test_logs_connection_error(self, mock_client_class, mock_load_config):
         """Test connection error handling."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -472,7 +470,7 @@ class TestCLILogs:
     @patch('scheduler.cli.logs.SchedulerClient')
     def test_logs_follow_with_interrupt(self, mock_client_class, mock_load_config):
         """Test following logs with keyboard interrupt."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -491,7 +489,7 @@ class TestCLICancel:
     @patch('scheduler.cli.cancel.SchedulerClient')
     def test_cancel_single_job(self, mock_client_class, mock_load_config):
         """Test cancelling a single job."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -505,7 +503,7 @@ class TestCLICancel:
     @patch('scheduler.cli.cancel.SchedulerClient')
     def test_cancel_multiple_jobs(self, mock_client_class, mock_load_config):
         """Test cancelling multiple jobs."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -519,7 +517,7 @@ class TestCLICancel:
     @patch('scheduler.cli.cancel.SchedulerClient')
     def test_cancel_job_not_found(self, mock_client_class, mock_load_config):
         """Test cancelling non-existent job (should not error)."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -534,7 +532,7 @@ class TestCLICancel:
     @patch('scheduler.cli.cancel.SchedulerClient')
     def test_cancel_connection_error(self, mock_client_class, mock_load_config):
         """Test connection error handling."""
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -571,8 +569,8 @@ class TestCLIConfig:
             output = fake_out.getvalue()
 
         assert exit_code == 0
-        assert 'head_node' in output
-        assert 'localhost' in output
+        assert 'head' in output
+        assert '8265' in output
 
     @patch('scheduler.cli.config.load_config')
     def test_config_get_simple_key(self, mock_load_config, mock_config):
@@ -580,18 +578,19 @@ class TestCLIConfig:
         mock_load_config.return_value = mock_config
 
         with patch('sys.stdout', new=StringIO()) as fake_out:
-            exit_code = config_command(command='get', key='head_node')
+            exit_code = config_command(command='get', key='head')
             output = fake_out.getvalue()
 
         assert exit_code == 0
+        assert 'port' in output
 
     @patch('scheduler.cli.config.load_config')
     def test_config_get_nested_key(self, mock_load_config, mock_config):
-        """Test: scheduler config get head_node.port"""
+        """Test: scheduler config get head.port"""
         mock_load_config.return_value = mock_config
 
         with patch('sys.stdout', new=StringIO()) as fake_out:
-            exit_code = config_command(command='get', key='head_node.port')
+            exit_code = config_command(command='get', key='head.port')
             output = fake_out.getvalue()
 
         assert exit_code == 0
@@ -601,7 +600,7 @@ class TestCLIConfig:
     @patch('scheduler.cli.config.save_config')
     def test_config_set_simple_value(self, mock_save_config, mock_load_config, mock_config):
         """Test: scheduler config set key value"""
-        mock_load_config.return_value = mock_config.copy()
+        mock_load_config.return_value = mock_config
 
         exit_code = config_command(command='set', key='new_key', value='new_value')
 
@@ -614,10 +613,10 @@ class TestCLIConfig:
     @patch('scheduler.cli.config.load_config')
     @patch('scheduler.cli.config.save_config')
     def test_config_set_nested_value(self, mock_save_config, mock_load_config, mock_config):
-        """Test: scheduler config set head_node.port 9999"""
-        mock_load_config.return_value = mock_config.copy()
+        """Test: scheduler config set head.port 9999"""
+        mock_load_config.return_value = mock_config
 
-        exit_code = config_command(command='set', key='head_node.port', value='9999')
+        exit_code = config_command(command='set', key='head.port', value='9999')
 
         assert exit_code == 0
         mock_save_config.assert_called_once()
@@ -741,7 +740,7 @@ class TestCLIStart:
              patch('scheduler.cli.start.SingletonDaemon') as mock_singleton_class, \
              patch('scheduler.cli.start.Orchestrator') as mock_orchestrator_class:
 
-            mock_load_config.return_value = {'head_node': {'port': 8265}}
+            mock_load_config.return_value = Config(head=HeadConfig(port=8265))
             mock_singleton = Mock()
             mock_singleton.acquire_lock.return_value = True
             mock_singleton_class.return_value = mock_singleton
@@ -758,7 +757,7 @@ class TestCLIStart:
     @patch('scheduler.cli.start.Orchestrator')
     def test_start_head_with_temp_and_log_dirs(self, mock_orchestrator_class, mock_singleton_class, mock_load_config):
         """Test starting head with temp_dir and log_dir options."""
-        mock_load_config.return_value = {'head_node': {'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265))
         mock_singleton = Mock()
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
@@ -779,7 +778,7 @@ class TestCLIStart:
     @patch('scheduler.cli.start.WorkerDaemon')
     def test_start_worker_with_address_and_port(self, mock_worker_class, mock_singleton_class, mock_load_config):
         """Test starting worker with address containing port."""
-        mock_load_config.return_value = {'head_node': {}}
+        mock_load_config.return_value = Config()
         mock_singleton = Mock()
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
@@ -789,17 +788,16 @@ class TestCLIStart:
         exit_code = start_command(address='192.168.1.100:9000', block=False)
 
         assert exit_code == 0
-        # Verify config was updated with host and port
+        # Verify config was updated with address
         call_config = mock_worker_class.call_args[0][0]
-        assert call_config['head_node']['host'] == '192.168.1.100'
-        assert call_config['head_node']['port'] == 9000
+        assert call_config.address == '192.168.1.100:9000'
 
     @patch('scheduler.cli.start.load_config')
     @patch('scheduler.cli.start.SingletonDaemon')
     @patch('scheduler.cli.start.Orchestrator')
     def test_start_head_with_kwargs(self, mock_orchestrator_class, mock_singleton_class, mock_load_config):
         """Test starting head with additional kwargs (heartbeat, scheduling)."""
-        mock_load_config.return_value = {'head_node': {'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265))
         mock_singleton = Mock()
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
@@ -809,22 +807,22 @@ class TestCLIStart:
         exit_code = start_command(
             head=True,
             block=False,
-            heartbeat_interval=5,
+            heartbeat_timeout=5,
             scheduling_interval=2
         )
 
         assert exit_code == 0
         # Verify kwargs were passed to config
         call_config = mock_orchestrator_class.call_args[0][0]
-        assert call_config['head_node']['heartbeat_interval'] == 5
-        assert call_config['head_node']['scheduling_interval'] == 2
+        assert call_config.head.heartbeat_timeout == 5
+        assert call_config.head.scheduling_interval == 2
 
     @patch('scheduler.cli.start.load_config')
     @patch('scheduler.cli.start.SingletonDaemon')
     @patch('scheduler.cli.start.WorkerDaemon')
     def test_start_worker_with_kwargs(self, mock_worker_class, mock_singleton_class, mock_load_config):
         """Test starting worker with additional kwargs (gpu, job settings)."""
-        mock_load_config.return_value = {'head_node': {}}
+        mock_load_config.return_value = Config()
         mock_singleton = Mock()
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
@@ -835,21 +833,21 @@ class TestCLIStart:
             address='localhost:8265',
             block=False,
             gpu_poll_interval=1,
-            job_timeout=3600
+            job_startup_grace=3600
         )
 
         assert exit_code == 0
         # Verify kwargs were passed to config
         call_config = mock_worker_class.call_args[0][0]
-        assert call_config['worker']['gpu_poll_interval'] == 1
-        assert call_config['worker']['job_timeout'] == 3600
+        assert call_config.worker.gpu_poll_interval == 1
+        assert call_config.worker.job_startup_grace == 3600
 
     @patch('scheduler.cli.start.load_config')
     @patch('scheduler.cli.start.SingletonDaemon')
     @patch('scheduler.cli.start.Orchestrator')
     def test_start_head_validation_error(self, mock_orchestrator_class, mock_singleton_class, mock_load_config):
         """Test starting head with validation error."""
-        mock_load_config.return_value = {'head_node': {'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265))
         mock_singleton = Mock()
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
@@ -864,7 +862,7 @@ class TestCLIStart:
     @patch('scheduler.cli.start.WorkerDaemon')
     def test_start_worker_connection_error(self, mock_worker_class, mock_singleton_class, mock_load_config):
         """Test starting worker with connection error."""
-        mock_load_config.return_value = {'head_node': {}}
+        mock_load_config.return_value = Config()
         mock_singleton = Mock()
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
@@ -879,7 +877,7 @@ class TestCLIStart:
     @patch('scheduler.cli.start.Orchestrator')
     def test_start_head_permission_error(self, mock_orchestrator_class, mock_singleton_class, mock_load_config):
         """Test starting head with permission error."""
-        mock_load_config.return_value = {'head_node': {'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265))
         mock_singleton = Mock()
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
@@ -894,7 +892,7 @@ class TestCLIStart:
     @patch('scheduler.cli.start.Orchestrator')
     def test_start_head_keyboard_interrupt(self, mock_orchestrator_class, mock_singleton_class, mock_load_config):
         """Test starting head with keyboard interrupt."""
-        mock_load_config.return_value = {'head_node': {'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265))
         mock_singleton = Mock()
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
@@ -909,7 +907,7 @@ class TestCLIStart:
     @patch('scheduler.cli.start.Orchestrator')
     def test_start_head_unexpected_error(self, mock_orchestrator_class, mock_singleton_class, mock_load_config):
         """Test starting head with unexpected error."""
-        mock_load_config.return_value = {'head_node': {'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265))
         mock_singleton = Mock()
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
@@ -924,7 +922,7 @@ class TestCLIStart:
     @patch('scheduler.cli.start.Orchestrator')
     def test_start_head_blocking_mode(self, mock_orchestrator_class, mock_singleton_class, mock_load_config):
         """Test starting head in blocking mode."""
-        mock_load_config.return_value = {'head_node': {'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265))
         mock_singleton = Mock()
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
@@ -943,7 +941,7 @@ class TestCLIStart:
     @patch('scheduler.cli.start.WorkerDaemon')
     def test_start_worker_blocking_mode(self, mock_worker_class, mock_singleton_class, mock_load_config):
         """Test starting worker in blocking mode."""
-        mock_load_config.return_value = {'head_node': {}}
+        mock_load_config.return_value = Config()
         mock_singleton = Mock()
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
@@ -1041,10 +1039,10 @@ class TestCLIStop:
         mock_exists.return_value = True
         mock_listdir.return_value = []
 
-        exit_code = stop_command(force=True)
+        # Note: stop_command doesn't have a force parameter - it always uses SIGTERM
+        exit_code = stop_command()
 
         assert exit_code == 0
-        # Should send SIGKILL instead of SIGTERM
         mock_kill.assert_called()
 
     def test_stop_all_nodes(self):
@@ -1427,7 +1425,7 @@ class TestCLIStatus:
         """Test launching status TUI successfully."""
         from scheduler.cli.status import status_command
 
-        mock_load_config.return_value = {'head': {'address': 'localhost:8265'}}
+        mock_load_config.return_value = Config(address='localhost:8265')
         mock_client = Mock()
         mock_client_class.return_value = mock_client
         mock_client.list_nodes.return_value = []
@@ -1443,7 +1441,7 @@ class TestCLIStatus:
         """Test status command when cannot connect to head node."""
         from scheduler.cli.status import status_command
 
-        mock_load_config.return_value = {'head': {'address': 'localhost:8265'}}
+        mock_load_config.return_value = Config(address='localhost:8265')
         mock_client = Mock()
         mock_client_class.return_value = mock_client
         mock_client.list_nodes.side_effect = ConnectionException("Cannot connect")
@@ -1459,7 +1457,7 @@ class TestCLIStatus:
         """Test status command handles keyboard interrupt."""
         from scheduler.cli.status import status_command
 
-        mock_load_config.return_value = {'head': {'address': 'localhost:8265'}}
+        mock_load_config.return_value = Config(address='localhost:8265')
         mock_client = Mock()
         mock_client_class.return_value = mock_client
         mock_client.list_nodes.return_value = []
@@ -1492,7 +1490,7 @@ class TestCLIEdgeCases:
         """Test submitting job with script arguments."""
         mock_exists.return_value = True
         mock_abspath.return_value = '/abs/path/train.py'
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -1517,7 +1515,7 @@ class TestCLIEdgeCases:
         """Test submitting job with dependencies."""
         mock_exists.return_value = True
         mock_abspath.return_value = '/abs/path/train.py'
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client
@@ -1542,7 +1540,7 @@ class TestCLIEdgeCases:
         """Test submitting job with timeout."""
         mock_exists.return_value = True
         mock_abspath.return_value = '/abs/path/train.py'
-        mock_load_config.return_value = {'head_node': {'host': 'localhost', 'port': 8265}}
+        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
         mock_client = Mock()
         mock_client_class.return_value = mock_client

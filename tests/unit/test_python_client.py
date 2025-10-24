@@ -481,30 +481,29 @@ class TestNodeMethods:
 
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "nodes": [
-                {
-                    "node_name": "worker-1",
-                    "address": "192.168.1.1:8265",
-                    "num_gpus": 4,
-                    "registered_at": "2025-01-01T00:00:00",
-                    "last_heartbeat": "2025-01-01T01:00:00",
-                    "gpus": [
-                        {
-                            "gpu_id": 0,
-                            "utilization": 50,
-                            "memory_used": 8000,
-                            "memory_total": 16000,
-                            "temperature": 65,
-                            "power_draw": 150,
-                            "power_limit": 250,
-                            "assigned_job_id": None,
-                            "stable_since": "2025-01-01T00:00:00"
-                        }
-                    ]
-                }
-            ]
-        }
+        # API returns a list directly, not a dict with "nodes" key
+        mock_response.json.return_value = [
+            {
+                "node_name": "worker-1",
+                "address": "192.168.1.1:8265",
+                "num_gpus": 4,
+                "registered_at": "2025-01-01T00:00:00",
+                "last_heartbeat": "2025-01-01T01:00:00",
+                "gpus": [
+                    {
+                        "gpu_id": 0,
+                        "utilization": 50,
+                        "memory_used": 8000,
+                        "memory_total": 16000,
+                        "temperature": 65,
+                        "power_draw": 150,
+                        "power_limit": 250,
+                        "assigned_job_id": None,
+                        "stable_since": "2025-01-01T00:00:00"
+                    }
+                ]
+            }
+        ]
 
         with patch.object(client.session, 'get', return_value=mock_response):
             nodes = client.list_nodes()

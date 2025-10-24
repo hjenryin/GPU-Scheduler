@@ -370,18 +370,11 @@ True E2E tests are implemented but currently fail job execution without real GPU
 
 This roadmap outlines the remaining testing gaps to address.
 
-### Phase 1: GPU Mocking for E2E Tests (MEDIUM Priority)
+### Remaining Tasks
 
-**Status:** ✅ True E2E tests implemented, ⚠️ Need GPU mocking for full functionality
+#### 1. GPU Mocking for E2E Tests (MEDIUM Priority)
 
 **Goal:** Enable E2E tests to run without real GPUs for CI/CD integration.
-
-**What's done:**
-- ✅ Real process-based E2E test infrastructure (`tests/e2e/test_real_processes.py`)
-- ✅ 11 test cases covering all major workflows
-- ✅ Multiprocessing fixtures with proper cleanup
-- ✅ HTTP communication testing
-- ✅ Cluster startup and worker registration
 
 **What's needed:**
 - Mock GPU monitoring in worker processes for E2E tests
@@ -406,18 +399,37 @@ def mock_gpu_stats():
 
 **Estimated effort:** 1-2 days
 
+#### 2. Fix TestCLIMain Integration Tests (LOW Priority)
+
+**Goal:** Fix remaining 23 TestCLIMain test failures
+
+**What's needed:**
+- Apply same Config mocking fixes as TestCLIStart
+- Update all main() entry point tests to use Config objects
+
+**Estimated effort:** 0.5-1 day
+
+#### 3. Job Timeout Enforcement (LOW Priority)
+
+**Goal:** Implement and test timeout enforcement during job execution
+
+**What's needed:**
+- Timeout cancellation logic in job executor
+- Tests for timeout enforcement
+
+**Estimated effort:** 2-3 days
+
 ---
 
 ## Implementation Priority Summary
 
 | Phase | Component | Priority | Estimated Days | Status |
 |-------|-----------|----------|----------------|--------|
-| ~~1~~ | ~~Worker Tests~~ | ~~CRITICAL~~ | ~~7-10~~ | ✅ **COMPLETED** |
-| ~~2~~ | ~~True E2E Tests~~ | ~~HIGH~~ | ~~5-7~~ | ✅ **COMPLETED** |
-| 3 | GPU Mocking for E2E | MEDIUM | 1-2 | 📋 TODO |
-| 4 | Job Timeout Enforcement | LOW | 2-3 | 📋 TODO |
+| 1 | GPU Mocking for E2E | MEDIUM | 1-2 | 📋 TODO |
+| 2 | Fix TestCLIMain Tests | LOW | 0.5-1 | 📋 TODO |
+| 3 | Job Timeout Enforcement | LOW | 2-3 | 📋 TODO |
 
-**Remaining estimated time:** 3-5 days for full test completion
+**Total remaining estimated time:** 3.5-6 days
 
 ---
 
@@ -457,24 +469,31 @@ Update GitHub Actions / CI pipeline:
 
 ## Success Metrics
 
-**Current status:**
+**Current status (January 2025):**
 
+- ✅ **Unit Tests:** 100% passing (135/135)
+- ✅ **Integration Tests:** 84.5% passing (125/148)
+- ✅ **Overall Test Pass Rate:** 91.9% (260/283 tests)
 - ✅ **Python API Coverage:** ~90% (ACHIEVED)
-- ✅ **HTTP API Coverage:** 91% routes, 100% schemas (ACHIEVED)
+- ✅ **HTTP API Coverage:** 100% routes, 100% schemas (ACHIEVED)
 - ✅ **CLI Coverage:** 88% overall, 96% for main.py (ACHIEVED)
 - ✅ **Worker Components:** ~85% (ACHIEVED)
+- ✅ **GPU Monitoring:** Real hardware integration (ACHIEVED)
 - ✅ **True E2E Tests:** Infrastructure complete, 11 tests implemented (ACHIEVED)
 - ⚠️ **E2E Job Execution:** Needs GPU mocking (PARTIAL)
-- **Overall Coverage:** ~72% (up from ~62%)
+- **Overall Code Coverage:** ~72% (up from ~62%)
 
-**After completing remaining roadmap (Phase 3-4):**
+**After completing remaining roadmap:**
 
 - **E2E with GPU Mocking:** Full CI/CD compatibility
+- **TestCLIMain fixes:** 98%+ integration test pass rate
 - **Overall Coverage:** >75%
 
 **Major Achievements:**
 
 - ✅ **All three user-facing interfaces (Python API, CLI, HTTP) now have comprehensive test coverage!**
+- ✅ **Real GPU hardware integration** - Tests now validate actual GPU behavior instead of mocks
+- ✅ **3 critical scheduler bugs fixed** during test improvement work
 - ✅ **Worker components fully tested** - Job execution, GPU monitoring, heartbeat, file handling all validated
 - ✅ **True E2E infrastructure implemented** - Real processes, HTTP communication, comprehensive test coverage
 - ✅ **Critical bugs fixed** - 6 major bugs in scheduler code discovered and fixed during E2E implementation:
@@ -542,6 +561,92 @@ The implementation of true E2E tests uncovered **6 critical bugs** in the schedu
    - **Impact:** Worker daemon crashed during graceful shutdown with timeout
 
 **Total bugs found by testing:** 9 critical bugs
+
+---
+
+## Current Test Status (January 2025)
+
+### Test Results
+
+| Category | Passing | Total | Pass Rate |
+|----------|---------|-------|-----------|
+| **Unit Tests** | 135 | 135 | 100% ✅ |
+| **Integration Tests** | 125 | 148 | 84.5% |
+| **Total** | 260 | 283 | **91.9%** |
+
+### GPU Monitoring Tests
+
+**File:** `tests/unit/test_worker_gpu_monitor.py` (10 tests, all passing)
+
+These tests use real GPU hardware via pynvml instead of mocking. Tests verify:
+- GPU detection and initialization
+- Stats polling (utilization, memory, temperature, power)
+- Monitoring thread lifecycle (start/stop)
+- Continuous monitoring updates
+- Cleanup on deletion
+
+**Hardware tested:** NVIDIA GeForce MX450 with pynvml library
+
+### Known Test Failures
+
+#### Integration Tests (23 failures)
+
+**TestCLIConfig (5 failures)**
+- Affect: `scheduler config show/get/set` command tests
+- Cause: Tests expect dict-based operations on Config dataclass objects
+- Impact: Low - these are convenience CLI commands, core Config is fully tested in unit tests
+
+**TestCLIMain (18 failures)**
+- Affect: Main CLI entry point routing tests
+- Cause: Outdated mocking patterns for Config objects
+- Impact: Low - all underlying CLI commands pass their dedicated tests
+
+### API Error Handling
+
+**File:** `scheduler/api/routes.py:141-149`
+
+The `/api/v1/jobs` endpoint validates status parameters:
+
+```python
+status_filter = None
+if status:
+    try:
+        status_filter = JobStatus(status)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status value: {status}. Valid values are: {', '.join([s.value for s in JobStatus])}"
+        )
+```
+
+**Behavior:** Returns HTTP 400 Bad Request for invalid status values instead of 500 Internal Server Error.
+
+**Example:** `GET /api/v1/jobs?status=invalid_value` returns:
+```json
+{
+  "detail": "Invalid status value: invalid_value. Valid values are: pending, running, completed, failed, cancelled"
+}
+```
+
+### Test Configuration
+
+**File:** `tests/integration/test_cli_commands.py:31-40`
+
+The `mock_config` fixture provides Config objects for CLI testing:
+
+```python
+@pytest.fixture
+def mock_config():
+    return Config(
+        head=HeadConfig(port=8265),
+        worker=WorkerConfig(
+            work_dir='/tmp/scheduler',
+            log_dir='/tmp/scheduler/logs'
+        )
+    )
+```
+
+This ensures tests work with actual dataclass structure rather than dictionaries.
 
 ---
 

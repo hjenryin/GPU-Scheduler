@@ -244,8 +244,9 @@ class TestJobEndpoints:
         """Test GET /api/v1/jobs?status=invalid_value returns error"""
         response = api_client.get("/api/v1/jobs?status=invalid_value")
 
-        # Should return 500 when JobStatus() constructor fails with ValueError
-        assert response.status_code == 500
+        # Should return 400 Bad Request for invalid status value
+        assert response.status_code == 400
+        assert "invalid_value" in response.json()["detail"]
 
     # DELETE /api/v1/jobs/{job_id} - Cancel job tests
 
