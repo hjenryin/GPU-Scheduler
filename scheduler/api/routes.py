@@ -117,7 +117,6 @@ async def submit_job_route(request: JobSubmitRequest) -> JobResponse:
             env_vars=request.env_vars,
             dependencies=request.dependencies,
             priority=request.priority,
-            timeout=request.timeout
         )
         return JobResponse.from_job(job)
     except Exception as e:

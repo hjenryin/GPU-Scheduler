@@ -1532,27 +1532,3 @@ class TestCLIEdgeCases:
         call_kwargs = mock_client.submit_job.call_args[1]
         assert call_kwargs['dependencies'] == ['job_1', 'job_2']
 
-    @patch('scheduler.cli.submit.load_config')
-    @patch('scheduler.cli.submit.SchedulerClient')
-    @patch('os.path.exists')
-    @patch('os.path.abspath')
-    def test_submit_with_timeout(self, mock_abspath, mock_exists, mock_client_class, mock_load_config, sample_job):
-        """Test submitting job with timeout."""
-        mock_exists.return_value = True
-        mock_abspath.return_value = '/abs/path/train.py'
-        mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
-
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-        mock_client.submit_job.return_value = sample_job
-
-        exit_code = submit_command(
-            script='train.py',
-            req='1',
-            timeout=3600,
-            async_submit=True
-        )
-
-        assert exit_code == 0
-        call_kwargs = mock_client.submit_job.call_args[1]
-        assert call_kwargs['timeout'] == 3600

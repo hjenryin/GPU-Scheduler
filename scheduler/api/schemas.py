@@ -13,7 +13,6 @@ class JobSubmitRequest(BaseModel):
     env_vars: Optional[Dict[str, str]] = None
     dependencies: Optional[List[str]] = None
     priority: int = 0
-    timeout: Optional[int] = None
 
 
 class JobResponse(BaseModel):

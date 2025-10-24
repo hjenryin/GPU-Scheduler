@@ -440,7 +440,6 @@ scheduler submit [OPTIONS] SCRIPT [-- SCRIPT_ARGS...]
 | `--name` | string | script name | Human-readable job name |
 | `--priority` | int | `0` | Job priority (higher = more important) |
 | `--env` | list | none | Environment variables (KEY=VALUE format, can be repeated) |
-| `--timeout` | int | none | Job timeout in seconds |
 | `--working-dir` | path | current dir | Working directory for job execution |
 | `--async` | flag | false | Submit and return immediately without waiting |
 | `--log-to-driver` | flag | false | Stream logs to stdout in real-time |
@@ -486,8 +485,6 @@ scheduler submit --req 1 --log-to-driver train.py
 # Submit asynchronously
 scheduler submit --req 2 --async train.py
 
-# Job with timeout
-scheduler submit --req 4 --timeout 3600 train.py
 ```
 
 **Output:**

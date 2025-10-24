@@ -304,7 +304,6 @@ class Job:
         env_vars: Dict[str, str] = None,
         dependencies: List[str] = None,
         priority: int = 0,
-        timeout: Optional[int] = None,
         submitted_at: Optional[datetime] = None,
         started_at: Optional[datetime] = None,
         completed_at: Optional[datetime] = None,
@@ -328,7 +327,6 @@ class Job:
             env_vars: Environment variables
             dependencies: List of job IDs this job depends on
             priority: Job priority (higher = more important)
-            timeout: Job timeout in seconds
             submitted_at: Submission timestamp
             started_at: Start timestamp
             completed_at: Completion timestamp
@@ -348,7 +346,6 @@ class Job:
         self.env_vars = env_vars or {}
         self.dependencies = dependencies or []
         self.priority = priority
-        self.timeout = timeout
         self.submitted_at = submitted_at or datetime.now()
         self.started_at = started_at
         self.completed_at = completed_at
@@ -401,7 +398,6 @@ class Job:
             'env_vars': self.env_vars,
             'dependencies': self.dependencies,
             'priority': self.priority,
-            'timeout': self.timeout,
             'submitted_at': self.submitted_at.isoformat() if self.submitted_at else None,
             'started_at': self.started_at.isoformat() if self.started_at else None,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
@@ -444,7 +440,6 @@ class Job:
             env_vars=data.get('env_vars'),
             dependencies=data.get('dependencies'),
             priority=data.get('priority', 0),
-            timeout=data.get('timeout'),
             submitted_at=submitted_at,
             started_at=started_at,
             completed_at=completed_at,

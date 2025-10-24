@@ -171,7 +171,6 @@ class TestSubmitJob:
             "env_vars": {"ENV": "prod"},
             "dependencies": ["job_123"],
             "priority": 10,
-            "timeout": 3600
         }
 
         with patch.object(client.session, 'post', return_value=mock_response) as mock_post:
@@ -184,7 +183,6 @@ class TestSubmitJob:
                 env_vars={"ENV": "prod"},
                 dependencies=["job_123"],
                 priority=10,
-                timeout=3600
             )
 
         # Verify the payload sent
@@ -193,7 +191,6 @@ class TestSubmitJob:
         assert payload["script"] == "train.py"
         assert payload["requirements"] == "4"
         assert payload["priority"] == 10
-        assert payload["timeout"] == 3600
 
 
 class TestGetJob:
@@ -755,7 +752,6 @@ class TestResponseParsing:
             "env_vars": {"CUDA_VISIBLE_DEVICES": "0,1"},
             "dependencies": ["job_100"],
             "priority": 5,
-            "timeout": 7200
         }
 
         job = client._job_from_response(data)
@@ -765,7 +761,6 @@ class TestResponseParsing:
         assert job.exit_code == 0
         assert job.assigned_gpus == [0, 1]
         assert job.priority == 5
-        assert job.timeout == 7200
         assert isinstance(job.submitted_at, datetime)
         assert isinstance(job.completed_at, datetime)
 

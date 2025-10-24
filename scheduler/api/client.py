@@ -74,7 +74,6 @@ class SchedulerClient:
         env_vars: Dict[str, str] = None,
         dependencies: List[str] = None,
         priority: int = 0,
-        timeout: Optional[int] = None
     ) -> Job:
         """
         Submit a job.
@@ -98,7 +97,6 @@ class SchedulerClient:
             "env_vars": env_vars,
             "dependencies": dependencies,
             "priority": priority,
-            "timeout": timeout
         }
 
         try:
@@ -523,7 +521,6 @@ class SchedulerClient:
             env_vars=data.get("env_vars"),
             dependencies=data.get("dependencies"),
             priority=data.get("priority", 0),
-            timeout=data.get("timeout")
         )
 
     def _node_from_response(self, data: dict) -> Node:

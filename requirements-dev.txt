@@ -24,6 +24,7 @@ coverage[toml]>=7.3.0
 # Testing utilities
 faker>=19.3.0
 freezegun>=1.2.2
+httpx>=0.24.0  # Required for FastAPI TestClient
 
 # Documentation
 sphinx>=7.1.0

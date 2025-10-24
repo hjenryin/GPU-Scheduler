@@ -69,7 +69,6 @@ class TestJobEndpoints:
             "env_vars": {"PYTHONPATH": "/home/user/lib", "DEBUG": "1"},
             "dependencies": [],
             "priority": 5,
-            "timeout": 3600
         })
 
         assert response.status_code == 200
@@ -144,15 +143,6 @@ class TestJobEndpoints:
         # Should accept negative priority (lower priority)
         assert response.status_code == 200
 
-    def test_submit_job_zero_timeout(self, api_client):
-        """Test POST /api/v1/jobs with zero timeout"""
-        response = api_client.post("/api/v1/jobs", json={
-            "script": "train.py",
-            "requirements": "2",
-            "timeout": 0
-        })
-
-        assert response.status_code == 200
 
     # GET /api/v1/jobs/{job_id} - Get job details tests
 

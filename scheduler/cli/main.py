@@ -56,7 +56,6 @@ def main():
     submit_parser.add_argument('--name', help='Job name')
     submit_parser.add_argument('--priority', type=int, default=0, help='Priority')
     submit_parser.add_argument('--env', action='append', help='Environment variables (KEY=VALUE)')
-    submit_parser.add_argument('--timeout', type=int, help='Job timeout in seconds')
     submit_parser.add_argument('--working-dir', help='Working directory for job')
     submit_parser.add_argument('--async', dest='async_submit', action='store_true', help='Submit async')
     submit_parser.add_argument('--log-to-driver', action='store_true', help='Stream logs')
@@ -128,7 +127,6 @@ def main():
                 name=args.name,
                 priority=args.priority,
                 env=args.env,
-                timeout=args.timeout,
                 working_dir=args.working_dir,
                 async_submit=args.async_submit,
                 log_to_driver=args.log_to_driver

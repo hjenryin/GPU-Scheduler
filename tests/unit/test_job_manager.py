@@ -49,7 +49,6 @@ class TestJobManager:
             env_vars={"KEY": "value"},
             dependencies=["job-000"],
             priority=5,
-            timeout=3600
         )
 
         assert job.name == "my-job"
@@ -58,7 +57,6 @@ class TestJobManager:
         assert job.env_vars == {"KEY": "value"}
         assert job.dependencies == ["job-000"]
         assert job.priority == 5
-        assert job.timeout == 3600
 
     def test_submit_job_invalid_requirements(self, job_manager):
         """Test submitting job with invalid requirements raises exception"""

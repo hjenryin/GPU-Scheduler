@@ -47,7 +47,6 @@ class JobManager:
         env_vars: Dict[str, str] = None,
         dependencies: List[str] = None,
         priority: int = 0,
-        timeout: Optional[int] = None
     ) -> Job:
         """
         Submit a new job.
@@ -61,7 +60,6 @@ class JobManager:
             env_vars: Environment variables
             dependencies: Job dependencies
             priority: Job priority
-            timeout: Job timeout
 
         Returns:
             Created Job instance
@@ -91,7 +89,6 @@ class JobManager:
             env_vars=env_vars,
             dependencies=dependencies,
             priority=priority,
-            timeout=timeout,
             submitted_at=datetime.now(),
             status=JobStatus.PENDING
         )
