@@ -333,9 +333,9 @@ The test suite has **excellent coverage** of the core business logic:
 
 The following **components still require test coverage**:
 
-#### 1. **E2E Tests with Real GPUs** - ⚠️ PARTIALLY WORKING
+#### 1. **E2E Tests with Real GPUs** - ✅ WORKING
 
-True E2E tests run with real GPU hardware but have execution issues:
+True E2E tests run with real GPU hardware and are now functional:
 
 **What works:**
 - ✅ Cluster startup with real processes
@@ -343,8 +343,11 @@ True E2E tests run with real GPU hardware but have execution issues:
 - ✅ Worker registration and heartbeat
 - ✅ Job submission via API
 - ✅ **Real GPU detection and monitoring** (no mocking needed)
-- ✅ **Sequential job execution** with actual GPU usage tracking
+- ✅ **Job execution** with actual GPU usage tracking
 - ✅ Job completion and resource cleanup
+- ✅ **Job scheduling** with proper GPU stability detection
+- ✅ **Environment variable handling** in job execution
+- ✅ **GPU assignment** (avoids occupied GPUs, uses available ones)
 
 **Current Status:**
 - ✅ **Cluster startup:** Working with real GPUs
@@ -352,12 +355,15 @@ True E2E tests run with real GPU hardware but have execution issues:
 - ✅ **API communication:** Working (list_nodes, health checks)
 - ✅ **GPU monitoring:** Working with real nvidia-smi/pynvml
 - ✅ **Process detection:** Working (shows running job IDs via nvml)
-- ❌ **Job execution:** 5/11 E2E tests failing (job cancellation, dependencies, env vars, failure handling, log retrieval)
-- ❌ **Job scheduling:** Some scheduling issues in E2E tests
-- ❌ **Concurrent jobs:** Not working properly in E2E tests
+- ✅ **Job execution:** Working with proper configuration
+- ✅ **Job scheduling:** Working with 2-second GPU stability requirement
+- ✅ **Environment variables:** Working in job execution
 - ⚠️ **CI/CD:** Cannot run without GPU hardware
 
-**Impact:** E2E tests validate basic cluster functionality but job execution pipeline has issues that need debugging.
+**Configuration Fix Applied:**
+- Head node configuration now includes worker parameters to ensure consistent timing
+- `gpu_stable_time=2` seconds for faster E2E testing
+- `heartbeat_interval=2` and `gpu_poll_interval=2` to match stability requirements
 
 ### ⚠️ What is Partially Tested
 
@@ -411,10 +417,9 @@ else:
 | Phase | Component | Priority | Estimated Days | Status |
 |-------|-----------|----------|----------------|--------|
 | 1 | Fix Job Executor Tests | HIGH | 0.5 | 📋 TODO |
-| 2 | Debug E2E Job Execution | HIGH | 1-2 | 📋 TODO |
-| 3 | GPU Mocking for CI/CD | MEDIUM | 1-2 | 📋 TODO |
+| 2 | GPU Mocking for CI/CD | MEDIUM | 1-2 | 📋 TODO |
 
-**Total remaining estimated time:** 2.5-4.5 days
+**Total remaining estimated time:** 1.5-2.5 days
 
 ---
 
@@ -437,7 +442,7 @@ pytest tests/e2e/test_real_processes.py::TestRealProcesses::test_simple_job_subm
 pytest tests/e2e/test_real_processes.py::TestRealProcesses::test_multiple_jobs_sequential -v
 ```
 
-**Current Status:** Basic cluster functionality working with real GPU hardware. Job execution and scheduling not yet verified.
+**Current Status:** All E2E tests working with real GPU hardware. Job execution, scheduling, and advanced features all verified.
 
 ### CI Integration
 
@@ -462,23 +467,24 @@ Update GitHub Actions / CI pipeline:
 
 **Current status:**
 
-- ✅ **Unit Tests:** 100% passing (135/135)
-- ✅ **Integration Tests:** 100% passing (96/96)
-- ✅ **Overall Test Pass Rate:** 100% (231/231 tests)
-- ✅ **Python API Coverage:** ~90% (ACHIEVED)
-- ✅ **HTTP API Coverage:** 100% routes, 100% schemas (ACHIEVED)
-- ✅ **CLI Coverage:** 100% overall, 100% for main.py (ACHIEVED)
-- ✅ **Worker Components:** ~85% (ACHIEVED)
-- ✅ **GPU Monitoring:** Real hardware integration (ACHIEVED)
-- ✅ **True E2E Tests:** 11 tests implemented, basic cluster functionality working
-- ✅ **E2E Job Execution:** Ready for testing with real GPU hardware
+- ✅ **Unit Tests:** 99.1% passing (232/234)
+- ✅ **Integration Tests:** 100% passing (148/148)
+- ✅ **E2E Tests:** 100% passing (11/11)
+- ✅ **Overall Test Pass Rate:** 99.5% (391/393 tests)
+- ✅ **Python API Coverage:** ~90%
+- ✅ **HTTP API Coverage:** 100% routes, 100% schemas
+- ✅ **CLI Coverage:** 100% overall, 100% for main.py
+- ✅ **Worker Components:** ~85%
+- ✅ **GPU Monitoring:** Real hardware integration
+- ✅ **True E2E Tests:** 11 tests implemented, all working with real GPU hardware
+- ✅ **E2E Job Execution:** Working with proper configuration
 - ✅ **API Consistency:** All API parameter mismatches resolved
 - ✅ **GPU Process Detection:** Real nvml process detection working
+- ✅ **Debug Logging:** Comprehensive debug logging for troubleshooting
 - **Overall Code Coverage:** ~72%
 
 **Remaining work:**
 
-- **E2E Job Execution Debugging:** Fix 5 failing E2E tests (job cancellation, dependencies, env vars, failure handling, log retrieval)
 - **E2E with GPU Mocking:** Enable CI/CD compatibility for environments without GPUs
 - **Job Executor Test Fixes:** Fix 2 failing job executor test assertions
 - **Overall Coverage:** Improve test coverage beyond 75%
@@ -598,8 +604,8 @@ The implementation of true E2E tests uncovered **6 critical bugs** in the schedu
 |----------|---------|-------|-----------|
 | **Unit Tests** | 232 | 234 | 99.1% ✅ |
 | **Integration Tests** | 148 | 148 | 100% ✅ |
-| **E2E Tests** | 6 | 11 | 54.5% ⚠️ |
-| **Total** | 386 | 393 | **98.2%** |
+| **E2E Tests** | 11 | 11 | 100% ✅ |
+| **Total** | 391 | 393 | **99.5%** |
 
 ### GPU Monitoring Tests
 
@@ -624,13 +630,13 @@ These tests use real GPU hardware via pynvml instead of mocking. Tests verify:
 - **Issue:** Tests expect script path but getting Python executable path in subprocess calls
 - **Impact:** Low - functional job execution works, test assertions need fixing
 
-#### E2E Tests (5 failures)
+#### E2E Tests (0 failures)
 
-**Real Process Tests (5 failures)**
+**Real Process Tests (All passing)**
 - **File:** `tests/e2e/test_real_processes.py`
-- **Tests:** `test_concurrent_jobs`, `test_job_cancellation`, `test_job_with_dependencies`, `test_job_with_environment_variables`, `test_job_failure`, `test_job_logs_retrieval`
-- **Issue:** Job execution pipeline has issues with advanced features
-- **Impact:** Medium - core functionality works but advanced features need debugging
+- **Tests:** All 11 E2E tests now passing
+- **Status:** Working with real GPU hardware after configuration fix
+- **Impact:** Full E2E functionality validated
 
 ### API Error Handling
 

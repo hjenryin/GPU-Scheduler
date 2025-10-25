@@ -44,9 +44,10 @@ class TestJobExecutor:
         mock_popen.assert_called_once()
         call_args = mock_popen.call_args
 
-        # Check command
-        assert call_args[0][0][0] == sample_job.script
-        assert call_args[0][0][1:] == sample_job.script_args
+        # Check command - Python script gets sys.executable prepended
+        import sys
+        expected_cmd = [sys.executable, sample_job.script] + sample_job.script_args
+        assert call_args[0][0] == expected_cmd
 
         # Check environment variables
         env = call_args[1]['env']
@@ -76,9 +77,11 @@ class TestJobExecutor:
 
         pid = executor.execute_job(job, [0])
 
-        # Check command has only script, no args
+        # Check command has Python executable + script, no args
         call_args = mock_popen.call_args
-        assert call_args[0][0] == [job.script]
+        import sys
+        expected_cmd = [sys.executable, job.script]
+        assert call_args[0][0] == expected_cmd
 
     @patch('scheduler.worker.job_executor.subprocess.Popen')
     @patch('builtins.open', new_callable=mock_open)

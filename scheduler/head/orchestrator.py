@@ -2,6 +2,7 @@ import logging
 import signal
 import time
 import threading
+from datetime import datetime
 from typing import Optional
 
 from scheduler.core import Config, PermissionDeniedException
@@ -188,6 +189,7 @@ class Orchestrator:
 
         while self.running:
             try:
+                logger.debug("Running scheduler cycle...")
                 # Run scheduler cycle
                 self.scheduler.schedule_cycle()
 
@@ -195,6 +197,7 @@ class Orchestrator:
                 self.node_manager.check_timeouts()
 
                 # Sleep for schedule interval
+                logger.debug(f"Sleeping for {self.config.head.scheduling_interval} seconds")
                 time.sleep(self.config.head.scheduling_interval)
             except Exception as e:
                 logger.error(f"Error in scheduler loop: {e}", exc_info=True)

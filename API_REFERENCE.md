@@ -723,6 +723,44 @@ export SCHEDULER_LOG_LEVEL=DEBUG
 scheduler start --address=head:8265
 ```
 
+### Debug Logging
+
+The scheduler provides extensive debug logging to help troubleshoot issues:
+
+**Available Log Levels:**
+- `DEBUG` - Detailed execution flow, GPU monitoring, scheduling decisions
+- `INFO` - General operation status (default)
+- `WARNING` - Non-critical issues
+- `ERROR` - Critical errors
+
+**Debug Information Includes:**
+- GPU stability tracking and free GPU detection
+- Job scheduling decisions and node selection
+- Heartbeat and node registration events
+- Job execution and completion status
+- API request/response details
+
+**Examples:**
+```bash
+# Enable debug logging for head node
+SCHEDULER_LOG_LEVEL=DEBUG scheduler start --head
+
+# Enable debug logging for worker node
+SCHEDULER_LOG_LEVEL=DEBUG scheduler start --address=head:8265
+
+# View debug logs
+tail -f ~/.scheduler/logs/scheduler-head.log
+tail -f ~/.scheduler/logs/scheduler-worker.log
+```
+
+**Debug Log Format:**
+```
+[2025-10-24 17:21:46.081945] Node worker1.get_free_gpus: checking 8 GPUs with thresholds util=10.0%, mem=10.0%, stable_time=2s
+[2025-10-24 17:21:46.081945] GPU 1: util=0.0%, mem=1.4%, is_free=True, is_stable=True, stable_since=2025-10-24 17:21:33.113722, elapsed=12.97s
+[2025-10-24 17:21:46.081945] GPU 1: ADDED to free GPUs
+[2025-10-24 17:21:46.081945] Node worker1: FINAL free GPUs = [1, 2, 3, 4, 5, 6, 7]
+```
+
 ---
 
 ## Common Workflows

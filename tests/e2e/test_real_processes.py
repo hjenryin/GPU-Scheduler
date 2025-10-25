@@ -40,6 +40,14 @@ def _run_head_process(port, temp_dir, ready_event):
                 heartbeat_timeout=30,
                 scheduling_interval=1  # Faster scheduling for tests
             ),
+            worker=WorkerConfig(
+                gpu_util_threshold=10.0,
+                gpu_mem_threshold=10.0,
+                gpu_stable_time=2,  # Match worker config for faster tests
+                heartbeat_interval=2,  # Must be <= gpu_stable_time
+                gpu_poll_interval=2,  # Must be <= gpu_stable_time
+                job_startup_grace=3
+            ),
             storage=StorageConfig(
                 backend='file',
                 data_dir=os.path.join(temp_dir, 'head_data')

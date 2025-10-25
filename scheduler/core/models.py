@@ -4,8 +4,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple
+import logging
 
 from scheduler.core.exceptions import InvalidRequirementException
+
+logger = logging.getLogger(__name__)
 
 
 class JobStatus(Enum):
@@ -145,13 +148,17 @@ class GPU:
         # Check if GPU is currently free (below thresholds)
         # Note: We rely purely on actual usage monitoring, not internal job tracking
         # This allows the scheduler to work in shared GPU environments
-        if stats.is_free(util_threshold, mem_threshold):
+        is_free = stats.is_free(util_threshold, mem_threshold)
+        
+        if is_free:
             # If it was already stable, keep the timestamp
             if self.stable_since is None:
                 self.stable_since = datetime.now()
+                logger.debug(f"GPU {self.gpu_id}: Set stable_since to {self.stable_since}")
         else:
             # GPU is not free, reset stability
             self.stable_since = None
+            logger.debug(f"GPU {self.gpu_id}: Reset stable_since (GPU not free)")
 
     def is_stable(self, stable_time: int) -> bool:
         """Check if GPU has been stable for required duration.
@@ -165,8 +172,11 @@ class GPU:
         if self.stable_since is None:
             return False
 
-        elapsed = (datetime.now() - self.stable_since).total_seconds()
-        return elapsed >= stable_time
+        current_time = datetime.now()
+        elapsed = (current_time - self.stable_since).total_seconds()
+        is_stable = elapsed >= stable_time
+        logger.debug(f"GPU {self.gpu_id}: is_stable={is_stable} (elapsed={elapsed:.2f}s, required={stable_time}s)")
+        return is_stable
 
     def to_dict(self) -> dict:
         """Convert to dictionary representation.
@@ -524,9 +534,13 @@ class Node:
         for gpu in self.gpus:
             # Check if GPU has low usage and is stable
             # We rely purely on actual GPU monitoring, not internal job tracking
-            if gpu.stats.is_free(util_threshold, mem_threshold):
-                if gpu.is_stable(stable_time):
-                    free_gpus.append(gpu.gpu_id)
+            is_free = gpu.stats.is_free(util_threshold, mem_threshold)
+            is_stable = gpu.is_stable(stable_time)
+            memory_percent = (gpu.stats.memory_used / gpu.stats.memory_total * 100) if gpu.stats.memory_total > 0 else 0
+            logger.debug(f"GPU {gpu.gpu_id}: util={gpu.stats.utilization}%, mem={memory_percent:.1f}%, is_free={is_free}, is_stable={is_stable}, stable_since={gpu.stable_since}")
+            if is_free and is_stable:
+                free_gpus.append(gpu.gpu_id)
+        logger.debug(f"Node {self.node_name}: free GPUs = {free_gpus}")
         return free_gpus
 
     def is_in_grace_period(self) -> bool:

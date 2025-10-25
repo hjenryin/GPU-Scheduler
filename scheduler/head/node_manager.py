@@ -158,7 +158,11 @@ class NodeManager:
         Returns:
             List of connected Node instances
         """
-        return [n for n in self.nodes.values() if n.status == NodeStatus.CONNECTED]
+        connected = [n for n in self.nodes.values() if n.status == NodeStatus.CONNECTED]
+        logger.debug(f"Found {len(connected)} connected nodes out of {len(self.nodes)} total nodes")
+        for node in connected:
+            logger.debug(f"Connected node: {node.node_name}, status: {node.status}, last_heartbeat: {node.last_heartbeat}")
+        return connected
 
     def check_timeouts(self):
         """
