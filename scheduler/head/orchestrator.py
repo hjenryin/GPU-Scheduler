@@ -160,14 +160,18 @@ class Orchestrator:
 
         # Count GPUs
         total_gpus = sum(node.num_gpus for node in nodes)
-        free_gpus = sum(len(node.get_free_gpus()) for node in nodes)
+        free_gpus = sum(len(node.get_free_gpus(
+            self.config.worker.gpu_util_threshold,
+            self.config.worker.gpu_mem_threshold,
+            self.config.worker.gpu_stable_time
+        )) for node in nodes)
         used_gpus = total_gpus - free_gpus
 
         return {
             'running': self.running,
             'nodes': {
                 'total': len(nodes),
-                'connected': len([n for n in nodes if not n.is_timed_out(self.scheduler.heartbeat_timeout)])
+                'connected': len([n for n in nodes if n.status.value == 'connected'])
             },
             'gpus': {
                 'total': total_gpus,

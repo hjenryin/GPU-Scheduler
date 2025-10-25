@@ -80,8 +80,12 @@ def sample_gpu_stats() -> List[GPUStats]:
 @pytest.fixture
 def sample_node(sample_gpu_stats) -> Node:
     """Sample node fixture"""
+    # Create a GPU that's been stable for more than 60 seconds
+    from datetime import timedelta
+    stable_time = datetime.now() - timedelta(seconds=70)
+    
     gpus = [
-        GPU(gpu_id=0, stats=sample_gpu_stats[0], stable_since=datetime.now()),
+        GPU(gpu_id=0, stats=sample_gpu_stats[0], stable_since=stable_time),
         GPU(gpu_id=1, stats=sample_gpu_stats[1])
     ]
 

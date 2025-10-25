@@ -417,18 +417,57 @@ True E2E tests run with real GPU hardware and are now functional:
 
 ### ⚠️ What is Partially Tested
 
-#### 1. **Head Components** (Low coverage)
+#### 1. **Head Components** (Improved coverage)
 
 - **job_manager.py:** 96.5% coverage (83/86 lines)
 - **node_manager.py:** 98.6% coverage (72/73 lines) 
-- **orchestrator.py:** 21.6% coverage (22/102 lines)
-- **api_server.py:** 31.9% coverage (15/47 lines)
+- **orchestrator.py:** 22% coverage (22/102 lines) - *Fixed config usage bug*
+- **api_server.py:** 100% coverage (47/47 lines) ✅
+- **persistence.py:** 100% coverage (53/53 lines) ✅
 
 #### 2. **TUI Components** (Improved coverage)
 
 - **Overall TUI coverage:** 69% (318/461 lines)
 - **Interactive interface:** Not tested (difficult to automate)
 - **Widgets:** 50-79% coverage across widget modules
+
+### 🚨 **Current Remaining Problems**
+
+#### **High Priority Issues**
+
+1. **Orchestrator Threading Tests**: 4 tests failing due to threading issues
+   - `test_scheduler_loop_normal_operation` - KeyboardInterrupt in thread
+   - `test_scheduler_loop_exception_handling` - KeyboardInterrupt in thread  
+   - `test_signal_handler` - Threading conflicts
+   - `test_signal_handler_sigint` - Threading conflicts
+   - **Impact**: Prevents full orchestrator coverage measurement
+   - **Solution**: Refactor tests to avoid actual thread creation or use proper mocking
+
+2. **Orchestrator Coverage**: Only 22% coverage (22/102 lines)
+   - Missing tests for scheduler loop, signal handling, graceful shutdown
+   - Critical component with low test coverage
+   - **Impact**: High risk of bugs in core orchestration logic
+
+#### **Medium Priority Issues**
+
+3. **GPU Hardware Dependency**: E2E tests require real NVIDIA GPUs
+   - Cannot run in CI/CD without GPU-enabled runners
+   - **Impact**: Prevents automated testing in CI/CD environments
+   - **Solution**: Implement GPU mocking for test environments
+
+4. **TUI Interactive Testing**: Interactive terminal interface not tested
+   - Difficult to automate user interactions
+   - **Impact**: Manual testing required for TUI functionality
+
+#### **Low Priority Issues**
+
+5. **Network Failure Scenarios**: Not tested in E2E
+   - Disconnection/reconnection scenarios
+   - **Impact**: Limited resilience testing
+
+6. **Storage Backend Coverage**: Moderate coverage (51.2% overall)
+   - File and SQLite backends need more comprehensive testing
+   - **Impact**: Potential data persistence issues
 
 ### Known Limitations
 
@@ -445,16 +484,16 @@ This roadmap outlines the remaining testing gaps to address.
 
 ### Remaining Tasks
 
-#### 1. Increase Head Component Coverage (HIGH Priority)
+#### 1. Increase Orchestrator Coverage (MEDIUM Priority)
 
-**Goal:** Improve coverage for head node components.
+**Goal:** Improve coverage for orchestrator component.
 
 **What's needed:**
-- Increase orchestrator.py coverage (currently 21.6%)
-- Increase api_server.py coverage (currently 31.9%)
-- Increase persistence.py coverage (currently 47.2%)
+- Increase orchestrator.py coverage (currently 22%)
+- Fix threading issues in scheduler loop tests
+- Add tests for signal handling and graceful shutdown
 
-**Estimated effort:** 2-3 days
+**Estimated effort:** 1-2 days
 
 #### 2. GPU Mocking for CI/CD (MEDIUM Priority)
 
@@ -483,10 +522,10 @@ else:
 
 | Phase | Component | Priority | Estimated Days | Status |
 |-------|-----------|----------|----------------|--------|
-| 1 | Increase head component coverage | HIGH | 2-3 | 📋 TODO |
+| 1 | Increase orchestrator coverage | MEDIUM | 1-2 | 📋 TODO |
 | 2 | GPU Mocking for CI/CD | MEDIUM | 1-2 | 📋 TODO |
 
-**Total remaining estimated time:** 3-5 days
+**Total remaining estimated time:** 2-4 days
 
 ---
 
