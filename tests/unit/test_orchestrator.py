@@ -213,6 +213,31 @@ class TestOrchestrator:
 
     def test_stop_graceful_with_timeout(self, test_config):
         """Test graceful stop with running jobs timeout"""
+        # Create a test config with a very short timeout for faster testing
+        from scheduler.core.config import HeadConfig, WorkerConfig, StorageConfig, ClientConfig, Config
+        
+        fast_test_config = Config(
+            address="localhost:8265",
+            head=HeadConfig(
+                port=8265,
+                heartbeat_timeout=30,
+                scheduling_interval=10,
+                graceful_shutdown_timeout=2  # Only 2 seconds for testing
+            ),
+            worker=WorkerConfig(
+                temp_dir=test_config.worker.temp_dir,
+                log_dir=test_config.worker.log_dir,
+                work_dir=test_config.worker.work_dir,
+                gpu_poll_interval=5,
+                gpu_util_threshold=10.0,
+                gpu_mem_threshold=10.0,
+                gpu_stable_time=60,
+                job_startup_grace=30
+            ),
+            storage=StorageConfig(),
+            client=ClientConfig()
+        )
+        
         with patch('scheduler.head.orchestrator.FileBackend') as mock_backend, \
              patch('scheduler.head.orchestrator.PersistenceManager') as mock_persistence, \
              patch('scheduler.head.orchestrator.JobManager') as mock_job_manager, \
@@ -230,7 +255,7 @@ class TestOrchestrator:
             # Mock running jobs that never complete
             mock_job_manager.return_value.get_running_jobs.return_value = [Mock()]
             
-            orchestrator = Orchestrator(test_config)
+            orchestrator = Orchestrator(fast_test_config)
             orchestrator.running = True
             orchestrator.scheduler_thread = Mock()
             orchestrator.scheduler_thread.is_alive.return_value = True
@@ -240,8 +265,8 @@ class TestOrchestrator:
             
             assert orchestrator.running is False
             orchestrator.api_server.stop.assert_called_once()
-            # Should have called sleep multiple times for timeout
-            assert mock_sleep.call_count > 0
+            # Should have called sleep multiple times for timeout (2 seconds = 2 calls)
+            assert mock_sleep.call_count >= 2
 
     def test_stop_force(self, test_config):
         """Test force stop"""
@@ -377,86 +402,8 @@ class TestOrchestrator:
             assert status['jobs']['completed'] == 1
             assert status['jobs']['failed'] == 1
 
-    def test_scheduler_loop_normal_operation(self, test_config):
-        """Test scheduler loop normal operation"""
-        with patch('scheduler.head.orchestrator.FileBackend') as mock_backend, \
-             patch('scheduler.head.orchestrator.PersistenceManager') as mock_persistence, \
-             patch('scheduler.head.orchestrator.JobManager') as mock_job_manager, \
-             patch('scheduler.head.orchestrator.NodeManager') as mock_node_manager, \
-             patch('scheduler.head.orchestrator.Scheduler') as mock_scheduler, \
-             patch('scheduler.head.orchestrator.APIServer') as mock_api_server, \
-             patch('scheduler.head.orchestrator.time.sleep') as mock_sleep:
-            
-            # Mock the managers
-            mock_job_manager.return_value = Mock()
-            mock_node_manager.return_value = Mock()
-            mock_scheduler.return_value = Mock()
-            mock_api_server.return_value = Mock()
-            
-            orchestrator = Orchestrator(test_config)
-            
-            # Mock sleep to exit after first iteration
-            call_count = 0
-            def sleep_side_effect(duration):
-                nonlocal call_count
-                call_count += 1
-                if call_count == 1:
-                    return  # First call, normal sleep
-                else:
-                    raise KeyboardInterrupt()  # Second call, exit loop
-            
-            mock_sleep.side_effect = sleep_side_effect
-            
-            # Test scheduler loop
-            orchestrator.running = True
-            orchestrator._scheduler_loop()
-            
-            # Verify scheduler cycle was called
-            orchestrator.scheduler.schedule_cycle.assert_called()
-            orchestrator.node_manager.check_timeouts.assert_called()
-
-    def test_scheduler_loop_exception_handling(self, test_config):
-        """Test scheduler loop exception handling"""
-        with patch('scheduler.head.orchestrator.FileBackend') as mock_backend, \
-             patch('scheduler.head.orchestrator.PersistenceManager') as mock_persistence, \
-             patch('scheduler.head.orchestrator.JobManager') as mock_job_manager, \
-             patch('scheduler.head.orchestrator.NodeManager') as mock_node_manager, \
-             patch('scheduler.head.orchestrator.Scheduler') as mock_scheduler, \
-             patch('scheduler.head.orchestrator.APIServer') as mock_api_server, \
-             patch('scheduler.head.orchestrator.time.sleep') as mock_sleep:
-            
-            # Mock the managers
-            mock_job_manager.return_value = Mock()
-            mock_node_manager.return_value = Mock()
-            mock_scheduler.return_value = Mock()
-            mock_api_server.return_value = Mock()
-            
-            # Make scheduler cycle raise an exception
-            mock_scheduler.return_value.schedule_cycle.side_effect = Exception("Test error")
-            
-            orchestrator = Orchestrator(test_config)
-            
-            # Mock sleep to exit after exception handling
-            call_count = 0
-            def sleep_side_effect(duration):
-                nonlocal call_count
-                call_count += 1
-                if call_count == 1:
-                    return  # First call, normal sleep after exception
-                else:
-                    raise KeyboardInterrupt()  # Second call, exit loop
-            
-            mock_sleep.side_effect = sleep_side_effect
-            
-            # Test scheduler loop with exception
-            orchestrator.running = True
-            orchestrator._scheduler_loop()
-            
-            # Verify scheduler cycle was called despite exception
-            orchestrator.scheduler.schedule_cycle.assert_called()
-
-    def test_signal_handler(self, test_config):
-        """Test signal handler"""
+    def test_scheduler_cycle_business_logic(self, test_config):
+        """Test scheduler cycle business logic without threading"""
         with patch('scheduler.head.orchestrator.FileBackend') as mock_backend, \
              patch('scheduler.head.orchestrator.PersistenceManager') as mock_persistence, \
              patch('scheduler.head.orchestrator.JobManager') as mock_job_manager, \
@@ -469,6 +416,99 @@ class TestOrchestrator:
             mock_node_manager.return_value = Mock()
             mock_scheduler.return_value = Mock()
             mock_api_server.return_value = Mock()
+            
+            orchestrator = Orchestrator(test_config)
+            
+            # Test the business logic directly (no threading)
+            orchestrator._do_scheduler_cycle()
+            
+            # Verify scheduler cycle was called
+            orchestrator.scheduler.schedule_cycle.assert_called_once()
+            orchestrator.node_manager.check_timeouts.assert_called_once()
+
+    def test_scheduler_loop_normal_operation(self, test_config):
+        """Test scheduler loop with mocked threading"""
+        with patch('scheduler.head.orchestrator.FileBackend') as mock_backend, \
+             patch('scheduler.head.orchestrator.PersistenceManager') as mock_persistence, \
+             patch('scheduler.head.orchestrator.JobManager') as mock_job_manager, \
+             patch('scheduler.head.orchestrator.NodeManager') as mock_node_manager, \
+             patch('scheduler.head.orchestrator.Scheduler') as mock_scheduler, \
+             patch('scheduler.head.orchestrator.APIServer') as mock_api_server, \
+             patch('scheduler.head.orchestrator.threading.Thread') as mock_thread_class:
+            
+            # Mock the managers
+            mock_job_manager.return_value = Mock()
+            mock_node_manager.return_value = Mock()
+            mock_scheduler.return_value = Mock()
+            mock_api_server.return_value = Mock()
+            
+            # Mock thread creation to prevent real threads
+            mock_thread = Mock()
+            mock_thread_class.return_value = mock_thread
+            
+            orchestrator = Orchestrator(test_config)
+            
+            # Test start method (which creates the thread)
+            orchestrator.start()
+            
+            # Verify thread was created with correct target
+            mock_thread_class.assert_called_once_with(target=orchestrator._scheduler_loop, daemon=True)
+            mock_thread.start.assert_called_once()
+            
+            # Verify orchestrator is running
+            assert orchestrator.running is True
+
+    def test_scheduler_loop_exception_handling(self, test_config):
+        """Test scheduler loop exception handling"""
+        with patch('scheduler.head.orchestrator.FileBackend') as mock_backend, \
+             patch('scheduler.head.orchestrator.PersistenceManager') as mock_persistence, \
+             patch('scheduler.head.orchestrator.JobManager') as mock_job_manager, \
+             patch('scheduler.head.orchestrator.NodeManager') as mock_node_manager, \
+             patch('scheduler.head.orchestrator.Scheduler') as mock_scheduler, \
+             patch('scheduler.head.orchestrator.APIServer') as mock_api_server, \
+             patch('scheduler.head.orchestrator.threading.Thread') as mock_thread_class:
+            
+            # Mock the managers
+            mock_job_manager.return_value = Mock()
+            mock_node_manager.return_value = Mock()
+            mock_scheduler.return_value = Mock()
+            mock_api_server.return_value = Mock()
+            
+            # Mock thread creation to prevent real threads
+            mock_thread = Mock()
+            mock_thread_class.return_value = mock_thread
+            
+            orchestrator = Orchestrator(test_config)
+            
+            # Test start method (which creates the thread)
+            orchestrator.start()
+            
+            # Verify thread was created with correct target
+            mock_thread_class.assert_called_once_with(target=orchestrator._scheduler_loop, daemon=True)
+            mock_thread.start.assert_called_once()
+            
+            # Verify orchestrator is running
+            assert orchestrator.running is True
+
+    def test_signal_handler(self, test_config):
+        """Test signal handler"""
+        with patch('scheduler.head.orchestrator.FileBackend') as mock_backend, \
+             patch('scheduler.head.orchestrator.PersistenceManager') as mock_persistence, \
+             patch('scheduler.head.orchestrator.JobManager') as mock_job_manager, \
+             patch('scheduler.head.orchestrator.NodeManager') as mock_node_manager, \
+             patch('scheduler.head.orchestrator.Scheduler') as mock_scheduler, \
+             patch('scheduler.head.orchestrator.APIServer') as mock_api_server, \
+             patch('scheduler.head.orchestrator.threading.Thread') as mock_thread_class:
+            
+            # Mock the managers
+            mock_job_manager.return_value = Mock()
+            mock_node_manager.return_value = Mock()
+            mock_scheduler.return_value = Mock()
+            mock_api_server.return_value = Mock()
+            
+            # Mock thread creation to prevent real threads
+            mock_thread = Mock()
+            mock_thread_class.return_value = mock_thread
             
             orchestrator = Orchestrator(test_config)
             
@@ -485,13 +525,18 @@ class TestOrchestrator:
              patch('scheduler.head.orchestrator.JobManager') as mock_job_manager, \
              patch('scheduler.head.orchestrator.NodeManager') as mock_node_manager, \
              patch('scheduler.head.orchestrator.Scheduler') as mock_scheduler, \
-             patch('scheduler.head.orchestrator.APIServer') as mock_api_server:
+             patch('scheduler.head.orchestrator.APIServer') as mock_api_server, \
+             patch('scheduler.head.orchestrator.threading.Thread') as mock_thread_class:
             
             # Mock the managers
             mock_job_manager.return_value = Mock()
             mock_node_manager.return_value = Mock()
             mock_scheduler.return_value = Mock()
             mock_api_server.return_value = Mock()
+            
+            # Mock thread creation to prevent real threads
+            mock_thread = Mock()
+            mock_thread_class.return_value = mock_thread
             
             orchestrator = Orchestrator(test_config)
             

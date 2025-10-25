@@ -41,13 +41,14 @@ class TestConfig:
         """Test custom configuration values"""
         config = Config(
             address="192.168.1.100:9000",
-            head=HeadConfig(port=9000, heartbeat_timeout=120),
+            head=HeadConfig(port=9000, heartbeat_timeout=120, graceful_shutdown_timeout=90),
             worker=WorkerConfig(gpu_util_threshold=15.0, gpu_poll_interval=5)
         )
 
         assert config.address == "192.168.1.100:9000"
         assert config.head.port == 9000
         assert config.head.heartbeat_timeout == 120
+        assert config.head.graceful_shutdown_timeout == 90
         assert config.worker.gpu_util_threshold == 15.0
         assert config.worker.gpu_poll_interval == 5
 

@@ -35,7 +35,8 @@ def test_config(temp_dir):
         head=HeadConfig(
             port=8265,
             heartbeat_timeout=30,
-            scheduling_interval=10
+            scheduling_interval=10,
+            graceful_shutdown_timeout=60
         ),
         worker=WorkerConfig(
             temp_dir=temp_dir,
