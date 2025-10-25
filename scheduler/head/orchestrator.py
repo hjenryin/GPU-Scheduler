@@ -207,13 +207,21 @@ class Orchestrator:
                 # Sleep for schedule interval
                 logger.debug(f"Sleeping for {self.config.head.scheduling_interval} seconds")
                 time.sleep(self.config.head.scheduling_interval)
+            except KeyboardInterrupt:
+                logger.info("Received keyboard interrupt in scheduler loop")
+                break  # Exit the loop gracefully
             except Exception as e:
                 logger.error(f"Error in scheduler loop: {e}", exc_info=True)
-                time.sleep(1)  # Brief pause before retrying
+                try:
+                    time.sleep(1)  # Brief pause before retrying
+                except KeyboardInterrupt:
+                    logger.info("Received keyboard interrupt during retry sleep")
+                    break  # Exit the loop gracefully
 
         logger.info("Scheduler loop stopped")
 
     def _signal_handler(self, signum, frame):
         """Handle termination signals."""
         logger.info(f"Received signal {signum}")
-        self.stop(graceful=True)
+        if self.running:
+            self.stop(graceful=True)

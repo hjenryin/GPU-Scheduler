@@ -21,7 +21,7 @@ class TestOrchestrator:
                 port=8265,
                 heartbeat_timeout=60,
                 scheduling_interval=5,
-                graceful_shutdown_timeout=60
+                graceful_shutdown_timeout=2  # Reduced from 60 for faster testing
             ),
             worker=WorkerConfig(
                 work_dir="/tmp/test",
@@ -191,13 +191,16 @@ class TestOrchestrator:
             
             # Mock _do_scheduler_cycle to raise an exception
             mock_cycle.side_effect = Exception("Test error")
+            # Mock sleep to raise KeyboardInterrupt after first call to exit loop
             mock_sleep.side_effect = KeyboardInterrupt()
             
-            # Should not raise exception
+            # Should not raise exception - both Exception and KeyboardInterrupt should be handled gracefully
             orchestrator._scheduler_loop()
             
             # Should have called _do_scheduler_cycle
             mock_cycle.assert_called()
+            # Should have slept after the exception
+            mock_sleep.assert_called()
 
     def test_signal_handler(self, orchestrator):
         """Test signal handler"""
