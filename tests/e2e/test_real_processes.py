@@ -26,8 +26,10 @@ def _run_head_process(port, temp_dir, ready_event):
     try:
         # Setup logging for head process
         import logging
+        import os
+        log_level = logging.DEBUG if os.environ.get('SCHEDULER_LOG_LEVEL') == 'DEBUG' else logging.INFO
         logging.basicConfig(
-            level=logging.INFO,
+            level=log_level,
             format='[HEAD] %(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
 
@@ -76,10 +78,17 @@ def _run_worker_process(head_address, node_name, temp_dir, ready_event):
     try:
         # Setup logging for worker process
         import logging
+        import os
+        log_level = logging.DEBUG if os.environ.get('SCHEDULER_LOG_LEVEL') == 'DEBUG' else logging.INFO
         logging.basicConfig(
-            level=logging.INFO,
+            level=log_level,
             format=f'[WORKER-{node_name}] %(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
+        logger = logging.getLogger(__name__)
+        logger.info(f"[TRACE] Starting worker process for node {node_name}")
+        
+        # Add a print statement that will definitely show up
+        print(f"WORKER PROCESS STARTING FOR NODE {node_name}")
 
         from scheduler.worker.daemon import WorkerDaemon
 
@@ -100,16 +109,21 @@ def _run_worker_process(head_address, node_name, temp_dir, ready_event):
         )
 
         # Create and run worker daemon (auto-detect GPUs)
+        logger.info(f"[TRACE] Creating WorkerDaemon for node {node_name}")
         daemon = WorkerDaemon(config, node_name, num_gpus=None)
 
         # Signal that worker is ready (before starting to avoid blocking)
         ready_event.set()
+        logger.info(f"[TRACE] Worker ready, starting daemon.run()")
 
         # Run daemon (this blocks and includes the job polling loop)
+        print(f"WORKER PROCESS CALLING daemon.run()")
         daemon.run()
+        print(f"WORKER PROCESS daemon.run() COMPLETED")
 
     except Exception as e:
         import logging
+        print(f"WORKER PROCESS EXCEPTION: {e}")
         logging.error(f"Worker process error: {e}", exc_info=True)
         ready_event.set()  # Unblock parent even if failed
 
@@ -177,6 +191,13 @@ def running_cluster(temp_cluster_dir):
         worker_proc.terminate()
         head_proc.terminate()
         pytest.fail("Worker failed to start within 10 seconds")
+    
+    # Check if worker process is actually running
+    if not worker_proc.is_alive():
+        head_proc.terminate()
+        pytest.fail("Worker process died after starting")
+    
+    print(f"Worker process is alive: {worker_proc.is_alive()}")
 
     # Give worker time to register and send first heartbeat
     time.sleep(3)
@@ -466,11 +487,17 @@ class TestRealProcesses:
         script_path = os.path.join(temp_cluster_dir, "env_test.py")
         with open(script_path, 'w') as f:
             f.write("import os\n")
+            f.write("import sys\n")
             f.write("test_var = os.environ.get('TEST_VAR', 'NOT_SET')\n")
             f.write("cuda_devices = os.environ.get('CUDA_VISIBLE_DEVICES', 'NOT_SET')\n")
-            f.write(f"print(f'TEST_VAR={{test_var}}')\n")
-            f.write(f"print(f'CUDA_VISIBLE_DEVICES={{cuda_devices}}')\n")
-            f.write("assert test_var == 'hello_world', f'Expected hello_world, got {test_var}'\n")
+            f.write("print(f'TEST_VAR={{test_var}}', file=sys.stdout)\n")
+            f.write("print(f'CUDA_VISIBLE_DEVICES={{cuda_devices}}', file=sys.stdout)\n")
+            f.write("print(f'All env vars: {{dict(os.environ)}}', file=sys.stdout)\n")
+            f.write("print(f'Expected hello_world, got {{test_var}}', file=sys.stderr)\n")
+            f.write("if test_var != 'hello_world':\n")
+            f.write("    print(f'ERROR: Expected hello_world, got {{test_var}}', file=sys.stderr)\n")
+            f.write("    sys.exit(1)\n")
+            f.write("print('SUCCESS: Environment variable test passed', file=sys.stdout)\n")
 
         # Submit job with env vars
         job = client.submit_job(
@@ -489,6 +516,15 @@ class TestRealProcesses:
             time.sleep(1)
 
         # Should complete successfully (assertion in script should pass)
+        if job.status != JobStatus.COMPLETED:
+            # Print logs for debugging
+            try:
+                stdout_logs = client.get_job_logs(job.job_id, stderr=False)
+                stderr_logs = client.get_job_logs(job.job_id, stderr=True)
+                print(f"STDOUT: {stdout_logs}")
+                print(f"STDERR: {stderr_logs}")
+            except Exception as e:
+                print(f"Could not retrieve logs: {e}")
         assert job.status == JobStatus.COMPLETED, f"Job failed: {job.error_message}"
 
     def test_job_failure(self, running_cluster, temp_cluster_dir):
@@ -549,7 +585,7 @@ class TestRealProcesses:
         assert job.status == JobStatus.COMPLETED
 
         # Retrieve logs
-        stdout_logs = client.get_job_logs(job.job_id, stream='stdout')
+        stdout_logs = client.get_job_logs(job.job_id, stderr=False)
 
         # Verify our message is in the logs
         assert test_message in stdout_logs, f"Expected '{test_message}' in logs, got: {stdout_logs}"

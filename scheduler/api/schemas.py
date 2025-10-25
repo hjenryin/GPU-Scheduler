@@ -29,6 +29,11 @@ class JobResponse(BaseModel):
     assigned_gpus: Optional[List[int]] = None
     exit_code: Optional[int] = None
     error_message: Optional[str] = None
+    script_args: Optional[List[str]] = None
+    working_dir: Optional[str] = None
+    env_vars: Optional[Dict[str, str]] = None
+    dependencies: Optional[List[str]] = None
+    priority: int = 0
 
     @classmethod
     def from_job(cls, job: Job) -> 'JobResponse':
@@ -45,7 +50,12 @@ class JobResponse(BaseModel):
             assigned_node=job.assigned_node,
             assigned_gpus=job.assigned_gpus,
             exit_code=job.exit_code,
-            error_message=job.error_message
+            error_message=job.error_message,
+            script_args=job.script_args,
+            working_dir=job.working_dir,
+            env_vars=job.env_vars,
+            dependencies=job.dependencies,
+            priority=job.priority
         )
 
 

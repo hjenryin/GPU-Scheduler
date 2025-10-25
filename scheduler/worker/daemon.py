@@ -156,12 +156,14 @@ class WorkerDaemon:
         try:
             while self.running:
                 # Poll for job assignment
+                logger.info("[TRACE] Main loop: polling for job...")
                 job = self.heartbeat_sender.poll_for_job()
 
                 if job:
-                    logger.info(f"Received job assignment: {job.job_id}")
+                    logger.info(f"[TRACE] Main loop: received job {job.job_id}")
                     self._execute_job(job)
                 else:
+                    logger.info("[TRACE] Main loop: no job, sleeping...")
                     # No job available, sleep briefly
                     time.sleep(5)
         except KeyboardInterrupt:
@@ -191,12 +193,13 @@ class WorkerDaemon:
         """Execute a job (internal)."""
         try:
             self.current_job = job
-            logger.info(f"Starting job {job.job_id}")
+            logger.info(f"[TRACE] Starting job {job.job_id} with env_vars: {job.env_vars}")
 
             # Get assigned GPUs from job
             gpu_ids = job.assigned_gpus if job.assigned_gpus else list(range(self.num_gpus))
 
             # Execute the job
+            logger.info(f"[TRACE] Executing job {job.job_id} with GPUs: {gpu_ids}")
             pid = self.job_executor.execute_job(job, gpu_ids)
             self.current_job_pid = pid
 

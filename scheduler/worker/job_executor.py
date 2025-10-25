@@ -51,7 +51,11 @@ class JobExecutor:
 
             # Add user-specified env vars
             if job.env_vars:
+                logger.info(f"[TRACE] Job {job.job_id}: Adding environment variables: {job.env_vars}")
                 env.update(job.env_vars)
+                logger.info(f"[TRACE] Job {job.job_id}: Final environment: {dict(env)}")
+            else:
+                logger.info(f"[TRACE] Job {job.job_id}: No environment variables specified")
 
             # Determine working directory
             working_dir = job.working_dir or os.path.dirname(os.path.abspath(job.script))

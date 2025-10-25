@@ -366,6 +366,16 @@ class Job:
         self.error_message = error_message
         self.versioned_script_path = versioned_script_path
 
+    @property
+    def start_time(self) -> Optional[datetime]:
+        """Get job start time (alias for started_at)."""
+        return self.started_at
+
+    @property
+    def end_time(self) -> Optional[datetime]:
+        """Get job end time (alias for completed_at)."""
+        return self.completed_at
+
     def get_runtime(self) -> Optional[timedelta]:
         """Get job runtime duration.
 

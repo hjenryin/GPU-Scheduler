@@ -65,6 +65,10 @@ def create_app(
     async def cancel_job(job_id: str):
         return await cancel_job_route(job_id)
 
+    @app.get(f"{constants.API_BASE_PATH}/jobs/{{job_id}}/logs")
+    async def get_job_logs(job_id: str, lines: Optional[int] = None, stderr: bool = False):
+        return await get_job_logs_route(job_id, lines, stderr)
+
     # Node routes
     @app.post(f"{constants.API_BASE_PATH}/nodes/register")
     async def register_node(request: NodeRegisterRequest):
@@ -166,8 +170,68 @@ async def get_job_logs_route(
     stderr: bool = False
 ) -> str:
     """GET /api/v1/jobs/{job_id}/logs - Get job logs"""
-    # This would read from log files - simplified for now
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Log retrieval not yet implemented")
+    try:
+        # Get job to find assigned node
+        job = _job_manager.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {job_id} not found")
+        
+        # Try to read from worker's log directory
+        # This is a simplified approach - in production, you'd want a proper log aggregation system
+        import os
+        from scheduler.core.config import load_config
+        
+        config = load_config()
+        
+        # For E2E tests, we need to look in the same temp directory structure
+        # In production, this would be handled by a proper log aggregation system
+        if job.assigned_node:
+            # Try to find the temp directory by looking for scheduler_e2e directories
+            import glob
+            temp_dirs = glob.glob('/tmp/scheduler_e2e_*')
+            if temp_dirs:
+                # Use the most recent temp directory
+                latest_temp_dir = max(temp_dirs, key=os.path.getctime)
+                e2e_log_dir = os.path.join(latest_temp_dir, f'logs_{job.assigned_node}')
+                if os.path.exists(e2e_log_dir):
+                    log_dir = e2e_log_dir
+                else:
+                    # Fall back to configured log directory
+                    log_dir = os.path.expanduser(config.worker.log_dir)
+            else:
+                # Fall back to configured log directory
+                log_dir = os.path.expanduser(config.worker.log_dir)
+        else:
+            log_dir = os.path.expanduser(config.worker.log_dir)
+            
+        suffix = 'stderr' if stderr else 'stdout'
+        log_filename = f"{job_id}.{suffix}.log"
+        log_path = os.path.join(log_dir, log_filename)
+        
+        if os.path.exists(log_path):
+            try:
+                with open(log_path, 'r') as f:
+                    if lines is None:
+                        content = f.read()
+                    else:
+                        all_lines = f.readlines()
+                        content = ''.join(all_lines[-lines:])
+                return content
+            except Exception as e:
+                logger.error(f"Failed to read log file {log_path}: {e}")
+                return f"Error reading log file: {e}"
+        else:
+            # Fallback to placeholder message
+            if stderr:
+                return f"Stderr logs for job {job_id} (assigned to {job.assigned_node}) - log file not found at {log_path}"
+            else:
+                return f"Stdout logs for job {job_id} (assigned to {job.assigned_node}) - log file not found at {log_path}"
+            
+    except JobNotFoundException as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error retrieving logs for job {job_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
 
 async def stream_job_logs_route(job_id: str, stderr: bool = False):

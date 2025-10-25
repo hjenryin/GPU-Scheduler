@@ -93,9 +93,10 @@ class Scheduler:
         # Mark job as started
         # Note: We only suggest GPUs via CUDA_VISIBLE_DEVICES, not enforce assignments
         # GPU availability is determined by actual usage monitoring via pynvml
+        logger.info(f"[TRACE] Starting job {job.job_id} on node {node_name} with GPUs {gpu_ids}")
         self.job_manager.start_job(job.job_id, node_name, gpu_ids)
 
-        logger.info(f"Job {job.job_id} scheduled on {node_name} with GPUs {gpu_ids}")
+        logger.info(f"[TRACE] Job {job.job_id} scheduled on {node_name} with GPUs {gpu_ids}")
         return True
 
     def find_suitable_node(self, job: Job) -> Optional[Tuple[str, List[int]]]:
