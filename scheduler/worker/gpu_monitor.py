@@ -326,5 +326,5 @@ class GPUMonitor:
         if self.use_pynvml:
             try:
                 self.pynvml.nvmlShutdown()
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to shutdown pynvml: {e}")

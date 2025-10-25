@@ -161,18 +161,37 @@ Use pytest markers to categorize tests:
 ```python
 @pytest.mark.unit
 def test_unit_feature():
+    """Example unit test - replace with actual test implementation."""
+    # Example: test_job_creation()
+    # job = Job(job_id="test", name="test", script="test.py", requirements="1")
+    # assert job.status == JobStatus.PENDING
     pass
 
 @pytest.mark.integration
 def test_integration_feature():
+    """Example integration test - replace with actual test implementation."""
+    # Example: test_job_submission_and_execution()
+    # client = SchedulerClient()
+    # job = client.submit_job("test.py", "1")
+    # assert job.status == JobStatus.PENDING
     pass
 
 @pytest.mark.slow
 def test_slow_feature():
+    """Example slow test - replace with actual test implementation."""
+    # Example: test_long_running_job()
+    # job = submit_long_running_job()
+    # wait_for_completion(job, timeout=300)
+    # assert job.status == JobStatus.COMPLETED
     pass
 
 @pytest.mark.gpu
 def test_gpu_feature():
+    """Example GPU test - replace with actual test implementation."""
+    # Example: test_gpu_monitoring()
+    # monitor = GPUMonitor()
+    # stats = monitor.get_gpu_stats()
+    # assert len(stats) > 0
     pass
 ```
 
@@ -670,7 +689,13 @@ For performance testing, use the `slow` marker:
 ```python
 @pytest.mark.slow
 def test_performance():
+    """Example performance test - replace with actual test implementation."""
     # Performance-sensitive test
+    # Example: test_scheduling_performance()
+    # start_time = time.time()
+    # schedule_many_jobs(count=1000)
+    # duration = time.time() - start_time
+    # assert duration < 5.0  # Should complete within 5 seconds
     pass
 ```
 

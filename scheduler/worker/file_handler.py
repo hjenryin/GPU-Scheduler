@@ -65,8 +65,8 @@ class FileHandler:
             # Make it executable
             try:
                 os.chmod(dest_path, 0o755)
-            except:
-                pass  # Best effort
+            except OSError as e:
+                logger.warning(f"Failed to set executable permissions on {dest_path}: {e}")
 
             logger.info(f"Created versioned copy: {script_path} -> {dest_path}")
             return dest_path

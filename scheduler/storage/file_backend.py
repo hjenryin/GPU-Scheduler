@@ -90,4 +90,5 @@ class FileBackend(StorageBackend):
     def close(self):
         """Close storage backend and cleanup resources"""
         # File backend doesn't need explicit cleanup
+        # All data is persisted to disk immediately
         pass

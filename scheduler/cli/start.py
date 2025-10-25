@@ -66,7 +66,8 @@ def start_command(
     # Load base configuration
     try:
         base_config = load_config()
-    except:
+    except Exception as e:
+        logger.warning(f"Failed to load config file, using defaults: {e}")
         base_config = Config()
 
     # Build config dict for customization

@@ -61,8 +61,8 @@ class SingletonDaemon:
                         # Invalid or missing lock file, remove and try again
                         try:
                             os.remove(self.lockfile_path)
-                        except:
-                            pass
+                        except OSError as e:
+                            logger.warning(f"Failed to remove stale lockfile {self.lockfile_path}: {e}")
                         return self.acquire_lock()
                 return False
         except Exception as e:
@@ -77,8 +77,8 @@ class SingletonDaemon:
             try:
                 os.close(self.lockfile)
                 self.lockfile = None
-            except:
-                pass
+            except OSError as e:
+                logger.warning(f"Failed to close lockfile: {e}")
 
         if os.path.exists(self.lockfile_path):
             try:

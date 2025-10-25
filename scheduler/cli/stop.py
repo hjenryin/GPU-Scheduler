@@ -69,8 +69,8 @@ def _stop_daemon(lockfile: str, name: str) -> bool:
         # Clean up lockfile
         try:
             os.remove(lockfile)
-        except:
-            pass
+        except OSError as e:
+            logger.warning(f"Failed to remove lockfile {lockfile}: {e}")
 
         return True
     except (ValueError, ProcessLookupError, PermissionError) as e:
@@ -78,6 +78,6 @@ def _stop_daemon(lockfile: str, name: str) -> bool:
         # Try to clean up stale lockfile
         try:
             os.remove(lockfile)
-        except:
-            pass
+        except OSError as e:
+            logger.warning(f"Failed to remove stale lockfile {lockfile}: {e}")
         return False

@@ -229,8 +229,8 @@ class WorkerDaemon:
             logger.error(f"Error executing job {job.job_id}: {e}")
             try:
                 self.client.report_job_failed(job.job_id, str(e))
-            except:
-                pass
+            except Exception as report_error:
+                logger.error(f"Failed to report job failure for {job.job_id}: {report_error}")
             self.current_job = None
             self.current_job_pid = None
 
