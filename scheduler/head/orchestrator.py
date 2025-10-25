@@ -107,7 +107,7 @@ class Orchestrator:
         if graceful:
             # Wait for running jobs to complete (with timeout)
             logger.info("Waiting for running jobs to complete...")
-            timeout = 60  # 60 seconds timeout
+            timeout = self.config.head.graceful_shutdown_timeout
             start_time = time.time()
 
             while time.time() - start_time < timeout:
@@ -187,18 +187,22 @@ class Orchestrator:
             }
         }
 
+    def _do_scheduler_cycle(self):
+        """Execute one scheduler cycle - testable business logic."""
+        logger.debug("Running scheduler cycle...")
+        # Run scheduler cycle
+        self.scheduler.schedule_cycle()
+
+        # Check for node timeouts
+        self.node_manager.check_timeouts()
+
     def _scheduler_loop(self):
         """Internal scheduler loop thread."""
         logger.info("Scheduler loop started")
 
         while self.running:
             try:
-                logger.debug("Running scheduler cycle...")
-                # Run scheduler cycle
-                self.scheduler.schedule_cycle()
-
-                # Check for node timeouts
-                self.node_manager.check_timeouts()
+                self._do_scheduler_cycle()
 
                 # Sleep for schedule interval
                 logger.debug(f"Sleeping for {self.config.head.scheduling_interval} seconds")

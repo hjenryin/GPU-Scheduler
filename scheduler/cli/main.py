@@ -35,6 +35,7 @@ def main():
     # Head node specific options
     start_parser.add_argument('--heartbeat-timeout', type=int, help='Heartbeat timeout (head only)')
     start_parser.add_argument('--scheduling-interval', type=int, help='Scheduling interval (head only)')
+    start_parser.add_argument('--graceful-shutdown-timeout', type=int, help='Graceful shutdown timeout in seconds (head only)')
     
     # Worker node specific options
     start_parser.add_argument('--gpu-poll-interval', type=int, help='GPU poll interval (worker only)')

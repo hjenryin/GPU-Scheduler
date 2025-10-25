@@ -100,6 +100,7 @@ scheduler start [OPTIONS]
 |--------|------|---------|-------------|
 | `--heartbeat-timeout` | int | `60` | Seconds before marking node as disconnected |
 | `--scheduling-interval` | int | `5` | Seconds between scheduling cycles |
+| `--graceful-shutdown-timeout` | int | `60` | Seconds to wait for jobs to complete during shutdown |
 
 **Worker Node Specific Options:**
 
@@ -134,6 +135,9 @@ scheduler start --address=head.local:8265 \
                 --gpu-util-threshold=5 \
                 --gpu-stable-time=60 \
                 --job-startup-grace=180
+
+# Start head node with custom graceful shutdown timeout
+scheduler start --head --graceful-shutdown-timeout=120
 
 # Start in background (non-blocking)
 scheduler start --head --block=false
@@ -689,6 +693,7 @@ head:
   port: 8265
   heartbeat_timeout: 60
   scheduling_interval: 5
+  graceful_shutdown_timeout: 60
 
 # Client defaults
 client:

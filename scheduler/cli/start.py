@@ -83,7 +83,7 @@ def start_command(
     if head:
         config_dict.setdefault('head', {})['port'] = port
         for key, value in kwargs.items():
-            if key.startswith('heartbeat_') or key.startswith('scheduling_'):
+            if key.startswith('heartbeat_') or key.startswith('scheduling_') or key.startswith('graceful_shutdown_'):
                 config_dict.setdefault('head', {})[key] = value
     else:
         # For worker, set the address field to connect to head

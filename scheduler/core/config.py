@@ -35,6 +35,7 @@ class HeadConfig:
     port: int = DEFAULT_PORT
     heartbeat_timeout: int = DEFAULT_HEARTBEAT_TIMEOUT
     scheduling_interval: int = DEFAULT_SCHEDULE_INTERVAL
+    graceful_shutdown_timeout: int = 60  # seconds
 
 
 @dataclass(frozen=True)
