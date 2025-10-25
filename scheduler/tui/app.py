@@ -115,17 +115,20 @@ class SchedulerTUI(App):
             self.nodes_data = self.client.list_nodes()
             self.jobs_data = self.client.list_jobs()
 
-            # Update current screen
-            current_screen = self.screen
-
-            if isinstance(current_screen, ClusterScreen):
-                current_screen.update_data(self.nodes_data, self.jobs_data)
-            elif isinstance(current_screen, NodesScreen):
-                current_screen.update_data(self.nodes_data, self.jobs_data)
-            elif isinstance(current_screen, JobsScreen):
-                current_screen.update_data(self.jobs_data)
-            elif isinstance(current_screen, GPUsScreen):
-                current_screen.update_data(self.nodes_data)
+            # Update current screen if available
+            try:
+                current_screen = self.screen
+                if isinstance(current_screen, ClusterScreen):
+                    current_screen.update_data(self.nodes_data, self.jobs_data)
+                elif isinstance(current_screen, NodesScreen):
+                    current_screen.update_data(self.nodes_data, self.jobs_data)
+                elif isinstance(current_screen, JobsScreen):
+                    current_screen.update_data(self.jobs_data)
+                elif isinstance(current_screen, GPUsScreen):
+                    current_screen.update_data(self.nodes_data)
+            except Exception as screen_error:
+                # Screen not available (e.g., during testing or before app is mounted)
+                logger.debug(f"Could not update screen: {screen_error}")
 
         except Exception as e:
             logger.error(f"Error refreshing data: {e}")

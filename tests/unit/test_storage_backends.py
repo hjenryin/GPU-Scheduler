@@ -197,15 +197,23 @@ class TestFileBackend:
             with pytest.raises(PermissionError):
                 file_backend._write_json("/root/readonly/file.json", {"test": "data"})
 
-    def test_ensure_dir_exists_creates_directory(self, file_backend, temp_dir):
+    def test_ensure_dir_exists_creates_directory(self, temp_dir):
         """Test ensure_dir_exists creates directory"""
-        # FileBackend doesn't have ensure_dir_exists method, skip this test
-        pytest.skip("FileBackend doesn't have ensure_dir_exists method")
+        # Test that FileBackend creates directory when initializing
+        nested_dir = os.path.join(temp_dir, "nested", "deep", "storage")
+        backend = FileBackend(storage_dir=nested_dir)
+        assert os.path.exists(nested_dir)
+        backend.close()
 
-    def test_ensure_dir_exists_existing_directory(self, file_backend, temp_dir):
+    def test_ensure_dir_exists_existing_directory(self, temp_dir):
         """Test ensure_dir_exists with existing directory"""
-        # FileBackend doesn't have ensure_dir_exists method, skip this test
-        pytest.skip("FileBackend doesn't have ensure_dir_exists method")
+        # Test that FileBackend works with existing directory
+        existing_dir = os.path.join(temp_dir, "existing")
+        os.makedirs(existing_dir, exist_ok=True)
+        
+        backend = FileBackend(storage_dir=existing_dir)
+        assert os.path.exists(existing_dir)
+        backend.close()
 
 
 class TestSQLiteBackend:
@@ -519,6 +527,10 @@ class TestSQLiteBackend:
 
     def test_ensure_dir_exists_error(self, temp_dir):
         """Test handling ensure_dir_exists errors"""
-        # This test is complex to set up correctly and tests error handling
-        # that's not critical for functionality. Skip for now.
-        pytest.skip("Complex error handling test - not critical for functionality")
+        # Test that SQLiteBackend handles directory creation errors gracefully
+        from scheduler.core.exceptions import PermissionDeniedException
+        
+        # Mock ensure_dir_exists to raise PermissionDeniedException
+        with patch('scheduler.storage.sqlite_backend.ensure_dir_exists', side_effect=PermissionDeniedException("Cannot create directory")):
+            with pytest.raises(PermissionDeniedException):
+                SQLiteBackend(db_path=os.path.join(temp_dir, "test.db"))
