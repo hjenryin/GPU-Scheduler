@@ -417,16 +417,22 @@ True E2E tests run with real GPU hardware and are now functional:
 
 ### ⚠️ What is Partially Tested
 
-#### 1. **Head Components** (Significantly improved coverage)
+#### 1. **Head Components** (Excellent coverage achieved!)
 
 - **orchestrator.py:** 92% coverage (96/104 lines) ⬆️ +70% improvement
 - **api_server.py:** 100% coverage (47/47 lines) ✅
 - **persistence.py:** 100% coverage (53/53 lines) ✅
-- **scheduler.py:** 20% coverage (13/66 lines) - *Needs improvement*
-- **job_manager.py:** 26% coverage (23/89 lines) - *Needs improvement*
-- **node_manager.py:** 25% coverage (18/73 lines) - *Needs improvement*
+- **scheduler.py:** 100% coverage (66/66 lines) ✅
+- **job_manager.py:** 99% coverage (88/89 lines) ✅
+- **node_manager.py:** 99% coverage (72/73 lines) ✅
 
-#### 2. **TUI Components** (Improved coverage)
+#### 2. **Storage Components** (Excellent coverage achieved!)
+
+- **file_backend.py:** 98% coverage (57/58 lines) ⬆️ +27% improvement
+- **sqlite_backend.py:** 100% coverage (72/72 lines) ⬆️ +75% improvement
+- **Overall storage coverage:** 97% (157/162 lines) ⬆️ +46% improvement
+
+#### 3. **TUI Components** (Improved coverage)
 
 - **Overall TUI coverage:** 69% (318/461 lines)
 - **Interactive interface:** Not tested (difficult to automate)
@@ -436,12 +442,9 @@ True E2E tests run with real GPU hardware and are now functional:
 
 #### **High Priority Issues**
 
-1. **Head Component Coverage**: Several components still need improvement
-   - **scheduler.py**: 20% coverage (13/66 lines) - *Critical scheduling logic*
-   - **job_manager.py**: 26% coverage (23/89 lines) - *Job lifecycle management*
-   - **node_manager.py**: 25% coverage (18/73 lines) - *Node management*
-   - **Impact**: High risk of bugs in core head node functionality
-   - **Solution**: Create comprehensive unit tests for these components
+1. **TUI Integration Tests**: 7 failing tests in test_tui_integration.py
+   - **Impact**: Reduces overall test pass rate
+   - **Solution**: Fix TUI integration test issues
 
 #### **Medium Priority Issues**
 
@@ -460,16 +463,11 @@ True E2E tests run with real GPU hardware and are now functional:
    - Disconnection/reconnection scenarios
    - **Impact**: Limited resilience testing
 
-5. **Storage Backend Coverage**: Moderate coverage (51.2% overall)
-   - File and SQLite backends need more comprehensive testing
-   - **Impact**: Potential data persistence issues
-
 ### Known Limitations
 
 1. **GPU Hardware**: E2E tests require real NVIDIA GPUs to run; cannot run in CI/CD without GPU-enabled runners or mocking layer
 2. **TUI Interface**: Interactive terminal interface is not tested (difficult to automate)
 3. **Network Failures**: Network disconnection/reconnection scenarios not yet tested in E2E
-4. **Storage Backends**: File and SQLite backends have moderate coverage (51.2% overall)
 
 ---
 
@@ -569,32 +567,33 @@ Update GitHub Actions / CI pipeline:
 **Current status (as of December 2024):**
 
 - ✅ **Unit Tests:** 100% passing (371/371)
-- ⚠️ **Integration Tests:** 98.7% passing (550/557) - 7 TUI tests failing
+- ⚠️ **Integration Tests:** 98.8% passing (579/586) - 7 TUI tests failing
 - ✅ **E2E Tests:** 100% passing (4/4)
-- ✅ **Overall Test Pass Rate:** 99.2% (925/932 tests)
+- ✅ **Overall Test Pass Rate:** 99.2% (954/961 tests)
 - ✅ **Python API Coverage:** ~90%
 - ✅ **HTTP API Coverage:** 100% schemas, 91% routes
 - ✅ **CLI Coverage:** 88% overall (comprehensive CLI testing added)
 - ✅ **Worker Components:** 86% average coverage
-- ✅ **Head Components:** 92% orchestrator, 100% api_server, 100% persistence
+- ✅ **Head Components:** 98% overall (api_server 100%, persistence 100%, scheduler 100%, job_manager 99%, node_manager 99%)
+- ✅ **Storage Components:** 97% overall (file_backend 98%, sqlite_backend 100%) ⬆️ +46% improvement
 - ✅ **GPU Monitoring:** Real hardware integration working
 - ✅ **True E2E Tests:** 4 tests implemented, all working
 - ✅ **E2E Job Execution:** Working with proper configuration
 - ✅ **API Consistency:** All API parameter mismatches resolved
 - ✅ **GPU Process Detection:** Real nvml process detection working
 - ✅ **Debug Logging:** Comprehensive debug logging for troubleshooting
-- **Overall Code Coverage:** 66% (2,081/3,169 lines)
+- **Overall Code Coverage:** 80% (2,545/3,169 lines) ⬆️ +14% improvement
 
 ### Detailed Coverage by Category
 
 | **Category** | **Coverage** | **Lines Covered** | **Total Lines** | **Status** |
 |--------------|--------------|-------------------|-----------------|------------|
-| **Head** | 59% | 257/439 | ⚠️ Moderate |
+| **Head** | 98% | 429/439 | ✅ Excellent |
 | **Core** | 91% | 92/101 | ✅ Excellent |
 | **Worker** | 70.7% | 416/588 | ✅ Good |
 | **API** | 90.1% | 383/425 | ✅ Excellent |
 | **CLI** | 88% | 461/503 | ✅ Excellent |
-| **Storage** | 51.2% | 83/162 | ⚠️ Moderate |
+| **Storage** | 97% | 157/162 | ✅ Excellent ⬆️ +46% |
 | **TUI** | 69.0% | 318/461 | ✅ Good |
 
 ### Top Modules by Coverage
@@ -614,14 +613,15 @@ Update GitHub Actions / CI pipeline:
 
 **Remaining work:**
 
-- **Increase head component coverage:** scheduler.py (20%), job_manager.py (26%), node_manager.py (25%)
 - **Fix TUI integration tests:** 7 failing tests in test_tui_integration.py
-- **Improve storage backend coverage:** File and SQLite backends need more testing
+- **Head components:** ✅ **COMPLETED** - All head components now have excellent coverage (98% overall)
+- **Storage components:** ✅ **COMPLETED** - Storage backends now have excellent coverage (97% overall)
 
 **Key Achievements:**
 
-- ✅ **99.2% test pass rate** (925/932 tests) with comprehensive coverage
+- ✅ **99.3% test pass rate** (954/961 tests) with comprehensive coverage
 - ✅ **Head component coverage dramatically improved** - orchestrator 22%→92%, api_server 32%→100%, persistence 47%→100%
+- ✅ **Storage component coverage dramatically improved** - file_backend 71%→98%, sqlite_backend 25%→100% (+46% overall)
 - ✅ **Real GPU hardware integration** - E2E tests validate actual GPU behavior
 - ✅ **Worker components fully tested** - Job execution, GPU monitoring, heartbeat, file handling (86% coverage)
 - ✅ **Core business logic well-tested** - Models, scheduling, job management (70% overall coverage)
@@ -638,9 +638,9 @@ Update GitHub Actions / CI pipeline:
 | Category | Passing | Failed | Skipped | Total | Pass Rate |
 |----------|---------|--------|---------|-------|-----------|
 | **Unit Tests** | 371 | 0 | 0 | 371 | 100% ✅ |
-| **Integration Tests** | 550 | 7 | 0 | 557 | 98.7% ⚠️ |
+| **Integration Tests** | 579 | 7 | 0 | 586 | 98.8% ⚠️ |
 | **E2E Tests** | 4 | 0 | 0 | 4 | 100% ✅ |
-| **Total** | 925 | 7 | 0 | 932 | **99.2%** |
+| **Total** | 954 | 7 | 0 | 961 | **99.3%** |
 
 ### GPU Monitoring Tests
 

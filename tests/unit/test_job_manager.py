@@ -226,3 +226,35 @@ class TestJobManager:
 
         updated = job_manager.get_job(job.job_id)
         assert updated.versioned_script_path == "/tmp/script.py.scheduler_job001_abc123.py"
+
+    def test_list_jobs_with_limit(self, job_manager):
+        """Test listing jobs with limit parameter"""
+        # Submit multiple jobs
+        for i in range(5):
+            job_manager.submit_job(
+                script=f"/path/to/script{i}.py",
+                requirements="1"
+            )
+        
+        # Test with limit
+        jobs = job_manager.list_jobs(limit=3)
+        assert len(jobs) == 3
+        
+        # Test with limit larger than total
+        jobs = job_manager.list_jobs(limit=10)
+        assert len(jobs) == 5
+
+    def test_start_job_not_found(self, job_manager):
+        """Test starting non-existent job"""
+        with pytest.raises(JobNotFoundException):
+            job_manager.start_job("non-existent", "node1", [0])
+
+    def test_complete_job_not_found(self, job_manager):
+        """Test completing non-existent job"""
+        with pytest.raises(JobNotFoundException):
+            job_manager.complete_job("non-existent", 0)
+
+    def test_fail_job_not_found(self, job_manager):
+        """Test failing non-existent job"""
+        with pytest.raises(JobNotFoundException):
+            job_manager.fail_job("non-existent", "Test error")
