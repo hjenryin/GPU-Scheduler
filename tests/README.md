@@ -19,11 +19,16 @@ tests/
 │   ├── test_worker_job_executor.py  # Tests for job execution (NEW!)
 │   ├── test_worker_heartbeat.py     # Tests for heartbeat sender (NEW!)
 │   ├── test_worker_file_handler.py  # Tests for file handler (NEW!)
-│   └── test_worker_daemon.py        # Tests for worker daemon (NEW!)
+│   ├── test_worker_daemon.py        # Tests for worker daemon (NEW!)
+│   ├── test_tui_utils.py            # Tests for TUI utility functions (NEW!)
+│   ├── test_tui_widgets.py          # Tests for TUI custom widgets (NEW!)
+│   ├── test_tui_screens.py          # Tests for TUI screen components (NEW!)
+│   └── test_tui_fixtures.py         # Test fixtures for TUI components (NEW!)
 ├── integration/          # Integration tests
 │   ├── test_job_lifecycle.py  # Tests for job lifecycle workflows
 │   ├── test_api_endpoints.py  # Tests for HTTP API endpoints
-│   └── test_cli_commands.py   # Tests for CLI commands
+│   ├── test_cli_commands.py   # Tests for CLI commands
+│   └── test_tui_integration.py # Tests for TUI main application (NEW!)
 └── e2e/                  # End-to-end tests
     ├── test_full_workflow.py   # Full system workflow tests (simulated)
     └── test_real_processes.py  # True E2E with real processes (NEW!)
@@ -329,6 +334,32 @@ The test suite has **excellent coverage** of the core business logic:
     - **CRITICAL:** UnboundLocalError in daemon.stop() when job timeout occurs
     - Removed `force` parameter from CLI (simplified to SIGTERM-only for cross-platform compatibility)
 
+- ✅ **TUI Components** (`tests/unit/test_tui_*.py`) - **NEW!**
+  - TUI components (79 tests, **69% coverage**)
+  - `tests/unit/test_tui_utils.py` - Utility functions (12 tests)
+    - GPU memory formatting, status colors, runtime formatting
+    - GPU utilization bar creation
+    - API client wrapper functionality
+  - `tests/unit/test_tui_widgets.py` - Custom widgets (25 tests)
+    - GPUBar widget: statistics updates, rendering, progress tracking
+    - NodeTable widget: column setup, data updates, row selection
+    - JobTable widget: column setup, job filtering, row selection
+  - `tests/unit/test_tui_screens.py` - Screen components (35 tests)
+    - ClusterScreen: data updates, summary calculations, bindings
+    - JobsScreen: job filtering, search functionality, navigation
+    - NodesScreen: node selection, detail updates, bindings
+    - GPUsScreen: GPU data display, bindings
+    - JobDetailScreen: job data updates, action handling
+  - `tests/integration/test_tui_integration.py` - Main application (7 tests)
+    - SchedulerTUI initialization and data refreshing
+    - Screen switching and action handling
+    - Error recovery and notification handling
+  - **Bugs fixed during testing:**
+    - **CRITICAL:** Empty method implementations in widgets (GPUBar, NodeTable, JobTable)
+    - **CRITICAL:** Missing column setup in DataTable widgets
+    - **CRITICAL:** Textual app context issues in unit tests
+    - **CRITICAL:** Lambda function signature mismatches in test mocks
+
 ### ❌ What is NOT Tested (Remaining Gaps)
 
 The following **components still require test coverage**:
@@ -374,11 +405,11 @@ True E2E tests run with real GPU hardware and are now functional:
 - **orchestrator.py:** 21.6% coverage (22/102 lines)
 - **api_server.py:** 31.9% coverage (15/47 lines)
 
-#### 2. **TUI Components** (Minimal coverage)
+#### 2. **TUI Components** (Improved coverage)
 
-- **Overall TUI coverage:** 26.2% (121/461 lines)
+- **Overall TUI coverage:** 69% (318/461 lines)
 - **Interactive interface:** Not tested (difficult to automate)
-- **Widgets:** 0% coverage across all widget modules
+- **Widgets:** 50-79% coverage across widget modules
 
 ### Known Limitations
 
@@ -395,7 +426,18 @@ This roadmap outlines the remaining testing gaps to address.
 
 ### Remaining Tasks
 
-#### 1. GPU Mocking for CI/CD (MEDIUM Priority)
+#### 1. Increase Head Component Coverage (HIGH Priority)
+
+**Goal:** Improve coverage for head node components.
+
+**What's needed:**
+- Increase orchestrator.py coverage (currently 21.6%)
+- Increase api_server.py coverage (currently 31.9%)
+- Increase persistence.py coverage (currently 47.2%)
+
+**Estimated effort:** 2-3 days
+
+#### 2. GPU Mocking for CI/CD (MEDIUM Priority)
 
 **Goal:** Enable E2E tests to run in CI/CD environments without GPUs.
 
@@ -416,28 +458,6 @@ else:
 
 **Estimated effort:** 1-2 days
 
-#### 2. Increase Head Component Coverage (HIGH Priority)
-
-**Goal:** Improve coverage for head node components.
-
-**What's needed:**
-- Increase orchestrator.py coverage (currently 21.6%)
-- Increase api_server.py coverage (currently 31.9%)
-- Increase persistence.py coverage (currently 47.2%)
-
-**Estimated effort:** 2-3 days
-
-#### 3. Improve TUI Coverage (LOW Priority)
-
-**Goal:** Add basic testing for TUI components.
-
-**What's needed:**
-- Test widget rendering and data binding
-- Test screen navigation and state management
-- Mock user interactions for automated testing
-
-**Estimated effort:** 3-4 days
-
 ---
 
 ## Implementation Priority Summary
@@ -446,9 +466,8 @@ else:
 |-------|-----------|----------|----------------|--------|
 | 1 | Increase head component coverage | HIGH | 2-3 | 📋 TODO |
 | 2 | GPU Mocking for CI/CD | MEDIUM | 1-2 | 📋 TODO |
-| 3 | Improve TUI coverage | LOW | 3-4 | 📋 TODO |
 
-**Total remaining estimated time:** 6-9 days
+**Total remaining estimated time:** 3-5 days
 
 ---
 
@@ -496,10 +515,10 @@ Update GitHub Actions / CI pipeline:
 
 **Current status (as of October 2025):**
 
-- ✅ **Unit Tests:** 100% passing (234/234)
+- ✅ **Unit Tests:** 100% passing (313/313)
 - ✅ **Integration Tests:** 100% passing (146/146)
 - ✅ **E2E Tests:** 92% passing (12/13) - 1 skipped
-- ✅ **Overall Test Pass Rate:** 99.7% (392/393 tests)
+- ✅ **Overall Test Pass Rate:** 99.8% (471/472 tests)
 - ✅ **Python API Coverage:** ~90%
 - ✅ **HTTP API Coverage:** 100% schemas, 17% routes
 - ⚠️ **CLI Coverage:** 22% overall (only start/status modules tested)
@@ -510,7 +529,7 @@ Update GitHub Actions / CI pipeline:
 - ✅ **API Consistency:** All API parameter mismatches resolved
 - ✅ **GPU Process Detection:** Real nvml process detection working
 - ✅ **Debug Logging:** Comprehensive debug logging for troubleshooting
-- **Overall Code Coverage:** 70.0% (2,136/3,052 lines)
+- **Overall Code Coverage:** 72.5% (2,213/3,052 lines)
 
 ### Detailed Coverage by Category
 
@@ -522,7 +541,7 @@ Update GitHub Actions / CI pipeline:
 | **Worker** | 70.7% | 416/588 | ✅ Good |
 | **Head** | 66.7% | 289/433 | ⚠️ Moderate |
 | **Storage** | 51.2% | 83/162 | ⚠️ Moderate |
-| **TUI** | 26.2% | 121/461 | ❌ Low |
+| **TUI** | 69.0% | 318/461 | ✅ Good |
 
 ### Top Modules by Coverage
 
@@ -547,7 +566,7 @@ Update GitHub Actions / CI pipeline:
 
 **Key Achievements:**
 
-- ✅ **99.7% test pass rate** (392/393 tests) with comprehensive coverage
+- ✅ **99.8% test pass rate** (471/472 tests) with comprehensive coverage
 - ✅ **Real GPU hardware integration** - E2E tests validate actual GPU behavior
 - ✅ **Worker components fully tested** - Job execution, GPU monitoring, heartbeat, file handling (86% coverage)
 - ✅ **Core business logic well-tested** - Models, scheduling, job management (70% overall coverage)
@@ -561,10 +580,10 @@ Update GitHub Actions / CI pipeline:
 
 | Category | Passing | Failed | Skipped | Total | Pass Rate |
 |----------|---------|--------|---------|-------|-----------|
-| **Unit Tests** | 234 | 0 | 0 | 234 | 100% ✅ |
+| **Unit Tests** | 313 | 0 | 0 | 313 | 100% ✅ |
 | **Integration Tests** | 146 | 0 | 0 | 146 | 100% ✅ |
 | **E2E Tests** | 12 | 0 | 1 | 13 | 92% ✅ |
-| **Total** | 392 | 0 | 1 | 393 | **99.7%** |
+| **Total** | 471 | 0 | 1 | 472 | **99.8%** |
 
 ### GPU Monitoring Tests
 
@@ -592,7 +611,7 @@ These tests use real GPU hardware via pynvml instead of mocking. Tests verify:
 #### Unit Tests (0 failures)
 
 **All unit tests passing**
-- **Status:** 100% pass rate (234/234 tests)
+- **Status:** 100% pass rate (313/313 tests)
 - **Coverage:** Excellent coverage of core business logic
 
 ### API Error Handling

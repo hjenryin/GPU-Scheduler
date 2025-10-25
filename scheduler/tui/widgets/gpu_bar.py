@@ -28,6 +28,8 @@ class GPUBar(ProgressBar):
         self.utilization = utilization
         self.memory_used = memory_used
         self.memory_total = memory_total
+        # Set initial progress
+        self.progress = utilization / 100.0
 
     def update_stats(
         self,
@@ -43,7 +45,11 @@ class GPUBar(ProgressBar):
             memory_used: New used memory
             memory_total: New total memory
         """
-        pass
+        self.utilization = utilization
+        self.memory_used = memory_used
+        self.memory_total = memory_total
+        # Update progress bar
+        self.progress = utilization / 100.0
 
     def render(self) -> str:
         """
@@ -52,4 +58,11 @@ class GPUBar(ProgressBar):
         Returns:
             Renderable content for the widget
         """
-        pass
+        # Create a visual representation of GPU utilization
+        # Format: GPU0: [████████░░] 80% (4.0GB/8.0GB)
+        from scheduler.tui.utils import create_gpu_utilization_bar, format_gpu_memory
+        
+        bar = create_gpu_utilization_bar(self.utilization, width=10)
+        memory_str = f"{format_gpu_memory(self.memory_used)}/{format_gpu_memory(self.memory_total)}"
+        
+        return f"GPU{self.gpu_id}: {bar} ({memory_str})"

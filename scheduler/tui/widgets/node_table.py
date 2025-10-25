@@ -16,7 +16,7 @@ class NodeTable(DataTable):
             **kwargs: Additional widget arguments
         """
         super().__init__(**kwargs)
-        self._setup_columns()
+        self._columns_setup = False
 
     def _setup_columns(self):
         """
@@ -24,7 +24,10 @@ class NodeTable(DataTable):
         
         Columns: Node, Status, GPUs, Free, Running, Last Heartbeat
         """
-        pass
+        if not self._columns_setup:
+            self.add_columns("Node", "Status", "GPUs", "Free", "Running", "Last Heartbeat")
+            self.cursor_type = "row"
+            self._columns_setup = True
 
     def update_nodes(self, nodes: List[Node]):
         """
@@ -33,7 +36,21 @@ class NodeTable(DataTable):
         Args:
             nodes: List of Node instances
         """
-        pass
+        # Ensure columns are set up
+        self._setup_columns()
+        
+        self.clear()
+        for node in nodes:
+            free_gpu_count = len([gpu for gpu in node.gpus if gpu.available])
+            running_job_count = len([j for j in getattr(self, 'jobs_data', []) if j.assigned_node == node.node_name and j.status.value == "running"])
+            self.add_row(
+                node.node_name,
+                node.status,
+                str(node.num_gpus),
+                str(free_gpu_count),
+                f"{running_job_count} jobs",
+                "N/A"  # TODO: Calculate time since last heartbeat
+            )
 
     def on_row_selected(self, row_key: str):
         """
@@ -42,4 +59,10 @@ class NodeTable(DataTable):
         Args:
             row_key: Selected row key (node name)
         """
-        pass
+        # Emit a custom event that can be handled by parent components
+        self.post_message(self.NodeSelected(row_key))
+    
+    class NodeSelected:
+        """Event emitted when a node is selected."""
+        def __init__(self, node_name: str):
+            self.node_name = node_name
