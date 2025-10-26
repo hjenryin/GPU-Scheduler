@@ -1,6 +1,7 @@
 import os
 import time
 from typing import List, Optional
+import click
 
 from scheduler.api import SchedulerClient
 from scheduler.core import load_config, ValidationException, ConnectionException
@@ -43,7 +44,7 @@ def submit_command(
     """
     # Validate script path
     if not os.path.exists(script):
-        print(f"Error: Script not found: {script}")
+        click.echo(f"Error: Script not found: {script}")
         return 4
 
     # Parse environment variables
@@ -51,8 +52,8 @@ def submit_command(
     if env:
         for env_var in env:
             if '=' not in env_var:
-                print(f"Error: Invalid environment variable format: {env_var}")
-                print("Expected format: KEY=VALUE")
+                click.echo(f"Error: Invalid environment variable format: {env_var}")
+                click.echo("Expected format: KEY=VALUE")
                 return 2
             key, value = env_var.split('=', 1)
             env_vars[key] = value
@@ -66,7 +67,7 @@ def submit_command(
         client = SchedulerClient(config=config)
 
         # Submit job
-        print(f"Submitting job: {os.path.basename(script)}")
+        click.echo(f"Submitting job: {os.path.basename(script)}")
         job = client.submit_job(
             script=script,
             requirements=req,
@@ -78,46 +79,46 @@ def submit_command(
             priority=priority,
         )
 
-        print(f"\nJob submitted successfully!")
-        print(f"Job ID: {job.job_id}")
-        print(f"Status: {job.status.value}")
-        print(f"Requirements: {req}")
-        print(f"\nView status: scheduler status (then press 'J' and search for job)")
+        click.echo(f"\nJob submitted successfully!")
+        click.echo(f"Job ID: {job.job_id}")
+        click.echo(f"Status: {job.status.value}")
+        click.echo(f"Requirements: {req}")
+        click.echo(f"\nView status: scheduler status (then press 'J' and search for job)")
 
         if log_to_driver:
-            print(f"\nStreaming logs (Ctrl+C to stop)...")
+            click.echo(f"\nStreaming logs (Ctrl+C to stop)...")
             try:
                 for line in client.stream_job_logs(job.job_id):
-                    print(line)
+                    click.echo(line)
             except KeyboardInterrupt:
-                print("\nStopped streaming logs")
+                click.echo("\nStopped streaming logs")
 
         elif not async_submit:
-            print(f"\nWaiting for job to complete...")
+            click.echo(f"\nWaiting for job to complete...")
             while True:
                 job = client.get_job(job.job_id)
                 if job.status.value in ['completed', 'failed', 'cancelled']:
                     break
                 time.sleep(2)
 
-            print(f"\nJob {job.status.value}")
+            click.echo(f"\nJob {job.status.value}")
             if job.exit_code is not None:
-                print(f"Exit code: {job.exit_code}")
+                click.echo(f"Exit code: {job.exit_code}")
             if job.error_message:
-                print(f"Error: {job.error_message}")
+                click.echo(f"Error: {job.error_message}")
 
             return 0 if job.status.value == 'completed' else 1
 
         return 0
 
     except ValidationException as e:
-        print(f"Validation error: {e}")
+        click.echo(f"Validation error: {e}")
         return 2
     except ConnectionException as e:
-        print(f"Connection error: {e}")
-        print("\nCannot connect to head node. Is it running?")
-        print("Start head node with: scheduler start --head")
+        click.echo(f"Connection error: {e}")
+        click.echo("\nCannot connect to head node. Is it running?")
+        click.echo("Start head node with: scheduler start --head")
         return 3
     except Exception as e:
-        print(f"Error: {e}")
+        click.echo(f"Error: {e}")
         return 1

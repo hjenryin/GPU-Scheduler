@@ -1,6 +1,7 @@
 import os
 import signal
 import logging
+import click
 
 from scheduler.worker import is_daemon_running
 
@@ -21,8 +22,8 @@ def stop_command(all_nodes: bool = False) -> int:
         ConnectionException: If cannot connect to scheduler
     """
     if all_nodes:
-        print("Error: --all flag not yet implemented")
-        print("Please stop each node individually with 'scheduler stop'")
+        click.echo("Error: --all flag not yet implemented")
+        click.echo("Please stop each node individually with 'scheduler stop'")
         return 1
 
     # Try to stop head node
@@ -41,7 +42,7 @@ def stop_command(all_nodes: bool = False) -> int:
                     worker_stopped = True
 
     if not head_stopped and not worker_stopped:
-        print("No scheduler processes found running on this machine")
+        click.echo("No scheduler processes found running on this machine")
         return 1
 
     return 0
@@ -61,10 +62,10 @@ def _stop_daemon(lockfile: str, name: str) -> bool:
         with open(lockfile, 'r') as f:
             pid = int(f.read().strip())
 
-        print(f"Stopping {name} (PID {pid})...")
+        click.echo(f"Stopping {name} (PID {pid})...")
         os.kill(pid, signal.SIGTERM)
-        print(f"Sent graceful shutdown signal to {name}")
-        print("(Jobs will complete before shutdown)")
+        click.echo(f"Sent graceful shutdown signal to {name}")
+        click.echo("(Jobs will complete before shutdown)")
 
         # Clean up lockfile
         try:

@@ -1,5 +1,6 @@
 import yaml
 from typing import Optional
+import click
 
 from scheduler.core.config import load_config, save_config, init_config
 from scheduler.core import constants
@@ -30,19 +31,19 @@ def config_command(
     try:
         if command == "init":
             init_config()
-            print(f"Configuration initialized at {constants.CONFIG_FILE_PATH}")
+            click.echo(f"Configuration initialized at {constants.CONFIG_FILE_PATH}")
             return 0
 
         elif command == "show":
             config = load_config()
             # Convert Config object to dict for display
             config_dict = config.to_dict() if hasattr(config, 'to_dict') else config
-            print(yaml.dump(config_dict, default_flow_style=False))
+            click.echo(yaml.dump(config_dict, default_flow_style=False))
             return 0
 
         elif command == "get":
             if not key:
-                print("Error: key required for 'get' command")
+                click.echo("Error: key required for 'get' command")
                 return 2
             config = load_config()
             # Convert Config object to dict
@@ -56,12 +57,12 @@ def config_command(
                 else:
                     value_out = {}
                     break
-            print(value_out if value_out else "")
+            click.echo(value_out if value_out else "")
             return 0 if value_out else 1
 
         elif command == "set":
             if not key or value is None:
-                print("Error: key and value required for 'set' command")
+                click.echo("Error: key and value required for 'set' command")
                 return 2
             config = load_config()
             # Convert Config object to dict
@@ -73,17 +74,17 @@ def config_command(
                 current = current.setdefault(k, {})
             current[keys[-1]] = value
             save_config(config_dict)
-            print(f"Set {key} = {value}")
+            click.echo(f"Set {key} = {value}")
             return 0
 
         else:
-            print(f"Error: Unknown command '{command}'")
-            print("Valid commands: init, show, get, set")
+            click.echo(f"Error: Unknown command '{command}'")
+            click.echo("Valid commands: init, show, get, set")
             return 2
 
     except FileNotFoundError:
-        print(f"Config file not found. Run 'scheduler config init' to create one.")
+        click.echo(f"Config file not found. Run 'scheduler config init' to create one.")
         return 4
     except Exception as e:
-        print(f"Error: {e}")
+        click.echo(f"Error: {e}")
         return 1

@@ -1,5 +1,6 @@
 from scheduler.api import SchedulerClient
 from scheduler.core import load_config, ConnectionException, JobNotFoundException
+import click
 
 
 def logs_command(
@@ -33,29 +34,29 @@ def logs_command(
         client = SchedulerClient(config=config)
 
         if both:
-            print("=== STDOUT ===")
-            print(client.get_job_logs(job_id, lines=lines, stderr=False))
-            print("\n=== STDERR ===")
-            print(client.get_job_logs(job_id, lines=lines, stderr=True))
+            click.echo("=== STDOUT ===")
+            click.echo(client.get_job_logs(job_id, lines=lines, stderr=False))
+            click.echo("\n=== STDERR ===")
+            click.echo(client.get_job_logs(job_id, lines=lines, stderr=True))
         elif follow:
-            print(f"Following logs for job {job_id} (Ctrl+C to stop)...")
+            click.echo(f"Following logs for job {job_id} (Ctrl+C to stop)...")
             try:
                 for line in client.stream_job_logs(job_id, stderr=stderr):
-                    print(line)
+                    click.echo(line)
             except KeyboardInterrupt:
-                print("\nStopped following logs")
+                click.echo("\nStopped following logs")
         else:
             logs = client.get_job_logs(job_id, lines=lines, stderr=stderr)
-            print(logs)
+            click.echo(logs)
 
         return 0
 
     except JobNotFoundException as e:
-        print(f"Job not found: {e}")
+        click.echo(f"Job not found: {e}")
         return 4
     except ConnectionException as e:
-        print(f"Connection error: {e}")
+        click.echo(f"Connection error: {e}")
         return 3
     except Exception as e:
-        print(f"Error: {e}")
+        click.echo(f"Error: {e}")
         return 1

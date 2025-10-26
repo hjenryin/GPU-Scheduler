@@ -1,217 +1,294 @@
 """
 Unit tests for CLI main entry point.
 
-Tests the main() function and command routing.
+Tests the main() function and command routing with click.
 """
 
 import sys
 import pytest
 from unittest.mock import patch, MagicMock
+from click.testing import CliRunner
 
 
 class TestCLIMainRouting:
     """Test main CLI routing logic."""
 
-    @patch('sys.argv', ['scheduler'])
-    def test_no_command_returns_error(self):
-        """Test that main() returns 1 when no command provided."""
-        from scheduler.cli.main import main
-        exit_code = main()
-        assert exit_code == 1
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_no_command_shows_help(self, mock_tui):
+        """Test that main() shows help when no command provided."""
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        result = runner.invoke(cli, [])
+        
+        assert result.exit_code == 2  # Click returns 2 for missing command
+        assert "GPU Scheduler" in result.output
+        assert "Commands:" in result.output
 
-    def test_routes_to_start_command(self):
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_routes_to_start_command(self, mock_tui):
         """Test main() routes to start_command."""
-        import scheduler.cli  # Ensures module is loaded
-        main_module = sys.modules['scheduler.cli.main']
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        with patch('scheduler.cli.start.start_command', return_value=0) as mock_start:
+            result = runner.invoke(cli, ['start', '--head'])
+            
+            assert result.exit_code == 0
+            assert mock_start.called
+            call_kwargs = mock_start.call_args[1]
+            assert call_kwargs['head'] is True
 
-        with patch('sys.argv', ['scheduler', 'start', '--head']):
-            with patch.object(main_module, 'start_command', return_value=0) as mock_start:
-                exit_code = main_module.main()
-
-                assert exit_code == 0
-                assert mock_start.called
-                call_kwargs = mock_start.call_args[1]
-                assert call_kwargs['head'] is True
-
-    def test_routes_to_stop_command(self):
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_routes_to_stop_command(self, mock_tui):
         """Test main() routes to stop_command."""
-        import scheduler.cli
-        main_module = sys.modules['scheduler.cli.main']
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        with patch('scheduler.cli.stop.stop_command', return_value=0) as mock_stop:
+            result = runner.invoke(cli, ['stop'])
+            
+            assert result.exit_code == 0
+            assert mock_stop.called
 
-        with patch('sys.argv', ['scheduler', 'stop']):
-            with patch.object(main_module, 'stop_command', return_value=0) as mock_stop:
-                exit_code = main_module.main()
-
-                assert exit_code == 0
-                assert mock_stop.called
-
-    def test_routes_to_submit_command(self):
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_routes_to_submit_command(self, mock_tui):
         """Test main() routes to submit_command."""
-        import scheduler.cli
-        main_module = sys.modules['scheduler.cli.main']
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        with patch('scheduler.cli.submit.submit_command', return_value=0) as mock_submit:
+            result = runner.invoke(cli, ['submit', 'test.py'])
+            
+            assert result.exit_code == 0
+            assert mock_submit.called
 
-        with patch('sys.argv', ['scheduler', 'submit', 'test.py']):
-            with patch.object(main_module, 'submit_command', return_value=0) as mock_submit:
-                exit_code = main_module.main()
-
-                assert exit_code == 0
-                assert mock_submit.called
-
-    def test_routes_to_jobs_command(self):
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_routes_to_jobs_command(self, mock_tui):
         """Test main() routes to jobs_command."""
-        import scheduler.cli
-        main_module = sys.modules['scheduler.cli.main']
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        with patch('scheduler.cli.jobs.jobs_command', return_value=0) as mock_jobs:
+            result = runner.invoke(cli, ['jobs'])
+            
+            assert result.exit_code == 0
+            assert mock_jobs.called
 
-        with patch('sys.argv', ['scheduler', 'jobs']):
-            with patch.object(main_module, 'jobs_command', return_value=0) as mock_jobs:
-                exit_code = main_module.main()
-
-                assert exit_code == 0
-                assert mock_jobs.called
-
-    def test_routes_to_logs_command(self):
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_routes_to_logs_command(self, mock_tui):
         """Test main() routes to logs_command."""
-        import scheduler.cli
-        main_module = sys.modules['scheduler.cli.main']
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        with patch('scheduler.cli.logs.logs_command', return_value=0) as mock_logs:
+            result = runner.invoke(cli, ['logs', 'job_123'])
+            
+            assert result.exit_code == 0
+            assert mock_logs.called
 
-        with patch('sys.argv', ['scheduler', 'logs', 'job_123']):
-            with patch.object(main_module, 'logs_command', return_value=0) as mock_logs:
-                exit_code = main_module.main()
-
-                assert exit_code == 0
-                assert mock_logs.called
-
-    def test_routes_to_cancel_command(self):
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_routes_to_cancel_command(self, mock_tui):
         """Test main() routes to cancel_command."""
-        import scheduler.cli
-        main_module = sys.modules['scheduler.cli.main']
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        with patch('scheduler.cli.cancel.cancel_command', return_value=0) as mock_cancel:
+            result = runner.invoke(cli, ['cancel', 'job_1'])
+            
+            assert result.exit_code == 0
+            assert mock_cancel.called
 
-        with patch('sys.argv', ['scheduler', 'cancel', 'job_1']):
-            with patch.object(main_module, 'cancel_command', return_value=0) as mock_cancel:
-                exit_code = main_module.main()
-
-                assert exit_code == 0
-                assert mock_cancel.called
-
-    def test_routes_to_config_command(self):
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_routes_to_config_command(self, mock_tui):
         """Test main() routes to config_command."""
-        import scheduler.cli
-        main_module = sys.modules['scheduler.cli.main']
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        with patch('scheduler.cli.config.config_command', return_value=0) as mock_config:
+            result = runner.invoke(cli, ['config', 'show'])
+            
+            assert result.exit_code == 0
+            assert mock_config.called
 
-        with patch('sys.argv', ['scheduler', 'config', 'show']):
-            with patch.object(main_module, 'config_command', return_value=0) as mock_config:
-                exit_code = main_module.main()
-
-                assert exit_code == 0
-                assert mock_config.called
-
-    def test_routes_to_status_command(self):
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_routes_to_status_command(self, mock_tui):
         """Test main() routes to status_command."""
-        import scheduler.cli
-        main_module = sys.modules['scheduler.cli.main']
-
-        with patch('sys.argv', ['scheduler', 'status']):
-            with patch.object(main_module, 'status_command', return_value=0) as mock_status:
-                exit_code = main_module.main()
-
-                assert exit_code == 0
-                assert mock_status.called
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        with patch('scheduler.cli.status.status_command', return_value=0) as mock_status:
+            result = runner.invoke(cli, ['status'])
+            
+            assert result.exit_code == 0
+            assert mock_status.called
 
 
 class TestCLIMainExceptionHandling:
     """Test exception handling in main()."""
 
-    def test_handles_keyboard_interrupt(self):
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_handles_keyboard_interrupt(self, mock_tui):
         """Test main() handles KeyboardInterrupt."""
-        import scheduler.cli
-        main_module = sys.modules['scheduler.cli.main']
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        with patch('scheduler.cli.start.start_command', side_effect=KeyboardInterrupt()):
+            result = runner.invoke(cli, ['start', '--head'])
+            
+            assert result.exit_code == 130
 
-        with patch('sys.argv', ['scheduler', 'start', '--head']):
-            with patch.object(main_module, 'start_command', side_effect=KeyboardInterrupt()):
-                exit_code = main_module.main()
-
-                assert exit_code == 130
-
-    def test_handles_generic_exception(self):
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_handles_generic_exception(self, mock_tui):
         """Test main() handles generic exceptions."""
-        import scheduler.cli
-        main_module = sys.modules['scheduler.cli.main']
-
-        with patch('sys.argv', ['scheduler', 'submit', 'test.py']):
-            with patch.object(main_module, 'submit_command', side_effect=RuntimeError("Test error")):
-                exit_code = main_module.main()
-
-                assert exit_code == 1
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        with patch('scheduler.cli.submit.submit_command', side_effect=RuntimeError("Test error")):
+            result = runner.invoke(cli, ['submit', 'test.py'])
+            
+            assert result.exit_code == 1
 
 
 class TestCLIMainArgumentParsing:
     """Test argument parsing in main()."""
 
-    def test_parses_port_argument(self):
-        """Test main() parses port argument correctly."""
-        import scheduler.cli
-        main_module = sys.modules['scheduler.cli.main']
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_start_command_arguments(self, mock_tui):
+        """Test start command argument parsing."""
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        with patch('scheduler.cli.start.start_command', return_value=0) as mock_start:
+            result = runner.invoke(cli, [
+                'start', 
+                '--head', 
+                '--port', '9000',
+                '--node-name', 'test-node',
+                '--num-gpus', '2',
+                '--log-level', 'DEBUG'
+            ])
+            
+            assert result.exit_code == 0
+            assert mock_start.called
+            call_kwargs = mock_start.call_args[1]
+            assert call_kwargs['head'] is True
+            assert call_kwargs['port'] == 9000
+            assert call_kwargs['node_name'] == 'test-node'
+            assert call_kwargs['num_gpus'] == 2
+            assert call_kwargs['log_level'] == 'DEBUG'
 
-        with patch('sys.argv', ['scheduler', 'start', '--head', '--port', '9000']):
-            with patch.object(main_module, 'start_command', return_value=0) as mock_start:
-                exit_code = main_module.main()
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_submit_command_arguments(self, mock_tui):
+        """Test submit command argument parsing."""
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        with patch('scheduler.cli.submit.submit_command', return_value=0) as mock_submit:
+            result = runner.invoke(cli, [
+                'submit',
+                'test.py',
+                'arg1', 'arg2',
+                '--req', '2',
+                '--name', 'test-job',
+                '--priority', '5',
+                '--env', 'KEY1=value1',
+                '--env', 'KEY2=value2',
+                '--working-dir', '/tmp',
+                '--async',
+                '--log-to-driver'
+            ])
+            
+            assert result.exit_code == 0
+            assert mock_submit.called
+            call_kwargs = mock_submit.call_args[1]
+            assert call_kwargs['script'] == 'test.py'
+            assert call_kwargs['script_args'] == ['arg1', 'arg2']
+            assert call_kwargs['req'] == '2'
+            assert call_kwargs['name'] == 'test-job'
+            assert call_kwargs['priority'] == 5
+            assert call_kwargs['env'] == ['KEY1=value1', 'KEY2=value2']
+            assert call_kwargs['working_dir'] == '/tmp'
+            assert call_kwargs['async_submit'] is True
+            assert call_kwargs['log_to_driver'] is True
 
-                assert exit_code == 0
-                call_kwargs = mock_start.call_args[1]
-                assert call_kwargs['port'] == 9000
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_jobs_command_arguments(self, mock_tui):
+        """Test jobs command argument parsing."""
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        with patch('scheduler.cli.jobs.jobs_command', return_value=0) as mock_jobs:
+            result = runner.invoke(cli, [
+                'jobs',
+                'job1', 'job2',
+                '--format', 'json',
+                '--filter', 'running',
+                '--limit', '10'
+            ])
+            
+            assert result.exit_code == 0
+            assert mock_jobs.called
+            call_kwargs = mock_jobs.call_args[1]
+            assert call_kwargs['job_ids'] == ['job1', 'job2']
+            assert call_kwargs['format'] == 'json'
+            assert call_kwargs['filter'] == 'running'
+            assert call_kwargs['limit'] == 10
 
-    def test_parses_submit_arguments(self):
-        """Test main() parses submit arguments correctly."""
-        import scheduler.cli
-        main_module = sys.modules['scheduler.cli.main']
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_logs_command_arguments(self, mock_tui):
+        """Test logs command argument parsing."""
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        with patch('scheduler.cli.logs.logs_command', return_value=0) as mock_logs:
+            result = runner.invoke(cli, [
+                'logs',
+                'job123',
+                '--follow',
+                '--lines', '50',
+                '--timestamps',
+                '--stderr'
+            ])
+            
+            assert result.exit_code == 0
+            assert mock_logs.called
+            call_kwargs = mock_logs.call_args[1]
+            assert call_kwargs['job_id'] == 'job123'
+            assert call_kwargs['follow'] is True
+            assert call_kwargs['lines'] == 50
+            assert call_kwargs['timestamps'] is True
+            assert call_kwargs['stderr'] is True
 
-        with patch('sys.argv', ['scheduler', 'submit', 'script.py', '--req', '2', '--priority', '5']):
-            with patch.object(main_module, 'submit_command', return_value=0) as mock_submit:
-                exit_code = main_module.main()
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_config_command_arguments(self, mock_tui):
+        """Test config command argument parsing."""
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        with patch('scheduler.cli.config.config_command', return_value=0) as mock_config:
+            result = runner.invoke(cli, [
+                'config',
+                'set',
+                'head.port',
+                '9000',
+                '--config-file', '/tmp/config.yaml'
+            ])
+            
+            assert result.exit_code == 0
+            assert mock_config.called
+            call_kwargs = mock_config.call_args[1]
+            assert call_kwargs['command'] == 'set'
+            assert call_kwargs['key'] == 'head.port'
+            assert call_kwargs['value'] == '9000'
+            assert call_kwargs['config_file'] == '/tmp/config.yaml'
 
-                assert exit_code == 0
-                call_kwargs = mock_submit.call_args[1]
-                assert call_kwargs['script'] == 'script.py'
-                assert call_kwargs['req'] == '2'
-                assert call_kwargs['priority'] == 5
-
-    def test_parses_jobs_arguments(self):
-        """Test main() parses jobs arguments correctly."""
-        import scheduler.cli
-        main_module = sys.modules['scheduler.cli.main']
-
-        with patch('sys.argv', ['scheduler', 'jobs', '--format', 'json', '--limit', '20']):
-            with patch.object(main_module, 'jobs_command', return_value=0) as mock_jobs:
-                exit_code = main_module.main()
-
-                assert exit_code == 0
-                call_kwargs = mock_jobs.call_args[1]
-                assert call_kwargs['format'] == 'json'
-                assert call_kwargs['limit'] == 20
-
-    def test_parses_script_args(self):
-        """Test main() parses script arguments correctly."""
-        import scheduler.cli
-        main_module = sys.modules['scheduler.cli.main']
-
-        with patch('sys.argv', ['scheduler', 'submit', 'script.py', 'arg1', 'arg2', '--req', '1']):
-            with patch.object(main_module, 'submit_command', return_value=0) as mock_submit:
-                exit_code = main_module.main()
-
-                assert exit_code == 0
-                call_kwargs = mock_submit.call_args[1]
-                assert call_kwargs['script'] == 'script.py'
-                assert call_kwargs['script_args'] == ['arg1', 'arg2']
-
-    def test_parses_multiple_job_ids(self):
-        """Test main() parses multiple job IDs correctly."""
-        import scheduler.cli
-        main_module = sys.modules['scheduler.cli.main']
-
-        with patch('sys.argv', ['scheduler', 'jobs', 'job_1', 'job_2']):
-            with patch.object(main_module, 'jobs_command', return_value=0) as mock_jobs:
-                exit_code = main_module.main()
-
-                assert exit_code == 0
-                call_kwargs = mock_jobs.call_args[1]
-                assert call_kwargs['job_ids'] == ['job_1', 'job_2']
+    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    def test_version_option(self, mock_tui):
+        """Test --version option."""
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        result = runner.invoke(cli, ['--version'])
+        
+        assert result.exit_code == 0
+        assert "0.1.0" in result.output

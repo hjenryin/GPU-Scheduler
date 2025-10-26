@@ -2,6 +2,7 @@ from scheduler.core import load_config
 from scheduler.api import SchedulerClient
 from scheduler.tui import run_tui
 import logging
+import click
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +31,10 @@ def status_command() -> int:
         try:
             client.list_nodes()
         except Exception as e:
-            print(f"Error: Cannot connect to head node at {address}")
-            print(f"Details: {e}")
-            print("\nMake sure the head node is running:")
-            print("  scheduler start --head")
+            click.echo(f"Error: Cannot connect to head node at {address}")
+            click.echo(f"Details: {e}")
+            click.echo("\nMake sure the head node is running:")
+            click.echo("  scheduler start --head")
             return 1
 
         # Launch TUI
@@ -41,9 +42,9 @@ def status_command() -> int:
         return 0
 
     except KeyboardInterrupt:
-        print("\nExiting...")
+        click.echo("\nExiting...")
         return 0
     except Exception as e:
         logger.error(f"Error launching TUI: {e}")
-        print(f"Error: {e}")
+        click.echo(f"Error: {e}")
         return 1
