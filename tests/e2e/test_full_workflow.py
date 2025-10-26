@@ -29,7 +29,7 @@ class TestFullWorkflow:
         node_manager.update_heartbeat("gpu1", stats)
 
         # Set GPUs as stable (simulate time passing)
-        stable_time = datetime.now() - timedelta(seconds=70)
+        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
         for gpu in node.gpus:
             gpu.stable_since = stable_time
@@ -84,7 +84,7 @@ class TestFullWorkflow:
             stats = [GPUStats(j, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for j in range(4)]
             node_manager.update_heartbeat(node_name, stats)
 
-            stable_time = datetime.now() - timedelta(seconds=70)
+            stable_time = datetime.now() - timedelta(seconds=3)
             node = node_manager.get_node(node_name)
             for gpu in node.gpus:
                 gpu.stable_since = stable_time
@@ -122,7 +122,7 @@ class TestFullWorkflow:
         stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(2)]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=70)
+        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
         for gpu in node.gpus:
             gpu.stable_since = stable_time
@@ -163,7 +163,7 @@ class TestFullWorkflow:
         stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(2)]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=70)
+        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
         for gpu in node.gpus:
             gpu.stable_since = stable_time
@@ -203,15 +203,15 @@ def full_system(temp_dir):
     from scheduler.core.config import HeadConfig, WorkerConfig
 
     config = Config(
-        head=HeadConfig(heartbeat_timeout=30),
+        head=HeadConfig(heartbeat_timeout=10),
         worker=WorkerConfig(
             temp_dir=temp_dir,
             log_dir=temp_dir,
             work_dir=temp_dir,
             gpu_util_threshold=10.0,
             gpu_mem_threshold=10.0,
-            gpu_stable_time=60,
-            job_startup_grace=30
+            gpu_stable_time=2,  # Reduced from 60 for faster tests
+            job_startup_grace=3  # Reduced from 30 for faster tests
         )
     )
 

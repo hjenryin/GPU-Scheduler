@@ -361,7 +361,7 @@ class TestNode:
         stats_free = GPUStats(0, 3.0, 0.5 * 1024**3, 16 * 1024**3, 40, 30, 300)
         stats_busy = GPUStats(1, 90.0, 14 * 1024**3, 16 * 1024**3, 75, 250, 300)
 
-        stable_time = datetime.now() - timedelta(seconds=70)
+        stable_time = datetime.now() - timedelta(seconds=3)
         gpu_free = GPU(0, stats_free, stable_since=stable_time)
         gpu_busy = GPU(1, stats_busy)
 

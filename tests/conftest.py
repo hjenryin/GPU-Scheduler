@@ -38,19 +38,19 @@ def test_config(temp_dir):
         address=f"localhost:{test_port}",
         head=HeadConfig(
             port=test_port,
-            heartbeat_timeout=30,
-            scheduling_interval=10,
-            graceful_shutdown_timeout=60
+            heartbeat_timeout=10,
+            scheduling_interval=1,  # Faster for testing
+            graceful_shutdown_timeout=10  # Faster for testing
         ),
         worker=WorkerConfig(
             temp_dir=temp_dir,
             log_dir=temp_dir,
             work_dir=temp_dir,
-            gpu_poll_interval=5,
+            gpu_poll_interval=2,
             gpu_util_threshold=10.0,
             gpu_mem_threshold=10.0,
-            gpu_stable_time=60,
-            job_startup_grace=30
+            gpu_stable_time=2,  # Reduced from 60 for faster tests
+            job_startup_grace=3  # Reduced from 30 for faster tests
         ),
         storage=StorageConfig(),
         client=ClientConfig()
@@ -85,9 +85,9 @@ def sample_gpu_stats() -> List[GPUStats]:
 @pytest.fixture
 def sample_node(sample_gpu_stats) -> Node:
     """Sample node fixture"""
-    # Create a GPU that's been stable for more than 60 seconds
+    # Create a GPU that's been stable for more than the stable time threshold (2 seconds for tests)
     from datetime import timedelta
-    stable_time = datetime.now() - timedelta(seconds=70)
+    stable_time = datetime.now() - timedelta(seconds=3)
     
     gpus = [
         GPU(gpu_id=0, stats=sample_gpu_stats[0], stable_since=stable_time),

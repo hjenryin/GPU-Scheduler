@@ -24,18 +24,18 @@ class TestOrchestrator:
         return Config(
             head=HeadConfig(
                 port=test_port,
-                heartbeat_timeout=60,
-                scheduling_interval=5,
+                heartbeat_timeout=10,
+                scheduling_interval=1,  # Faster for testing
                 graceful_shutdown_timeout=2  # Reduced from 60 for faster testing
             ),
             worker=WorkerConfig(
                 work_dir="/tmp/test",
                 log_dir="/tmp/test/logs",
-                gpu_poll_interval=10,
+                gpu_poll_interval=2,
                 gpu_util_threshold=10,
                 gpu_mem_threshold=10,
-                gpu_stable_time=30,
-                job_startup_grace=120
+                gpu_stable_time=2,  # Reduced from 30 for faster tests
+                job_startup_grace=3  # Reduced from 120 for faster tests
             ),
             storage=StorageConfig(
                 backend="file",

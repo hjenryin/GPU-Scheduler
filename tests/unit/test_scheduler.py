@@ -30,7 +30,7 @@ class TestScheduler:
         node_manager.update_heartbeat("gpu1", stats)
 
         # Set GPUs as stable
-        stable_time = datetime.now() - timedelta(seconds=70)
+        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
         for gpu in node.gpus:
             gpu.stable_since = stable_time
@@ -58,7 +58,7 @@ class TestScheduler:
         stats = [GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=70)
+        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
         node.gpus[0].stable_since = stable_time
 
@@ -107,7 +107,7 @@ class TestScheduler:
         stats = [GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=70)
+        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
         node.gpus[0].stable_since = stable_time
 
@@ -134,7 +134,7 @@ class TestScheduler:
         stats = [GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=70)
+        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
         node.gpus[0].stable_since = stable_time
 
@@ -162,7 +162,7 @@ class TestScheduler:
             ]
             node_manager.update_heartbeat(node_name, stats)
 
-            stable_time = datetime.now() - timedelta(seconds=70)
+            stable_time = datetime.now() - timedelta(seconds=3)
             node = node_manager.get_node(node_name)
             for gpu in node.gpus:
                 gpu.stable_since = stable_time
@@ -191,7 +191,7 @@ class TestScheduler:
         ]
         node_manager.update_heartbeat("gpu2", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=70)
+        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu2")
         for gpu in node.gpus:
             gpu.stable_since = stable_time
@@ -243,7 +243,7 @@ class TestScheduler:
         stats = [GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=70)
+        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
         node.gpus[0].stable_since = stable_time
 
@@ -281,7 +281,7 @@ class TestScheduler:
         ]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=70)
+        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
         for gpu in node.gpus:
             gpu.stable_since = stable_time
@@ -307,7 +307,7 @@ class TestScheduler:
         stats = [GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=70)
+        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
         node.gpus[0].stable_since = stable_time
 
