@@ -85,7 +85,7 @@ scheduler start [OPTIONS]
 | ----------------- | ------ | ------------ | ------------------------------------------------------------------- |
 | `--head`          | flag   | false        | Start as head node (orchestrator)                                   |
 | `--address`       | url    | -            | Address of head node (for worker nodes). Format: `host:port`       |
-| `--port`          | int    | `8265`       | Port number for head node HTTP API                                  |
+| `--port`          | int    | `8265`       | Port number for head node HTTP API (auto-fallback if occupied)      |
 | `--node-name`     | string | hostname     | Unique identifier for this node                                     |
 | `--num-gpus`      | int    | auto-detect  | Number of GPUs on this node (auto-detected from nvidia-smi)        |
 | `--temp-dir`      | path   | `~/.scheduler/tmp` | Temporary directory for this node                                 |
@@ -119,6 +119,12 @@ scheduler start --head
 
 # Start head node on custom port
 scheduler start --head --port 9000
+
+# Start head node with automatic port fallback (if 8265 is occupied by other processes)
+scheduler start --head --port 8265
+# Output: "Port 8265 is already in use by another process"
+#         "Searching for an available port..."
+#         "Using available port: 8266"
 
 # Start worker node connecting to head
 scheduler start --address=192.168.1.100:8265

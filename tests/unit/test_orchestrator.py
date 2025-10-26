@@ -16,9 +16,14 @@ class TestOrchestrator:
     @pytest.fixture
     def mock_config(self):
         """Create a mock configuration"""
+        from scheduler.core.utils import find_available_port
+        
+        # Use dynamic port to avoid conflicts
+        test_port = find_available_port(start_port=8000, max_attempts=100)
+        
         return Config(
             head=HeadConfig(
-                port=8265,
+                port=test_port,
                 heartbeat_timeout=60,
                 scheduling_interval=5,
                 graceful_shutdown_timeout=2  # Reduced from 60 for faster testing

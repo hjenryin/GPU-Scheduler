@@ -8,12 +8,6 @@
 
 ## High Priority (Should Fix Soon)
 
-### 🔧 Port Conflict Handling
-- **Issue**: Port 8265 already in use during tests, causing `OSError: [Errno 98] address already in use`
-- **Location**: Tests and orchestrator startup
-- **Impact**: Tests fail, prevents multiple scheduler instances
-- **Fix Needed**: Better port conflict detection and handling, or use different ports for testing
-
 ### 🧪 Unit Test Isolation Issues
 - **Issue**: Unit tests in `test_cli_main.py` are running actual command functions instead of mocks
 - **Location**: `tests/unit/test_cli_main.py`

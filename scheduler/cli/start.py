@@ -131,7 +131,41 @@ def start_command(
 
 def _start_head_node(config: Config, block: bool) -> int:
     """Start head node orchestrator."""
+    from scheduler.core.utils import is_port_available, find_available_port
+    
     click.echo("Starting scheduler as HEAD NODE...")
+    
+    # Check if the configured port is available
+    original_port = config.head.port
+    if not is_port_available(original_port):
+        click.echo(f"Port {original_port} is already in use by another process")
+        click.echo("Searching for an available port...")
+        
+        try:
+            # Find an available port starting from the configured port
+            available_port = find_available_port(start_port=original_port, max_attempts=50)
+            click.echo(f"Using available port: {available_port}")
+            
+            # Create a new config with the available port
+            from scheduler.core.config import HeadConfig
+            new_head_config = HeadConfig(
+                port=available_port,
+                heartbeat_timeout=config.head.heartbeat_timeout,
+                scheduling_interval=config.head.scheduling_interval,
+                graceful_shutdown_timeout=config.head.graceful_shutdown_timeout
+            )
+            config = Config(
+                address=f"localhost:{available_port}",
+                head=new_head_config,
+                worker=config.worker,
+                storage=config.storage,
+                client=config.client
+            )
+        except PermissionDeniedException:
+            click.echo(f"Error: No available ports found starting from {original_port}")
+            click.echo("Please free up some ports or specify a different port with --port")
+            return 5
+    
     click.echo(f"Port: {config.head.port}")
     click.echo(f"API: http://localhost:{config.head.port}/api/v1")
 
@@ -145,20 +179,27 @@ def _start_head_node(config: Config, block: bool) -> int:
         return 1
 
     try:
-        orchestrator = Orchestrator(config)
+        orchestrator = Orchestrator(config, singleton)
 
         if block:
             click.echo("\nHead node started. Press Ctrl+C to stop.")
-            click.echo("Workers can connect with: scheduler start --address=<this-host>:<port>")
+            # Get actual hostname and port
+            hostname = socket.gethostname()
+            click.echo(f"Workers can connect with: scheduler start --address={hostname}:{config.head.port}")
             orchestrator.run()
+            # Lock will be released by orchestrator.stop() when run() completes
         else:
             orchestrator.start()
             click.echo("\nHead node started in background")
             click.echo("Use 'scheduler stop' to stop it")
+            # Don't release lock here - orchestrator will manage it via signal handlers
+            # The singleton lock will be released when the orchestrator stops
 
         return 0
-    finally:
+    except Exception as e:
+        # Only release lock on error
         singleton.release_lock()
+        raise
 
 
 def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optional[int], block: bool) -> int:

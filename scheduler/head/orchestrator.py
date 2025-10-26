@@ -22,17 +22,19 @@ _orchestrator_instance: Optional['Orchestrator'] = None
 class Orchestrator:
     """Main head node orchestrator"""
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, singleton=None):
         """
         Initialize orchestrator.
 
         Args:
             config: Configuration instance
+            singleton: SingletonDaemon instance for lock management
         """
         global _orchestrator_instance
         _orchestrator_instance = self
         
         self.config = config
+        self.singleton = singleton
         self.running = False
         self._cluster_shutdown_requested = False
         self._cluster_shutdown_timeout = 60
@@ -136,6 +138,10 @@ class Orchestrator:
         self.api_server.stop()
 
         logger.info("Orchestrator stopped")
+        
+        # Release singleton lock if we have one
+        if self.singleton:
+            self.singleton.release_lock()
 
     def run(self):
         """

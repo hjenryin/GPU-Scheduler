@@ -200,6 +200,30 @@ def is_port_available(port: int, host: str = "0.0.0.0") -> bool:
         return False
 
 
+def find_available_port(start_port: int = 8000, max_attempts: int = 100, host: str = "0.0.0.0") -> int:
+    """
+    Find an available port starting from a given port.
+
+    Args:
+        start_port: Port number to start searching from
+        max_attempts: Maximum number of ports to try
+        host: Host address to bind to
+
+    Returns:
+        Available port number
+
+    Raises:
+        PermissionDeniedException: If no available port found
+    """
+    for port in range(start_port, start_port + max_attempts):
+        if is_port_available(port, host):
+            return port
+    
+    raise PermissionDeniedException(
+        f"No available port found in range {start_port}-{start_port + max_attempts - 1}"
+    )
+
+
 def get_local_ip() -> str:
     """
     Get local IP address of this machine.

@@ -29,11 +29,15 @@ def temp_dir():
 def test_config(temp_dir):
     """Test configuration fixture"""
     from scheduler.core.config import HeadConfig, WorkerConfig, StorageConfig, ClientConfig
+    from scheduler.core.utils import find_available_port
 
+    # Find an available port for testing to avoid conflicts
+    test_port = find_available_port(start_port=8000, max_attempts=100)
+    
     return Config(
-        address="localhost:8265",
+        address=f"localhost:{test_port}",
         head=HeadConfig(
-            port=8265,
+            port=test_port,
             heartbeat_timeout=30,
             scheduling_interval=10,
             graceful_shutdown_timeout=60

@@ -76,9 +76,17 @@ class APIServer:
             logger.info(f"API server started on http://{self.host}:{self.port}")
         except OSError as e:
             if "Address already in use" in str(e) or "Permission denied" in str(e):
-                raise PermissionDeniedException(
-                    f"Cannot bind to port {self.port}. Port may be in use or requires elevated permissions."
-                )
+                # Check if it's a port conflict with another process
+                from scheduler.core.utils import is_port_available
+                if not is_port_available(self.port):
+                    raise PermissionDeniedException(
+                        f"Cannot bind to port {self.port}. Port is already in use by another process. "
+                        f"Try specifying a different port with --port or stop the process using port {self.port}."
+                    )
+                else:
+                    raise PermissionDeniedException(
+                        f"Cannot bind to port {self.port}. Port may require elevated permissions."
+                    )
             raise
 
     def stop(self):
