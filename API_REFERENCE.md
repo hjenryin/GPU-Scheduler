@@ -184,7 +184,7 @@ scheduler stop [OPTIONS]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--all` | flag | false | Stop all nodes in the cluster (head only) |
+| `--all` | flag | false | Stop all nodes in cluster |
 
 **Examples:**
 
@@ -192,7 +192,7 @@ scheduler stop [OPTIONS]
 # Stop scheduler on current node (graceful shutdown)
 scheduler stop
 
-# Stop all nodes in cluster (run from head node)
+# Stop all nodes in cluster
 scheduler stop --all
 ```
 

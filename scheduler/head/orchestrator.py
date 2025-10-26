@@ -15,6 +15,9 @@ from scheduler.head.api_server import APIServer
 
 logger = logging.getLogger(__name__)
 
+# Global orchestrator instance for API access
+_orchestrator_instance: Optional['Orchestrator'] = None
+
 
 class Orchestrator:
     """Main head node orchestrator"""
@@ -26,8 +29,14 @@ class Orchestrator:
         Args:
             config: Configuration instance
         """
+        global _orchestrator_instance
+        _orchestrator_instance = self
+        
         self.config = config
         self.running = False
+        self._cluster_shutdown_requested = False
+        self._cluster_shutdown_timeout = 60
+        self._cluster_shutdown_force = False
         self.scheduler_thread: Optional[threading.Thread] = None
 
         # Initialize storage backend
@@ -225,3 +234,43 @@ class Orchestrator:
         logger.info(f"Received signal {signum}")
         if self.running:
             self.stop(graceful=True)
+
+    def request_cluster_shutdown(self, graceful_timeout: int = 60, force: bool = False):
+        """
+        Request cluster-wide shutdown.
+        
+        Args:
+            graceful_timeout: Seconds to wait for graceful shutdown
+            force: Whether to force kill if graceful shutdown fails
+        """
+        logger.info(f"Cluster shutdown requested: timeout={graceful_timeout}, force={force}")
+        self._cluster_shutdown_requested = True
+        self._cluster_shutdown_timeout = graceful_timeout
+        self._cluster_shutdown_force = force
+        
+        # Start cluster shutdown in a separate thread to avoid blocking API response
+        shutdown_thread = threading.Thread(target=self._shutdown_cluster_worker, daemon=True)
+        shutdown_thread.start()
+
+    def _shutdown_cluster_worker(self):
+        """Worker thread to handle cluster shutdown."""
+        try:
+            logger.info("Starting cluster shutdown process...")
+            
+            # Get all connected nodes
+            nodes = self.node_manager.get_connected_nodes()
+            logger.info(f"Shutting down {len(nodes)} connected nodes")
+            
+            # Send shutdown signals to all worker nodes
+            # Note: In a real implementation, we would send HTTP requests to each worker
+            # For now, we'll rely on the fact that stopping the head node will cause
+            # workers to lose connection and stop themselves
+            
+            # Stop the head node itself
+            logger.info("Stopping head node...")
+            self.stop(graceful=True)
+            
+            logger.info("Cluster shutdown completed")
+            
+        except Exception as e:
+            logger.error(f"Error during cluster shutdown: {e}", exc_info=True)

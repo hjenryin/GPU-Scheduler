@@ -572,3 +572,42 @@ class SchedulerClient:
             node.last_heartbeat = last_heartbeat
 
         return node
+
+    def shutdown_cluster(self, graceful_timeout: int = 60, force: bool = False) -> bool:
+        """
+        Request head node to shutdown entire cluster.
+        
+        Args:
+            graceful_timeout: Seconds to wait for graceful shutdown
+            force: Whether to force kill if graceful shutdown fails
+            
+        Returns:
+            True if shutdown request was sent successfully
+            
+        Raises:
+            ConnectionException: If cannot connect to head node
+        """
+        payload = {
+            "graceful_timeout": graceful_timeout,
+            "force": force
+        }
+        
+        try:
+            response = self.session.post(
+                f"{self.base_url}/shutdown/cluster",
+                json=payload,
+                timeout=30
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get("status") == "shutdown_initiated":
+                logger.info(f"Cluster shutdown initiated successfully: {data}")
+                return True
+            else:
+                logger.warning(f"Unexpected shutdown response: {data}")
+                return False
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to request cluster shutdown: {e}")
+            raise ConnectionException(f"Failed to connect to head node: {e}")

@@ -1045,11 +1045,245 @@ class TestCLIStop:
         assert exit_code == 0
         mock_kill.assert_called()
 
-    def test_stop_all_nodes(self):
-        """Test stopping all nodes (not implemented)."""
+    @patch('scheduler.cli.stop.load_config')
+    @patch('scheduler.cli.stop.SchedulerClient')
+    @patch('scheduler.cli.stop._is_running_on_head_node')
+    @patch('scheduler.cli.stop._stop_daemon')
+    @patch('scheduler.cli.stop._stop_local_worker_nodes')
+    def test_stop_all_nodes_success(self, mock_stop_workers, mock_stop_daemon, mock_is_head, mock_client_class, mock_load_config):
+        """Test stopping all nodes successfully."""
+        # Mock configuration
+        mock_config = Mock()
+        mock_config.address = "localhost:8265"
+        mock_load_config.return_value = mock_config
+        
+        # Mock client and nodes
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        
+        # Create mock nodes
+        mock_node1 = Mock()
+        mock_node1.node_name = "head"
+        mock_node1.address = "localhost:8265"
+        mock_node1.status.value = "connected"
+        
+        mock_node2 = Mock()
+        mock_node2.node_name = "worker1"
+        mock_node2.address = "192.168.1.100:8265"
+        mock_node2.status.value = "connected"
+        
+        mock_node3 = Mock()
+        mock_node3.node_name = "worker2"
+        mock_node3.address = "192.168.1.101:8265"
+        mock_node3.status.value = "disconnected"
+        
+        mock_client.list_nodes.return_value = [mock_node1, mock_node2, mock_node3]
+        
+        # Mock running on head node
+        mock_is_head.return_value = True
+        mock_stop_daemon.return_value = True
+        mock_stop_workers.return_value = True
+        
         exit_code = stop_command(all_nodes=True)
+        
+        assert exit_code == 0
+        mock_client.list_nodes.assert_called_once()
+        mock_stop_daemon.assert_called_once()
+        mock_stop_workers.assert_called_once()
+        
+    @patch('scheduler.cli.stop.load_config')
+    @patch('scheduler.cli.stop.SchedulerClient')
+    def test_stop_all_nodes_no_nodes(self, mock_client_class, mock_load_config):
+        """Test stopping all nodes when no nodes are found."""
+        # Mock configuration
+        mock_config = Mock()
+        mock_config.address = "localhost:8265"
+        mock_load_config.return_value = mock_config
+        
+        # Mock client with no nodes
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        mock_client.list_nodes.return_value = []
+        
+        exit_code = stop_command(all_nodes=True)
+        
+        assert exit_code == 1
+        mock_client.list_nodes.assert_called_once()
+        
+    @patch('scheduler.cli.stop.load_config')
+    @patch('scheduler.cli.stop.SchedulerClient')
+    def test_stop_all_nodes_connection_error(self, mock_client_class, mock_load_config):
+        """Test stopping all nodes when connection fails."""
+        # Mock configuration
+        mock_config = Mock()
+        mock_config.address = "localhost:8265"
+        mock_load_config.return_value = mock_config
+        
+        # Mock client that raises connection error
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        mock_client.list_nodes.side_effect = ConnectionException("Connection failed")
+        
+        exit_code = stop_command(all_nodes=True)
+        
+        assert exit_code == 1
+        mock_client.list_nodes.assert_called_once()
+        
+    @patch('scheduler.cli.stop.load_config')
+    @patch('scheduler.cli.stop.SchedulerClient')
+    @patch('scheduler.cli.stop._is_running_on_head_node')
+    @patch('scheduler.cli.stop._stop_daemon')
+    @patch('scheduler.cli.stop._stop_local_worker_nodes')
+    def test_stop_all_nodes_head_not_running(self, mock_stop_workers, mock_stop_daemon, mock_is_head, mock_client_class, mock_load_config):
+        """Test stopping all nodes when head node is not running locally."""
+        # Mock configuration
+        mock_config = Mock()
+        mock_config.address = "localhost:8265"
+        mock_load_config.return_value = mock_config
+        
+        # Mock client and nodes
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        
+        # Create mock nodes
+        mock_node1 = Mock()
+        mock_node1.node_name = "head"
+        mock_node1.address = "localhost:8265"
+        mock_node1.status.value = "connected"
+        
+        mock_node2 = Mock()
+        mock_node2.node_name = "worker1"
+        mock_node2.address = "192.168.1.100:8265"
+        mock_node2.status.value = "connected"
+        
+        mock_client.list_nodes.return_value = [mock_node1, mock_node2]
+        
+        # Mock running on head node but head not running locally
+        mock_is_head.return_value = True
+        mock_stop_daemon.return_value = False  # Head not running locally
+        mock_stop_workers.return_value = True
+        
+        exit_code = stop_command(all_nodes=True)
+        
+        assert exit_code == 0
+        mock_client.list_nodes.assert_called_once()
+        mock_stop_daemon.assert_called_once()
+        mock_stop_workers.assert_called_once()
 
-        assert exit_code == 1  # Not implemented
+    @patch('scheduler.cli.stop.load_config')
+    @patch('scheduler.cli.stop.SchedulerClient')
+    @patch('scheduler.cli.stop._is_running_on_head_node')
+    @patch('scheduler.cli.stop._stop_local_worker_nodes')
+    def test_stop_all_nodes_from_worker_node(self, mock_stop_workers, mock_is_head, mock_client_class, mock_load_config):
+        """Test stopping all nodes when called from worker node."""
+        # Mock configuration
+        mock_config = Mock()
+        mock_config.address = "192.168.1.50:8265"
+        mock_load_config.return_value = mock_config
+        
+        # Mock client and nodes
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        
+        # Create mock nodes
+        mock_node1 = Mock()
+        mock_node1.node_name = "head"
+        mock_node1.address = "192.168.1.50:8265"
+        mock_node1.status.value = "connected"
+        
+        mock_node2 = Mock()
+        mock_node2.node_name = "worker1"
+        mock_node2.address = "192.168.1.100:8265"
+        mock_node2.status.value = "connected"
+        
+        mock_client.list_nodes.return_value = [mock_node1, mock_node2]
+        
+        # Mock running on worker node (not head)
+        mock_is_head.return_value = False
+        mock_client.shutdown_cluster.return_value = True
+        mock_stop_workers.return_value = True
+        
+        exit_code = stop_command(all_nodes=True)
+        
+        assert exit_code == 0
+        mock_client.list_nodes.assert_called_once()
+        mock_client.shutdown_cluster.assert_called_once_with(graceful_timeout=60, force=False)
+        mock_stop_workers.assert_called_once()
+
+    @patch('scheduler.cli.stop.load_config')
+    @patch('scheduler.cli.stop.SchedulerClient')
+    @patch('scheduler.cli.stop._is_running_on_head_node')
+    @patch('scheduler.cli.stop._stop_daemon')
+    @patch('scheduler.cli.stop._stop_local_worker_nodes')
+    def test_stop_all_nodes_from_head_node(self, mock_stop_workers, mock_stop_daemon, mock_is_head, mock_client_class, mock_load_config):
+        """Test stopping all nodes when called from head node."""
+        # Mock configuration
+        mock_config = Mock()
+        mock_config.address = "localhost:8265"
+        mock_load_config.return_value = mock_config
+        
+        # Mock client and nodes
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        
+        # Create mock nodes
+        mock_node1 = Mock()
+        mock_node1.node_name = "head"
+        mock_node1.address = "localhost:8265"
+        mock_node1.status.value = "connected"
+        
+        mock_node2 = Mock()
+        mock_node2.node_name = "worker1"
+        mock_node2.address = "192.168.1.100:8265"
+        mock_node2.status.value = "connected"
+        
+        mock_client.list_nodes.return_value = [mock_node1, mock_node2]
+        
+        # Mock running on head node
+        mock_is_head.return_value = True
+        mock_stop_daemon.return_value = True
+        mock_stop_workers.return_value = True
+        
+        exit_code = stop_command(all_nodes=True)
+        
+        assert exit_code == 0
+        mock_client.list_nodes.assert_called_once()
+        mock_stop_daemon.assert_called_once()
+        mock_stop_workers.assert_called_once()
+        # Should not call shutdown_cluster when running from head
+        mock_client.shutdown_cluster.assert_not_called()
+
+    @patch('scheduler.cli.stop.load_config')
+    @patch('scheduler.cli.stop.SchedulerClient')
+    @patch('scheduler.cli.stop._is_running_on_head_node')
+    def test_stop_all_nodes_worker_api_failure(self, mock_is_head, mock_client_class, mock_load_config):
+        """Test stopping all nodes when worker API call fails."""
+        # Mock configuration
+        mock_config = Mock()
+        mock_config.address = "192.168.1.50:8265"
+        mock_load_config.return_value = mock_config
+        
+        # Mock client and nodes
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        
+        # Create mock nodes
+        mock_node1 = Mock()
+        mock_node1.node_name = "head"
+        mock_node1.address = "192.168.1.50:8265"
+        mock_node1.status.value = "connected"
+        
+        mock_client.list_nodes.return_value = [mock_node1]
+        
+        # Mock running on worker node
+        mock_is_head.return_value = False
+        mock_client.shutdown_cluster.side_effect = ConnectionException("API call failed")
+        
+        exit_code = stop_command(all_nodes=True)
+        
+        assert exit_code == 1
+        mock_client.list_nodes.assert_called_once()
+        mock_client.shutdown_cluster.assert_called_once()
 
 
 class TestCLIMain:

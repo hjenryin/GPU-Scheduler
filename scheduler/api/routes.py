@@ -99,6 +99,11 @@ def create_app(
     async def fail_job(job_id: str, error_message: str):
         return await fail_job_route(job_id, error_message)
 
+    # Cluster management routes
+    @app.post(f"{constants.API_BASE_PATH}/shutdown/cluster")
+    async def shutdown_cluster(graceful_timeout: int = 60, force: bool = False):
+        return await shutdown_cluster_route(graceful_timeout, force)
+
     return app
 
 
@@ -349,3 +354,48 @@ async def fail_job_route(job_id: str, error_message: str):
     except Exception as e:
         logger.error(f"Error failing job: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+async def shutdown_cluster_route(graceful_timeout: int = 60, force: bool = False) -> dict:
+    """
+    POST /api/v1/shutdown/cluster - Shutdown entire cluster
+    
+    Args:
+        graceful_timeout: Seconds to wait for graceful shutdown
+        force: Whether to force kill if graceful shutdown fails
+    
+    Returns:
+        Confirmation of shutdown initiation
+    """
+    try:
+        logger.info(f"Cluster shutdown requested: graceful_timeout={graceful_timeout}, force={force}")
+        
+        # Get all connected nodes
+        nodes = _node_manager.get_connected_nodes()
+        logger.info(f"Found {len(nodes)} connected nodes to shutdown")
+        
+        # Signal orchestrator to shutdown cluster
+        # This will be handled by the orchestrator's shutdown_cluster method
+        from scheduler.head.orchestrator import _orchestrator_instance
+        if _orchestrator_instance:
+            _orchestrator_instance.request_cluster_shutdown(graceful_timeout, force)
+            logger.info("Cluster shutdown initiated successfully")
+            return {
+                "status": "shutdown_initiated",
+                "nodes_count": len(nodes),
+                "graceful_timeout": graceful_timeout,
+                "force": force
+            }
+        else:
+            logger.error("Orchestrator instance not available")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Orchestrator not available"
+            )
+            
+    except Exception as e:
+        logger.error(f"Error initiating cluster shutdown: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to initiate cluster shutdown: {e}"
+        )

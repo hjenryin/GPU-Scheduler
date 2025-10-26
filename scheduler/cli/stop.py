@@ -4,6 +4,9 @@ import logging
 import click
 
 from scheduler.worker import is_daemon_running
+from scheduler.core import load_config
+from scheduler.api import SchedulerClient
+from scheduler.core.exceptions import ConnectionException
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +25,8 @@ def stop_command(all_nodes: bool = False) -> int:
         ConnectionException: If cannot connect to scheduler
     """
     if all_nodes:
-        click.echo("Error: --all flag not yet implemented")
-        click.echo("Please stop each node individually with 'scheduler stop'")
-        return 1
-
+        return _stop_all_nodes()
+    
     # Try to stop head node
     head_lockfile = os.path.expanduser("~/.scheduler/head.lock")
     head_stopped = _stop_daemon(head_lockfile, "head node")
@@ -46,6 +47,130 @@ def stop_command(all_nodes: bool = False) -> int:
         return 1
 
     return 0
+
+
+def _stop_all_nodes() -> int:
+    """
+    Stop all nodes in the cluster.
+    
+    This function:
+    1. Detects if running from head node or worker node
+    2. If from head: directly stops all nodes locally
+    3. If from worker: calls head node's cluster shutdown API
+    
+    Returns:
+        Exit code (0 for success)
+    """
+    try:
+        # Load configuration to get head node address
+        config = load_config()
+        
+        # Get head node address from config or use default
+        address = config.address if config.address else f'localhost:{config.head.port}'
+        
+        # Create client to connect to head node
+        client = SchedulerClient(address=address, config=config)
+        
+        # Get list of all nodes
+        nodes = client.list_nodes()
+        
+        if not nodes:
+            click.echo("No nodes found in cluster")
+            return 1
+            
+        click.echo(f"Found {len(nodes)} nodes in cluster:")
+        
+        # Display all nodes
+        for node in nodes:
+            status = "connected" if node.status.value == "connected" else "disconnected"
+            click.echo(f"  - {node.node_name} ({node.address}) - {status}")
+        
+        # Detect if we're running on the head node
+        is_head_node = _is_running_on_head_node()
+        
+        if is_head_node:
+            # Running from head node - stop all nodes directly
+            click.echo("\n✓ Shutting down entire cluster...")
+            
+            # Stop local head node
+            head_lockfile = os.path.expanduser("~/.scheduler/head.lock")
+            head_stopped = _stop_daemon(head_lockfile, "head node")
+            
+            if head_stopped:
+                click.echo("✓ Head node stopped successfully")
+            else:
+                click.echo("⚠ Head node was not running locally")
+            
+            # Stop local worker nodes (if any)
+            worker_stopped = _stop_local_worker_nodes()
+            if worker_stopped:
+                click.echo("✓ Local worker nodes stopped successfully")
+            
+            click.echo("✓ Cluster shutdown completed")
+            
+        else:
+            # Running from worker node - request cluster shutdown from head
+            click.echo("\n✓ Requesting cluster shutdown from head node...")
+            
+            try:
+                success = client.shutdown_cluster(graceful_timeout=60, force=False)
+                if success:
+                    click.echo("✓ Cluster shutdown initiated successfully")
+                    
+                    # Stop current worker node
+                    worker_stopped = _stop_local_worker_nodes()
+                    if worker_stopped:
+                        click.echo("✓ Current worker node stopped successfully")
+                else:
+                    click.echo("⚠ Cluster shutdown request failed")
+                    return 1
+                    
+            except ConnectionException as e:
+                click.echo(f"Error: Cannot request cluster shutdown: {e}")
+                click.echo("Make sure the head node is running and accessible")
+                return 1
+        
+        return 0
+        
+    except ConnectionException as e:
+        click.echo(f"Error: Cannot connect to head node: {e}")
+        click.echo("Make sure the head node is running and accessible")
+        return 1
+    except Exception as e:
+        logger.error(f"Error stopping all nodes: {e}")
+        click.echo(f"Error: {e}")
+        return 1
+
+
+def _is_running_on_head_node() -> bool:
+    """
+    Detect if we're running on the head node.
+    
+    Returns:
+        True if running on head node, False if running on worker node
+    """
+    # Check if head lockfile exists locally
+    head_lockfile = os.path.expanduser("~/.scheduler/head.lock")
+    return os.path.exists(head_lockfile) and is_daemon_running(head_lockfile)
+
+
+def _stop_local_worker_nodes() -> bool:
+    """
+    Stop all local worker nodes.
+    
+    Returns:
+        True if any worker nodes were stopped, False if none were running
+    """
+    worker_stopped = False
+    scheduler_dir = os.path.expanduser("~/.scheduler")
+    if os.path.exists(scheduler_dir):
+        for filename in os.listdir(scheduler_dir):
+            if filename.startswith("worker-") and filename.endswith(".lock"):
+                lockfile = os.path.join(scheduler_dir, filename)
+                node_name = filename[7:-5]  # Remove "worker-" and ".lock"
+                if _stop_daemon(lockfile, f"worker node '{node_name}'"):
+                    worker_stopped = True
+    return worker_stopped
 
 
 def _stop_daemon(lockfile: str, name: str) -> bool:
