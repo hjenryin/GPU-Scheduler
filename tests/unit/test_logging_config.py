@@ -11,6 +11,20 @@ from scheduler.core.logging_config import setup_logging, get_logger
 class TestSetupLogging:
     """Tests for setup_logging function"""
 
+    def setup_method(self):
+        """Reset logging state before each test"""
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+        root_logger.setLevel(logging.WARNING)
+
+    def teardown_method(self):
+        """Reset logging state after each test"""
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+        root_logger.setLevel(logging.WARNING)
+
     def test_setup_logging_default(self):
         """Test setup_logging with default parameters"""
         # Clear any existing handlers
@@ -101,6 +115,20 @@ class TestSetupLogging:
 
 class TestGetLogger:
     """Tests for get_logger function"""
+
+    def setup_method(self):
+        """Reset logging state before each test"""
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+        root_logger.setLevel(logging.WARNING)
+
+    def teardown_method(self):
+        """Reset logging state after each test"""
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+        root_logger.setLevel(logging.WARNING)
 
     def test_get_logger_returns_logger(self):
         """Test get_logger returns a logger instance"""
