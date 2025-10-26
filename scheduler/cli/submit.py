@@ -115,9 +115,7 @@ def submit_command(
         click.echo(f"Validation error: {e}")
         return 2
     except ConnectionException as e:
-        click.echo(f"Connection error: {e}")
-        click.echo("\nCannot connect to head node. Is it running?")
-        click.echo("Start head node with: scheduler start --head")
+        click.echo(f"❌ Connection error: {e}")
         return 3
     except Exception as e:
         click.echo(f"Error: {e}")

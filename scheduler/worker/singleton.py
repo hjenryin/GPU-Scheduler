@@ -44,17 +44,27 @@ class SingletonDaemon:
                 # Try to open and lock the file
                 # Use exclusive creation flag - fails if file exists
                 try:
+                    import json
                     self.lockfile = os.open(self.lockfile_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-                    # Write PID to lockfile
-                    os.write(self.lockfile, str(os.getpid()).encode())
+                    # Write PID to lockfile in JSON format
+                    data = {"pid": os.getpid()}
+                    os.write(self.lockfile, json.dumps(data).encode())
                     logger.info(f"Acquired singleton lock: {self.lockfile_path}")
                     return True
                 except FileExistsError:
                     # Lock file exists - check if process is still running
                     if os.path.exists(self.lockfile_path):
                         try:
+                            import json
                             with open(self.lockfile_path, 'r') as f:
-                                pid = int(f.read().strip())
+                                data = json.load(f)
+                            
+                            pid = data.get('pid')
+                            if not pid:
+                                # Invalid lock file
+                                os.remove(self.lockfile_path)
+                                retry_count += 1
+                                continue
 
                             # Check if process is still running
                             try:
@@ -67,7 +77,7 @@ class SingletonDaemon:
                                 os.remove(self.lockfile_path)
                                 retry_count += 1
                                 continue  # Try again without recursion
-                        except (ValueError, FileNotFoundError):
+                        except (ValueError, FileNotFoundError, KeyError, json.JSONDecodeError):
                             # Invalid or missing lock file, remove and try again
                             try:
                                 os.remove(self.lockfile_path)
@@ -153,8 +163,13 @@ def is_daemon_running(lockfile_path: str) -> bool:
         return False
 
     try:
+        import json
         with open(lockfile_path, 'r') as f:
-            pid = int(f.read().strip())
+            data = json.load(f)
+        
+        pid = data.get('pid')
+        if not pid:
+            return False
 
         # Check if process is still running
         try:
@@ -163,5 +178,5 @@ def is_daemon_running(lockfile_path: str) -> bool:
         except OSError:
             # Process not running
             return False
-    except (ValueError, FileNotFoundError):
+    except (ValueError, FileNotFoundError, KeyError, json.JSONDecodeError):
         return False

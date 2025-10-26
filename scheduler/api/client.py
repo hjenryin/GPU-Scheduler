@@ -38,13 +38,29 @@ class SchedulerClient:
         self.config = config
 
         # Determine head node address
+        # Priority: explicit address > recorded address > config.address > default
         if address:
             self.head_address = address
-        elif config.address:
-            self.head_address = config.address
+            self._head_address_source = "explicit"
+            self._has_recorded_address = False  # Explicit means not from worker
         else:
-            # Default to localhost with configured port
-            self.head_address = f"localhost:{config.head.port}"
+            # Try to load recorded head address
+            from scheduler.core.head_info import load_head_info
+            recorded_address = load_head_info()
+            
+            if recorded_address:
+                self.head_address = recorded_address
+                self._head_address_source = "recorded"
+                self._has_recorded_address = True
+            elif config.address:
+                self.head_address = config.address
+                self._head_address_source = "config"
+                self._has_recorded_address = False
+            else:
+                # Default to localhost with configured port
+                self.head_address = f"localhost:{config.head.port}"
+                self._head_address_source = "default"
+                self._has_recorded_address = False
 
         # Parse and validate address
         host, port = parse_address(self.head_address)
@@ -63,6 +79,50 @@ class SchedulerClient:
         self.session.mount("https://", adapter)
 
         logger.debug(f"Initialized SchedulerClient with base URL: {self.base_url}")
+    
+    def _format_connection_error(self, operation: str, original_error) -> str:
+        """
+        Format a helpful connection error message.
+        
+        Args:
+            operation: What operation failed (e.g., "submit job", "list jobs")
+            original_error: The original exception
+        
+        Returns:
+            Formatted error message
+        """
+        error_msg = f"Failed to {operation}"
+        
+        # Check if no worker is connected
+        if hasattr(self, '_has_recorded_address') and not self._has_recorded_address:
+            if self._head_address_source == "default":
+                error_msg += (
+                    f"\n\n❌ No worker is connected to a scheduler cluster."
+                    f"\n\nTo fix this:"
+                    f"\n  1. Start a head node: scheduler start --head"
+                    f"\n  2. Or connect to an existing head: scheduler start --address=hostname:port"
+                    f"\n\nExample: scheduler start --address=turing1:8266"
+                    f"\n\nOriginal error: {original_error}"
+                )
+                return error_msg
+        
+        error_msg += f" at {self.head_address}"
+        
+        # Add context based on how we got the address
+        if hasattr(self, '_head_address_source'):
+            if self._head_address_source == "recorded":
+                error_msg += (
+                    f"\n\nThe head node may have stopped or is unreachable."
+                    f"\nTry reconnecting: scheduler start --address=hostname:port"
+                )
+            elif self._head_address_source == "config":
+                error_msg += (
+                    f"\n\nCannot reach head node at the configured address."
+                    f"\nCheck if the head node is running at: {self.head_address}"
+                )
+        
+        error_msg += f"\n\nOriginal error: {original_error}"
+        return error_msg
 
     def submit_job(
         self,
@@ -106,7 +166,7 @@ class SchedulerClient:
             return self._job_from_response(data)
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to submit job: {e}")
-            raise ConnectionException(f"Failed to connect to head node: {e}")
+            raise ConnectionException(self._format_connection_error("submit job", e))
         except (KeyError, ValueError) as e:
             logger.error(f"Invalid response format: {e}")
             raise ValidationException(f"Invalid response from server: {e}")
@@ -136,7 +196,7 @@ class SchedulerClient:
             raise
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to get job {job_id}: {e}")
-            raise ConnectionException(f"Failed to connect to head node: {e}")
+            raise ConnectionException(self._format_connection_error(f"get job {job_id}", e))
 
     def list_jobs(
         self,
@@ -169,7 +229,7 @@ class SchedulerClient:
             return [self._job_from_response(job_data) for job_data in data.get("jobs", [])]
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to list jobs: {e}")
-            raise ConnectionException(f"Failed to connect to head node: {e}")
+            raise ConnectionException(self._format_connection_error("list jobs", e))
 
     def cancel_job(self, job_id: str):
         """

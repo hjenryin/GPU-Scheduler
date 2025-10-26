@@ -49,7 +49,7 @@ def jobs_command(
 
         return 0
     except ConnectionException as e:
-        click.echo(f"Connection error: {e}")
+        click.echo(f"❌ Connection error: {e}")
         return 3
     except Exception as e:
         click.echo(f"Error: {e}")

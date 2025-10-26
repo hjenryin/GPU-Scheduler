@@ -18,6 +18,31 @@ Last Updated: 2025-10-21
 
 This system provides distributed job scheduling across multiple GPU machines with active GPU monitoring. All commands follow Ray-like patterns and require **no sudo privileges**.
 
+### Quick Start
+
+**1. Start a cluster (head + worker on one machine):**
+```bash
+scheduler start --head
+# Automatically starts both head and worker on this machine
+```
+
+**2. Submit jobs:**
+```bash
+scheduler submit --req 2 train.py
+```
+
+**3. Monitor cluster:**
+```bash
+scheduler status  # Interactive TUI
+```
+
+**4. Stop cluster:**
+```bash
+scheduler stop --all  # From head node machine
+# Or stop just worker:
+scheduler stop  # From any machine with a worker
+```
+
 **Key Components:**
 - **Head Node**: Central orchestrator that manages job queue and machine registry
 - **Worker Nodes**: GPU machines that execute jobs
@@ -167,13 +192,17 @@ scheduler stop [OPTIONS]
 | --------- | ---- | ------- | -------------------------------- |
 | `--all`   | flag | false   | Stop all nodes in cluster |
 
+**Behavior:**
+- **`scheduler stop`** (without `--all`): Stops only worker nodes on the current machine; does not stop head node; warns if head is also running
+- **`scheduler stop --all`**: Stops the entire cluster (head + all workers); only works from the head node machine
+
 **Examples:**
 
 ````bash
-# Stop scheduler on current node (graceful shutdown)
+# Stop only the worker on current machine
 scheduler stop
 
-# Stop all nodes in cluster
+# Stop entire cluster (head + workers) - run from head node machine
 scheduler stop --all
 ````
 
@@ -190,6 +219,8 @@ Interactive TUI (terminal user interface) for monitoring cluster status, nodes, 
 scheduler status
 ````
 
+**Requirement**: A worker must be running on your machine (which stores the head node address), or the head address must be configured.
+
 **No Options Required**: The command automatically connects to the head node (either running locally or using the configured address in `~/.scheduler/config.yaml`).
 
 ---
@@ -204,6 +235,8 @@ Submit a new job to the scheduler.
 ````bash
 scheduler submit [OPTIONS] SCRIPT [-- SCRIPT_ARGS...]
 ````
+
+**Requirement**: A worker must be running on your machine (or head address must be configured) to connect to the scheduler cluster.
 
 **Positional Arguments:**
 

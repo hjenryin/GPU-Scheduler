@@ -27,10 +27,10 @@ def stop_command(all_nodes: bool = False) -> int:
     if all_nodes:
         return _stop_all_nodes()
     
-    # Try to stop head node
+    # Check if head node is running (for warning)
     head_lockfile = os.path.expanduser("~/.scheduler/head.lock")
-    head_stopped = _stop_daemon(head_lockfile, "head node")
-
+    head_running = is_daemon_running(head_lockfile)
+    
     # Try to stop worker nodes (check common lock patterns)
     worker_stopped = False
     scheduler_dir = os.path.expanduser("~/.scheduler")
@@ -42,9 +42,14 @@ def stop_command(all_nodes: bool = False) -> int:
                 if _stop_daemon(lockfile, f"worker node '{node_name}'"):
                     worker_stopped = True
 
-    if not head_stopped and not worker_stopped:
-        click.echo("No scheduler processes found running on this machine")
+    if not worker_stopped:
+        click.echo("No worker processes found running on this machine")
         return 1
+
+    # Warn if head is also running
+    if head_running:
+        click.echo("\n⚠ Warning: Head node is still running on this machine")
+        click.echo("To stop the head node, run: scheduler stop --all")
 
     return 0
 
@@ -62,6 +67,33 @@ def _stop_all_nodes() -> int:
         Exit code (0 for success)
     """
     try:
+        # Detect if we're running on the head node FIRST
+        # This avoids needing to connect to the API when running locally
+        is_head_node = _is_running_on_head_node()
+        
+        if is_head_node:
+            # Running from head node - stop all nodes directly
+            # No need to query the API, just stop local processes
+            click.echo("✓ Shutting down entire cluster...")
+            
+            # Stop local head node
+            head_lockfile = os.path.expanduser("~/.scheduler/head.lock")
+            head_stopped = _stop_daemon(head_lockfile, "head node")
+            
+            if head_stopped:
+                click.echo("✓ Head node stopped successfully")
+            else:
+                click.echo("⚠ Head node was not running locally")
+            
+            # Stop local worker nodes (if any)
+            worker_stopped = _stop_local_worker_nodes()
+            if worker_stopped:
+                click.echo("✓ Local worker nodes stopped successfully")
+            
+            click.echo("✓ Cluster shutdown completed")
+            return 0
+        
+        # Running from worker node - need to connect to head node API
         # Load configuration to get head node address
         config = load_config()
         
@@ -85,50 +117,26 @@ def _stop_all_nodes() -> int:
             status = "connected" if node.status.value == "connected" else "disconnected"
             click.echo(f"  - {node.node_name} ({node.address}) - {status}")
         
-        # Detect if we're running on the head node
-        is_head_node = _is_running_on_head_node()
+        # Running from worker node - request cluster shutdown from head
+        click.echo("\n✓ Requesting cluster shutdown from head node...")
         
-        if is_head_node:
-            # Running from head node - stop all nodes directly
-            click.echo("\n✓ Shutting down entire cluster...")
-            
-            # Stop local head node
-            head_lockfile = os.path.expanduser("~/.scheduler/head.lock")
-            head_stopped = _stop_daemon(head_lockfile, "head node")
-            
-            if head_stopped:
-                click.echo("✓ Head node stopped successfully")
+        try:
+            success = client.shutdown_cluster(graceful_timeout=60, force=False)
+            if success:
+                click.echo("✓ Cluster shutdown initiated successfully")
+                
+                # Stop current worker node
+                worker_stopped = _stop_local_worker_nodes()
+                if worker_stopped:
+                    click.echo("✓ Current worker node stopped successfully")
             else:
-                click.echo("⚠ Head node was not running locally")
-            
-            # Stop local worker nodes (if any)
-            worker_stopped = _stop_local_worker_nodes()
-            if worker_stopped:
-                click.echo("✓ Local worker nodes stopped successfully")
-            
-            click.echo("✓ Cluster shutdown completed")
-            
-        else:
-            # Running from worker node - request cluster shutdown from head
-            click.echo("\n✓ Requesting cluster shutdown from head node...")
-            
-            try:
-                success = client.shutdown_cluster(graceful_timeout=60, force=False)
-                if success:
-                    click.echo("✓ Cluster shutdown initiated successfully")
-                    
-                    # Stop current worker node
-                    worker_stopped = _stop_local_worker_nodes()
-                    if worker_stopped:
-                        click.echo("✓ Current worker node stopped successfully")
-                else:
-                    click.echo("⚠ Cluster shutdown request failed")
-                    return 1
-                    
-            except ConnectionException as e:
-                click.echo(f"Error: Cannot request cluster shutdown: {e}")
-                click.echo("Make sure the head node is running and accessible")
+                click.echo("⚠ Cluster shutdown request failed")
                 return 1
+                
+        except ConnectionException as e:
+            click.echo(f"Error: Cannot request cluster shutdown: {e}")
+            click.echo("Make sure the head node is running and accessible")
+            return 1
         
         return 0
         
@@ -184,8 +192,13 @@ def _stop_daemon(lockfile: str, name: str) -> bool:
         return False
 
     try:
+        import json
         with open(lockfile, 'r') as f:
-            pid = int(f.read().strip())
+            data = json.load(f)
+        
+        pid = data.get('pid')
+        if not pid:
+            return False
 
         click.echo(f"Stopping {name} (PID {pid})...")
         os.kill(pid, signal.SIGTERM)
@@ -199,7 +212,7 @@ def _stop_daemon(lockfile: str, name: str) -> bool:
             logger.warning(f"Failed to remove lockfile {lockfile}: {e}")
 
         return True
-    except (ValueError, ProcessLookupError, PermissionError) as e:
+    except (ValueError, ProcessLookupError, PermissionError, KeyError, json.JSONDecodeError) as e:
         logger.warning(f"Failed to stop {name}: {e}")
         # Try to clean up stale lockfile
         try:

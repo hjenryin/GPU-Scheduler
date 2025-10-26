@@ -172,6 +172,14 @@ scheduler start --head --block=false
 - The first `scheduler start --head` on your network becomes the orchestrator
 - All subsequent `scheduler start --address=...` commands connect as workers
 - The scheduler automatically detects GPUs using `nvidia-smi` if `--num-gpus` is not specified
+- When starting a head node, a worker is automatically started on the same machine
+
+**Command Requirements:**
+- Commands that interact with the cluster (submit, jobs, status, logs, cancel, submit) require either:
+  - A worker to be running on the current machine, OR
+  - An explicit head node address provided via `--address` flag
+- The worker stores the head node address after connecting, so subsequent commands automatically know where to send requests
+- If no worker is connected and no address is configured, commands will show an error with instructions to start or connect to a head node
 
 ---
 
@@ -192,14 +200,33 @@ scheduler stop [OPTIONS]
 |--------|------|---------|-------------|
 | `--all` | flag | false | Stop all nodes in cluster |
 
+**Behavior Differences:**
+
+- **`scheduler stop`** (without `--all`):
+  - Stops only worker nodes on the current machine
+  - Does NOT stop the head node
+  - Warns if a head node is also running and suggests using `--all`
+  - Can be run from any machine with a worker
+
+- **`scheduler stop --all`**:
+  - Stops the entire cluster (head + all workers)
+  - Only works when run from the machine with the head node
+  - Gracefully shuts down all nodes with proper cleanup
+
 **Examples:**
 
 ```bash
-# Stop scheduler on current node (graceful shutdown)
+# Stop only the worker on current machine
 scheduler stop
+# Output: "✓ Worker node stopped successfully"
+#         "⚠ Warning: Head node is still running on this machine"
+#         "To stop the head node, run: scheduler stop --all"
 
-# Stop all nodes in cluster
+# Stop entire cluster (head + workers)
 scheduler stop --all
+# Output: "✓ Head node stopped successfully"
+#         "✓ Local worker nodes stopped successfully"
+#         "✓ Cluster shutdown completed"
 ```
 
 ---
@@ -215,7 +242,9 @@ Interactive TUI (terminal user interface) for monitoring cluster status, nodes, 
 scheduler status
 ```
 
-**No Options Required**: The command automatically connects to the head node (either running locally or using the configured address in `~/.scheduler/config.yaml`).
+**No Options Required**: The command automatically connects to the head node using the recorded address from a connected worker, or the configured address in `~/.scheduler/config.yaml`.
+
+**Requirement**: Either a worker must be running on your machine (which stores the head address), or you must explicitly provide the head address via configuration.
 
 **Interactive Features:**
 
@@ -429,6 +458,8 @@ scheduler status
 
 Submit a new job to the scheduler.
 
+**Requirement**: A worker must be running on your machine (or head address must be configured) to connect to the scheduler cluster.
+
 **Usage:**
 ```bash
 scheduler submit [OPTIONS] SCRIPT [-- SCRIPT_ARGS...]
@@ -526,6 +557,8 @@ List jobs in non-interactive mode (use `scheduler status` for interactive TUI).
 scheduler jobs [OPTIONS] [JOB_ID...]
 ```
 
+**Requirement**: A worker must be running on your machine (or head address must be configured) to connect to the scheduler cluster.
+
 **Positional Arguments:**
 
 | Argument | Description |
@@ -574,6 +607,8 @@ View logs for a specific job.
 scheduler logs [OPTIONS] JOB_ID
 ```
 
+**Requirement**: A worker must be running on your machine (or head address must be configured) to connect to the scheduler cluster.
+
 **Positional Arguments:**
 
 | Argument | Description |
@@ -618,6 +653,8 @@ Cancel one or more pending or running jobs.
 ```bash
 scheduler cancel [OPTIONS] JOB_ID...
 ```
+
+**Requirement**: A worker must be running on your machine (or head address must be configured) to connect to the scheduler cluster.
 
 **Positional Arguments:**
 

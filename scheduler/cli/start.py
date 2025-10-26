@@ -181,17 +181,44 @@ def _start_head_node(config: Config, block: bool) -> int:
     try:
         orchestrator = Orchestrator(config, singleton)
 
+        # Start the head
+        orchestrator.start()
+        click.echo("\nHead node started successfully")
+        
+        # Also start a worker on the same machine
+        import time
+        time.sleep(1)  # Give head a moment to start
+        
+        click.echo("Starting worker on this machine...")
+        
+        # Create worker config pointing to this head
+        worker_config = Config(
+            address=f"{socket.gethostname()}:{config.head.port}",
+            head=config.head,
+            worker=config.worker,
+            storage=config.storage,
+            client=config.client
+        )
+        
+        # Start worker in background
+        from threading import Thread
+        worker_thread = Thread(
+            target=lambda: _start_worker_node(worker_config, None, None, block=False),
+            daemon=True
+        )
+        worker_thread.start()
+        
+        # Give worker time to start
+        time.sleep(2)
+
         if block:
-            click.echo("\nHead node started. Press Ctrl+C to stop.")
-            # Get actual hostname and port
-            hostname = socket.gethostname()
-            click.echo(f"Workers can connect with: scheduler start --address={hostname}:{config.head.port}")
+            click.echo("\n✓ Cluster ready (head + worker on this machine)")
+            click.echo("Press Ctrl+C to stop...")
             orchestrator.run()
             # Lock will be released by orchestrator.stop() when run() completes
         else:
-            orchestrator.start()
-            click.echo("\nHead node started in background")
-            click.echo("Use 'scheduler stop' to stop it")
+            click.echo("\n✓ Cluster ready (head + worker on this machine)")
+            click.echo("Use 'scheduler stop --all' to stop it")
             # Don't release lock here - orchestrator will manage it via signal handlers
             # The singleton lock will be released when the orchestrator stops
 
@@ -204,6 +231,8 @@ def _start_head_node(config: Config, block: bool) -> int:
 
 def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optional[int], block: bool) -> int:
     """Start worker node daemon."""
+    from scheduler.core.head_info import save_head_info
+    
     # Determine node name
     if not node_name:
         node_name = socket.gethostname()
@@ -213,6 +242,9 @@ def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optio
 
     # Display connection info
     click.echo(f"Connecting to head node: {config.address}")
+    
+    # Save head node address for CLI commands
+    save_head_info(config.address)
 
     # Check for existing worker
     lockfile = os.path.expanduser(f"~/.scheduler/worker-{node_name}.lock")
