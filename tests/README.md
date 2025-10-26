@@ -44,7 +44,6 @@ tests/
 │   ├── test_cli_commands.py   # Tests for CLI commands
 │   └── test_tui_integration.py # Tests for TUI main application
 └── e2e/                  # End-to-end tests (17 tests)
-    ├── test_full_workflow.py   # Full system workflow tests (simulated)
     └── test_real_processes.py  # True E2E with real processes
 ```
 
@@ -280,7 +279,7 @@ The test suite has **excellent coverage** of the core business logic:
   - Complete job workflows across components
   - Multi-node scenarios, persistence
 
-- ✅ **End-to-End Simulations** (`tests/e2e/test_full_workflow.py`)
+- ✅ **Integration Workflow Simulation** (`tests/integration/test_full_workflow.py`)
   - Full system workflows (simulated, not actual processes)
 
 - ✅ **True End-to-End Tests** (`tests/e2e/test_real_processes.py`)

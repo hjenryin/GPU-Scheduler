@@ -1,4 +1,8 @@
-"""End-to-end tests for complete workflow"""
+"""Integration tests for complete scheduler workflow (simulated E2E)
+
+These tests simulate a full workflow by wiring in-memory managers together.
+They do not start real processes or perform real HTTP calls.
+"""
 import pytest
 import time
 from datetime import datetime, timedelta
@@ -7,15 +11,15 @@ from scheduler.core.models import JobStatus
 
 
 class TestFullWorkflow:
-    """End-to-end workflow tests
+    """Integration workflow tests (simulated E2E)
 
     Note: These tests simulate a full workflow but don't actually
-    run subprocesses or connect to real nodes. For true E2E testing,
-    you would need to start actual head and worker processes.
+    run subprocesses or connect to real nodes. For true end-to-end testing,
+    start actual head and worker processes (see tests in tests/e2e/).
     """
 
     def test_simple_job_workflow(self, full_system):
-        """Test simple end-to-end job workflow"""
+        """Test simple job workflow across components"""
         job_manager = full_system['job_manager']
         node_manager = full_system['node_manager']
         scheduler = full_system['scheduler']
@@ -192,7 +196,7 @@ class TestFullWorkflow:
 
 @pytest.fixture
 def full_system(temp_dir):
-    """Create a complete system for E2E testing"""
+    """Create a complete system for integration testing"""
     from scheduler.core.config import Config
     from scheduler.head.job_manager import JobManager
     from scheduler.head.node_manager import NodeManager
@@ -229,3 +233,5 @@ def full_system(temp_dir):
         'node_manager': node_manager,
         'scheduler': scheduler
     }
+
+

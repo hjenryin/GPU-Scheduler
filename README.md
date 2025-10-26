@@ -11,6 +11,7 @@ Last Updated: 2025-10-21
 4.  [Cluster Status](#cluster-status)
 5.  [Job Submission](#job-submission)
 6.  [Python API](#python-api)
+7.  [Testing Overview](#testing-overview)
 
 ---
 
@@ -615,4 +616,23 @@ with mlflow.start_run():
     mlflow.log_param("scheduler_job_id", job.job_id)
     mlflow.log_param("gpus_requested", 4)
     mlflow.set_tag("scheduler_node", job.assigned_node or "pending")
+```
+
+---
+
+## Testing Overview
+
+The project includes a comprehensive test suite:
+
+- Integration tests: `tests/integration/`
+  - Workflows across in-memory components (e.g., `test_full_workflow.py`, `test_job_lifecycle.py`)
+  - CLI and HTTP API behavior (`test_cli_commands.py`, `test_api_endpoints.py`)
+- End-to-end tests: `tests/e2e/`
+  - True E2E with real head/worker processes and HTTP (`test_real_processes.py`)
+
+Run tests:
+
+```bash
+pytest tests/integration/ -v
+pytest tests/e2e/test_real_processes.py -v -m "not slow"
 ```
