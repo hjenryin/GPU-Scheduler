@@ -15,6 +15,12 @@
 - **Fix Needed**: Unit tests should mock command functions to test CLI routing/parsing only. Actual command execution should be tested in integration tests.
 - **Note**: Running actual commands IS important and should be tested - but in integration tests, not unit tests
 
+### 🧪 Flaky Test: test_logging_config.py Causing Hangs
+- **Issue**: When `test_logging_config.py` runs before `test_worker_daemon.py`, the test `test_stop_graceful_timeout_terminates_job` in `test_worker_daemon.py` hangs indefinitely
+- **Location**: `tests/unit/test_logging_config.py` affects `tests/unit/test_worker_daemon.py::test_stop_graceful_timeout_terminates_job`
+- **Impact**: Test execution order dependency - tests are not isolated, causing flaky test behavior
+- **Fix Needed**: Investigate how logging configuration in `test_logging_config.py` is leaving global state that interferes with the daemon test's mocking/thread handling
+
 ## Medium Priority (Nice to Have)
 
 ### 📝 CLI Test Coverage

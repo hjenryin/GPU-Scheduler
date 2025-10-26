@@ -90,10 +90,14 @@ class TestWorkerDaemon:
                           mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test successful daemon start"""
         mock_monitor_instance = Mock()
+        mock_monitor_instance.stop_monitoring = Mock()
+        mock_monitor_instance.start_monitoring = Mock()
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
         mock_heartbeat_instance = Mock()
+        mock_heartbeat_instance.stop = Mock()
+        mock_heartbeat_instance.start = Mock()
         mock_heartbeat.return_value = mock_heartbeat_instance
 
         mock_client_instance = Mock()
@@ -111,6 +115,9 @@ class TestWorkerDaemon:
         # Verify components were started
         mock_monitor_instance.start_monitoring.assert_called_once()
         mock_heartbeat_instance.start.assert_called_once()
+        
+        # Clean up
+        daemon.stop(graceful=False)
 
     @patch('scheduler.worker.daemon.SchedulerClient')
     @patch('scheduler.worker.daemon.HeartbeatSender')
@@ -145,8 +152,13 @@ class TestWorkerDaemon:
                                    mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test starting daemon when already running"""
         mock_monitor_instance = Mock()
+        mock_monitor_instance.stop_monitoring = Mock()
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
+        
+        mock_heartbeat_instance = Mock()
+        mock_heartbeat_instance.stop = Mock()
+        mock_heartbeat.return_value = mock_heartbeat_instance
 
         mock_client_instance = Mock()
         mock_client.return_value = mock_client_instance
@@ -158,6 +170,9 @@ class TestWorkerDaemon:
         daemon.start()  # Should just log warning
 
         assert daemon.running is True
+        
+        # Clean up
+        daemon.stop(graceful=False)
 
     @patch('scheduler.worker.daemon.SchedulerClient')
     @patch('scheduler.worker.daemon.HeartbeatSender')
@@ -234,6 +249,7 @@ class TestWorkerDaemon:
                                                   mock_heartbeat, mock_client, test_config):
         """Test graceful stop terminates job after timeout"""
         mock_monitor_instance = Mock()
+        mock_monitor_instance.stop_monitoring = Mock()
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -242,16 +258,27 @@ class TestWorkerDaemon:
         mock_executor_instance.get_job_status.return_value = (True, None)
         mock_job_executor.return_value = mock_executor_instance
 
+        mock_heartbeat_instance = Mock()
+        mock_heartbeat_instance.stop = Mock()
+        mock_heartbeat.return_value = mock_heartbeat_instance
+
         mock_client_instance = Mock()
         mock_client.return_value = mock_client_instance
 
-        # Mock time to simulate timeout - need enough values for all time.time() calls
-        # including those made by the logging system
-        mock_time.side_effect = [0, 61, 61, 61, 61, 61]
+        # Mock time to simulate timeout: start_time=0, then after timeout it becomes 61
+        call_count = [0]
+        def time_side_effect():
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return 0  # start_time
+            else:
+                return 61  # After timeout
+        
+        mock_time.side_effect = time_side_effect
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
-        daemon.start()
-
+        # Don't actually start (to avoid thread issues)
+        daemon.running = True
         daemon.current_job = Mock(job_id="job-001")
         daemon.current_job_pid = 12345
 
