@@ -6,12 +6,6 @@
 
 ## Critical Priority (Must Fix)
 
-### 🚨 Orchestrator Configuration Bug
-- **Issue**: `heartbeat_timeout` is `None` causing `TypeError: unsupported type for timedelta seconds component: NoneType`
-- **Location**: `scheduler/head/node_manager.py:172` in `check_timeouts()` method
-- **Impact**: Prevents orchestrator from running properly, causes infinite error loops
-- **Fix Needed**: Ensure `heartbeat_timeout` has a proper default value in config
-
 ## High Priority (Should Fix Soon)
 
 ### 🔧 Port Conflict Handling

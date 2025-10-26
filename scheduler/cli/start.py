@@ -85,13 +85,15 @@ def start_command(
         config_dict.setdefault('head', {})['port'] = port
         for key, value in kwargs.items():
             if key.startswith('heartbeat_') or key.startswith('scheduling_') or key.startswith('graceful_shutdown_'):
-                config_dict.setdefault('head', {})[key] = value
+                if value is not None:  # Only set if value is not None
+                    config_dict.setdefault('head', {})[key] = value
     else:
         # For worker, set the address field to connect to head
         config_dict['address'] = address
         for key, value in kwargs.items():
             if key.startswith('gpu_') or key.startswith('job_'):
-                config_dict.setdefault('worker', {})[key] = value
+                if value is not None:  # Only set if value is not None
+                    config_dict.setdefault('worker', {})[key] = value
 
     # Create final Config object from customized dict
     config = Config.from_dict(config_dict)

@@ -135,7 +135,7 @@ class Config:
             if not d:
                 return {}
             valid_keys = {f.name for f in dataclass_type.__dataclass_fields__.values()}
-            return {k: v for k, v in d.items() if k in valid_keys}
+            return {k: v for k, v in d.items() if k in valid_keys and v is not None}
 
         head_filtered = filter_dict(head_dict, HeadConfig)
         worker_filtered = filter_dict(worker_dict, WorkerConfig)
