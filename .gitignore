@@ -4,3 +4,8 @@ __pycache__/
 /*.md
 .coverage
 *.log
+/*.json
+pacts/
+reports/
+/*_output.txt
+analyze_test_coverage.py
