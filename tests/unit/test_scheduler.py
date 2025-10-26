@@ -218,8 +218,8 @@ class TestScheduler:
         stats = [GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)]
         node_manager.update_heartbeat("gpu1", stats)
 
-        # Set recent stability time (only 20 seconds)
-        recent_time = datetime.now() - timedelta(seconds=20)
+        # Set recent stability time (only 1 second, less than stable_time=2)
+        recent_time = datetime.now() - timedelta(seconds=1)
         node = node_manager.get_node("gpu1")
         node.gpus[0].stable_since = recent_time
 
@@ -230,7 +230,7 @@ class TestScheduler:
             name="test-job"
         )
 
-        # Run scheduling - should not schedule (needs 60s stability)
+        # Run scheduling - should not schedule (needs 2s stability)
         scheduler.schedule_cycle()
 
         updated_job = job_manager.get_job(job.job_id)

@@ -309,6 +309,10 @@ class TestHeartbeatSender:
         assert sender.running is True
 
         sender.stop()
+        
+        # Give thread time to finish
+        if sender.heartbeat_thread:
+            sender.heartbeat_thread.join(timeout=1)
 
     @patch('scheduler.worker.heartbeat.SchedulerClient')
     @patch('scheduler.worker.heartbeat.GPUMonitor')

@@ -31,6 +31,7 @@ class TestOrchestrator:
             worker=WorkerConfig(
                 work_dir="/tmp/test",
                 log_dir="/tmp/test/logs",
+                heartbeat_interval=2,  # Must be <= gpu_stable_time
                 gpu_poll_interval=2,
                 gpu_util_threshold=10,
                 gpu_mem_threshold=10,

@@ -64,10 +64,6 @@ class JobExecutor:
             stdout_log = self.file_handler.get_job_log_path(job.job_id, stderr=False)
             stderr_log = self.file_handler.get_job_log_path(job.job_id, stderr=True)
 
-            # Open log files
-            stdout_file = open(stdout_log, 'w')
-            stderr_file = open(stderr_log, 'w')
-
             # Build command - use python explicitly for .py files
             import sys
             if job.script.endswith('.py'):
@@ -84,6 +80,14 @@ class JobExecutor:
             logger.info(f"Stdout log: {stdout_log}")
             logger.info(f"Stderr log: {stderr_log}")
 
+            # Ensure log directories exist
+            os.makedirs(os.path.dirname(stdout_log), exist_ok=True)
+            os.makedirs(os.path.dirname(stderr_log), exist_ok=True)
+
+            # Open log files
+            stdout_file = open(stdout_log, 'w')
+            stderr_file = open(stderr_log, 'w')
+
             # Start the process
             process = subprocess.Popen(
                 cmd,
@@ -93,6 +97,10 @@ class JobExecutor:
                 stderr=stderr_file,
                 start_new_session=True  # Create new process group
             )
+            
+            # Close file handles in parent process (child process has its own copies)
+            stdout_file.close()
+            stderr_file.close()
 
             pid = process.pid
             self.processes[pid] = process

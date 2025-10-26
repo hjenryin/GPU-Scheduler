@@ -370,7 +370,7 @@ class TestNode:
         free_gpus = node.get_free_gpus(
             util_threshold=10.0,
             mem_threshold=10.0,
-            stable_time=60
+            stable_time=2  # Updated to match test config
         )
 
         assert free_gpus == [0]

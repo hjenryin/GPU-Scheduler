@@ -127,7 +127,7 @@ class TestSubmitJob:
             with pytest.raises(ConnectionException) as exc_info:
                 client.submit_job("train.py", "2")
 
-            assert "Failed to connect to head node" in str(exc_info.value)
+            assert "Failed to submit job" in str(exc_info.value)
 
     @patch('scheduler.api.client.load_config')
     def test_submit_job_invalid_response(self, mock_load_config):

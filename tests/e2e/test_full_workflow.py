@@ -208,6 +208,7 @@ def full_system(temp_dir):
             temp_dir=temp_dir,
             log_dir=temp_dir,
             work_dir=temp_dir,
+            heartbeat_interval=2,  # Must be <= gpu_stable_time
             gpu_util_threshold=10.0,
             gpu_mem_threshold=10.0,
             gpu_stable_time=2,  # Reduced from 60 for faster tests
