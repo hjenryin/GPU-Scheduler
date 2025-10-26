@@ -7,31 +7,45 @@ This directory contains the comprehensive test suite for the GPU Scheduler proje
 ```
 tests/
 ├── conftest.py           # Shared pytest fixtures
-├── unit/                 # Unit tests
+├── unit/                 # Unit tests (671 tests)
 │   ├── test_models.py    # Tests for core data models
 │   ├── test_config.py    # Tests for configuration
 │   ├── test_scheduler.py # Tests for scheduling algorithm
 │   ├── test_job_manager.py    # Tests for job management
 │   ├── test_node_manager.py   # Tests for node management
+│   ├── test_orchestrator.py   # Tests for orchestrator
 │   ├── test_python_client.py  # Tests for Python API client
 │   ├── test_cli_main.py       # Tests for CLI main entry point
-│   ├── test_worker_gpu_monitor.py   # Tests for GPU monitoring (NEW!)
-│   ├── test_worker_job_executor.py  # Tests for job execution (NEW!)
-│   ├── test_worker_heartbeat.py     # Tests for heartbeat sender (NEW!)
-│   ├── test_worker_file_handler.py  # Tests for file handler (NEW!)
-│   ├── test_worker_daemon.py        # Tests for worker daemon (NEW!)
-│   ├── test_tui_utils.py            # Tests for TUI utility functions (NEW!)
-│   ├── test_tui_widgets.py          # Tests for TUI custom widgets (NEW!)
-│   ├── test_tui_screens.py          # Tests for TUI screen components (NEW!)
-│   └── test_tui_fixtures.py         # Test fixtures for TUI components (NEW!)
-├── integration/          # Integration tests
+│   ├── test_cli_start.py      # Tests for start command
+│   ├── test_cli_stop.py       # Tests for stop command
+│   ├── test_cli_submit.py     # Tests for submit command
+│   ├── test_cli_jobs.py       # Tests for jobs command
+│   ├── test_cli_logs.py       # Tests for logs command
+│   ├── test_cli_cancel.py     # Tests for cancel command
+│   ├── test_cli_status.py     # Tests for status command
+│   ├── test_cli_helpers.py   # Tests for CLI helpers
+│   ├── test_cli_config_cmd.py # Tests for config command
+│   ├── test_core_utils.py     # Tests for core utilities
+│   ├── test_head_info.py      # Tests for head info
+│   ├── test_head_info_clear.py # Tests for head info clear
+│   ├── test_api_routes_unit.py # Tests for API routes
+│   ├── test_api_app_creation.py # Tests for API app creation
+│   ├── test_tui_app_methods.py # Tests for TUI app methods
+│   ├── test_tui_app_integration.py # Tests for TUI integration
+│   ├── test_worker_gpu_monitor.py  # Tests for GPU monitoring
+│   ├── test_singleton.py       # Tests for singleton daemon
+│   ├── test_worker_job_executor.py  # Tests for job execution
+│   ├── test_worker_heartbeat.py     # Tests for heartbeat sender
+│   ├── test_worker_file_handler.py  # Tests for file handler
+│   └── test_worker_daemon.py        # Tests for worker daemon
+├── integration/          # Integration tests (177 tests)
 │   ├── test_job_lifecycle.py  # Tests for job lifecycle workflows
 │   ├── test_api_endpoints.py  # Tests for HTTP API endpoints
 │   ├── test_cli_commands.py   # Tests for CLI commands
-│   └── test_tui_integration.py # Tests for TUI main application (NEW!)
-└── e2e/                  # End-to-end tests
+│   └── test_tui_integration.py # Tests for TUI main application
+└── e2e/                  # End-to-end tests (17 tests)
     ├── test_full_workflow.py   # Full system workflow tests (simulated)
-    └── test_real_processes.py  # True E2E with real processes (NEW!)
+    └── test_real_processes.py  # True E2E with real processes
 ```
 
 ## Running Tests
@@ -269,7 +283,7 @@ The test suite has **excellent coverage** of the core business logic:
 - ✅ **End-to-End Simulations** (`tests/e2e/test_full_workflow.py`)
   - Full system workflows (simulated, not actual processes)
 
-- ✅ **True End-to-End Tests** (`tests/e2e/test_real_processes.py`) - **NEW!**
+- ✅ **True End-to-End Tests** (`tests/e2e/test_real_processes.py`)
   - Real head and worker processes with HTTP communication (11 tests)
   - Cluster startup and worker registration
   - Simple job submission and execution
@@ -295,7 +309,7 @@ The test suite has **excellent coverage** of the core business logic:
   - Request validation, HTTP status codes, error responses
   - Response schema validation
 
-- ✅ **CLI Commands** (`tests/integration/test_cli_commands.py` + `tests/unit/test_cli_main.py`) - **NEW!**
+- ✅ **CLI Commands** (`tests/integration/test_cli_commands.py` + `tests/unit/test_cli_main.py`)
   - All scheduler CLI commands (88 tests, **88% coverage**)
   - `scheduler submit` - job submission with all options (11 tests)
   - `scheduler jobs` - job listing, filtering, formats (7 tests)
@@ -306,13 +320,13 @@ The test suite has **excellent coverage** of the core business logic:
   - `scheduler stop` - graceful/force shutdown (5 tests)
   - `scheduler status` - TUI launch (3 tests)
   - Argument parsing, error handling, exit codes (8 tests)
-  - **NEW:** CLI main entry point (`test_cli_main.py`) - 16 unit tests
+  - CLI main entry point (`test_cli_main.py`) - 16 unit tests
     - Command routing for all 8 CLI commands
     - Exception handling (KeyboardInterrupt, generic errors)
     - Argument parsing verification
-    - `main.py`: **96% coverage** (up from 67%)
+    - `main.py`: **96% coverage**
   - **Per-module coverage:**
-    - `main.py`: **96%** (79 lines, 3 missing) ⬆️
+    - `main.py`: **96%** (79 lines, 3 missing)
     - `start.py`: 100% (111/111 lines)
     - `config.py`: 94% (47 lines, 3 missing)
     - `jobs.py`: 87%, `logs.py`: 87%
@@ -320,8 +334,8 @@ The test suite has **excellent coverage** of the core business logic:
     - `stop.py`: 82%, `submit.py`: 82%
   - **Bug fixed:** `config.py` referenced non-existent constant
 
-- ✅ **Worker Components** (`tests/unit/test_worker_*.py`) - **NEW!**
-  - Worker daemon components (71 tests, **~85% coverage**)
+- ✅ **Worker Components** (`tests/unit/test_worker_*.py`)
+  - Worker daemon components (**120 tests, ~87% coverage**)
   - `tests/unit/test_worker_job_executor.py` - Job execution (23 tests)
     - Process spawning and management
     - CUDA_VISIBLE_DEVICES assignment
@@ -348,36 +362,92 @@ The test suite has **excellent coverage** of the core business logic:
     - Graceful shutdown with job timeout
     - Signal handling
     - Address configuration
+  - `tests/unit/test_singleton.py` - Singleton daemon lock management (**22 tests**)
+    - Lock acquisition and release
+    - Stale lockfile detection and cleanup
+    - Context manager pattern
+    - Signal handler setup and cleanup
+    - JSON lockfile validation
+    - Process existence verification
+    - **Coverage:** 83%
+  - `tests/unit/test_gpu_monitor.py` - GPU monitoring (**27 tests**)
+    - Hardware mocking (pynvml, nvidia-smi)
+    - Test mode detection
+    - GPU detection and initialization
+    - Stats polling (utilization, memory, temperature, power)
+    - Monitoring loop start/stop
+    - Error handling and fallback
+    - Running job ID detection
+    - **Coverage:** 81%
   - **Bugs fixed during testing:**
     - **CRITICAL:** Windows SIGKILL compatibility (signal.SIGKILL doesn't exist on Windows)
     - **CRITICAL:** UnboundLocalError in daemon.stop() when job timeout occurs
+    - **CRITICAL:** Signal handlers only work in main thread (fixed in daemon.py)
     - Removed `force` parameter from CLI (simplified to SIGTERM-only for cross-platform compatibility)
 
-- ✅ **TUI Components** (`tests/unit/test_tui_*.py`) - **NEW!**
-  - TUI components (79 tests, **69% coverage**)
+- ✅ **CLI Unit Tests** (`tests/unit/test_cli_*.py`)
+  - Unit tests for individual CLI modules (**150+ tests, 85% coverage**)
+  - `tests/unit/test_cli_start.py` - Start command (**16 tests**)
+    - Head/worker startup validation
+    - Port availability checking
+    - Lock acquisition and release
+    - Worker thread management
+    - Error handling (ValidationException, ConnectionException, etc.)
+    - **Coverage:** 86%
+  - `tests/unit/test_cli_stop.py` - Stop command (**13 tests**)
+    - Single/worker/all node stopping
+    - Head node detection
+    - Lockfile reading and cleanup
+    - Signal handling (SIGTERM)
+    - Stale lockfile handling
+    - **Coverage:** 84%
+  - `tests/unit/test_cli_submit.py` - Submit command (11 tests)
+    - Job submission with all parameters
+    - Script validation and error handling
+    - Async/sync modes
+    - **Coverage:** 85%
+  - `tests/unit/test_cli_jobs.py` - Jobs command (7 tests)
+    - Job listing and filtering
+    - JSON format output
+    - **Coverage:** 98%
+  - `tests/unit/test_cli_logs.py` - Logs command (7 tests)
+    - Stdout/stderr log retrieval
+    - Log streaming
+    - **Coverage:** 100%
+  - `tests/unit/test_cli_cancel.py` - Cancel command (4 tests)
+    - Single and multiple job cancellation
+    - **Coverage:** 100%
+  - `tests/unit/test_cli_status.py` - Status command (3 tests)
+    - TUI launch
+    - **Coverage:** 100%
+  - `tests/unit/test_cli_helpers.py` - Helper functions
+    - **Coverage:** 100%
+  - `tests/unit/test_cli_config_cmd.py` - Config command
+    - **Coverage:** 89%
+
+- ✅ **TUI Components** (`tests/unit/test_tui_*.py`)
+  - TUI components (79 tests, **88% coverage**)
   - `tests/unit/test_tui_utils.py` - Utility functions (12 tests)
     - GPU memory formatting, status colors, runtime formatting
     - GPU utilization bar creation
     - API client wrapper functionality
-  - `tests/unit/test_tui_widgets.py` - Custom widgets (25 tests)
-    - GPUBar widget: statistics updates, rendering, progress tracking
-    - NodeTable widget: column setup, data updates, row selection
-    - JobTable widget: column setup, job filtering, row selection
-  - `tests/unit/test_tui_screens.py` - Screen components (35 tests)
-    - ClusterScreen: data updates, summary calculations, bindings
-    - JobsScreen: job filtering, search functionality, navigation
-    - NodesScreen: node selection, detail updates, bindings
-    - GPUsScreen: GPU data display, bindings
-    - JobDetailScreen: job data updates, action handling
-  - `tests/integration/test_tui_integration.py` - Main application (7 tests)
-    - SchedulerTUI initialization and data refreshing
-    - Screen switching and action handling
-    - Error recovery and notification handling
+  - `tests/unit/test_tui_app_methods.py` - TUI app methods (**15 tests**)
+    - App initialization and composition
+    - Screen switching actions
+    - Data refresh and updates
+    - Keyboard shortcuts
+    - **Coverage:** 88%
+  - `tests/unit/test_tui_app_integration.py` - TUI integration (**8 tests**)
+    - App.run_test() usage
+    - Screen mounting and navigation
+    - Data fetching and display
+    - **Coverage:** Applies to app.py (88%)
   - **Bugs fixed during testing:**
     - **CRITICAL:** Empty method implementations in widgets (GPUBar, NodeTable, JobTable)
     - **CRITICAL:** Missing column setup in DataTable widgets
     - **CRITICAL:** Textual app context issues in unit tests
     - **CRITICAL:** Lambda function signature mismatches in test mocks
+    - **CRITICAL:** App.screen property access without mounted app
 
 ### ❌ What is NOT Tested (Remaining Gaps)
 
@@ -419,7 +489,7 @@ True E2E tests run with real GPU hardware and are now functional:
 
 #### 1. **Head Components** (Excellent coverage achieved!)
 
-- **orchestrator.py:** 92% coverage (96/104 lines) ⬆️ +70% improvement
+- **orchestrator.py:** 92% coverage (96/104 lines)
 - **api_server.py:** 100% coverage (47/47 lines) ✅
 - **persistence.py:** 100% coverage (53/53 lines) ✅
 - **scheduler.py:** 100% coverage (66/66 lines) ✅
@@ -428,11 +498,11 @@ True E2E tests run with real GPU hardware and are now functional:
 
 #### 2. **Storage Components** (Excellent coverage achieved!)
 
-- **file_backend.py:** 98% coverage (57/58 lines) ⬆️ +27% improvement
-- **sqlite_backend.py:** 100% coverage (72/72 lines) ⬆️ +75% improvement
-- **Overall storage coverage:** 97% (157/162 lines) ⬆️ +46% improvement
+- **file_backend.py:** 98% coverage (57/58 lines)
+- **sqlite_backend.py:** 100% coverage (72/72 lines)
+- **Overall storage coverage:** 97% (157/162 lines)
 
-#### 3. **TUI Components** (Improved coverage)
+#### 3. **TUI Components**
 
 - **Overall TUI coverage:** 69% (318/461 lines)
 - **Interactive interface:** Not tested (difficult to automate)
@@ -566,35 +636,40 @@ Update GitHub Actions / CI pipeline:
 
 **Current status (as of December 2024):**
 
-- ✅ **Unit Tests:** 100% passing (127/127)
-- ✅ **Integration Tests:** 100% passing (177/177)
-- ✅ **E2E Tests:** 100% passing (17/17)
-- ✅ **Overall Test Pass Rate:** 100% (321/321 tests)
-- ✅ **Python API Coverage:** ~90%
-- ✅ **HTTP API Coverage:** 100% schemas, 91% routes
-- ✅ **CLI Coverage:** 88% overall (comprehensive CLI testing added)
-- ✅ **Worker Components:** 86% average coverage
-- ✅ **Head Components:** 98% overall (api_server 100%, persistence 100%, scheduler 100%, job_manager 99%, node_manager 99%)
-- ✅ **Storage Components:** 97% overall (file_backend 98%, sqlite_backend 100%) ⬆️ +46% improvement
-- ✅ **GPU Monitoring:** Real hardware integration working
-- ✅ **True E2E Tests:** 4 tests implemented, all working
-- ✅ **E2E Job Execution:** Working with proper configuration
-- ✅ **API Consistency:** All API parameter mismatches resolved
-- ✅ **GPU Process Detection:** Real nvml process detection working
-- ✅ **Debug Logging:** Comprehensive debug logging for troubleshooting
-- **Overall Code Coverage:** 80% (2,549/3,172 lines) ⬆️ +14% improvement
+### Unit Test Coverage
+
+**Total Unit Tests:** 671 tests (100% pass rate)
+
+**Overall Coverage:** 88% (3,116/3,558 lines)
+
+**Coverage by Category:**
+
+- **Core Components:** 93% (461/496 lines)
+  - utils 84%, head_info 93%, logging 96%, models 97%, config 91%
+- **Worker Components:** 87% (507/581 lines)
+  - singleton 83%, gpu_monitor 81%, daemon 87%, heartbeat 100%, job_executor 99%, file_handler 92%
+- **Head Components:** 98% (429/439 lines)
+  - api_server 100%, persistence 100%, scheduler 100%, job_manager 99%, node_manager 99%, orchestrator 81%
+- **Storage Components:** 97% (157/162 lines)
+  - file_backend 98%, sqlite_backend 100%
+- **CLI Components:** 85% (560/658 lines)
+  - start 86%, stop 84%, submit 85%, jobs 98%, logs 100%, cancel 100%, status 100%
+- **TUI Components:** 88% (405/461 lines)
+  - app 88%, cluster 98%, gpus 85%, jobs 70%, nodes 75%
+- **API Components:** 80% (537/671 lines)
+  - schemas 100%, routes 74%, client 80%
 
 ### Detailed Coverage by Category
 
 | **Category** | **Coverage** | **Lines Covered** | **Total Lines** | **Status** |
 |--------------|--------------|-------------------|-----------------|------------|
+| **Core** | 93% | 461/496 | ✅ Excellent |
+| **Worker** | 87% | 507/581 | ✅ Excellent |
 | **Head** | 98% | 429/439 | ✅ Excellent |
-| **Core** | 91% | 92/101 | ✅ Excellent |
-| **Worker** | 70.7% | 416/588 | ✅ Good |
-| **API** | 90.1% | 383/425 | ✅ Excellent |
-| **CLI** | 88% | 461/503 | ✅ Excellent |
-| **Storage** | 97% | 157/162 | ✅ Excellent ⬆️ +46% |
-| **TUI** | 69.0% | 318/461 | ✅ Good |
+| **Storage** | 97% | 157/162 | ✅ Excellent |
+| **CLI** | 85% | 560/658 | ✅ Excellent |
+| **TUI** | 88% | 405/461 | ✅ Excellent |
+| **API** | 80% | 537/671 | ✅ Good |
 
 ### Top Modules by Coverage
 
@@ -612,17 +687,19 @@ Update GitHub Actions / CI pipeline:
 | `scheduler/api/schemas.py` | 95% | 61/64 | ✅ Excellent |
 
 
-**Key Achievements:**
+**Unit Test Achievements:**
 
-- ✅ **100% test pass rate** (321/321 tests) with comprehensive coverage
-- ✅ **Head component coverage dramatically improved** - orchestrator 22%→92%, api_server 32%→100%, persistence 47%→100%
-- ✅ **Storage component coverage dramatically improved** - file_backend 71%→98%, sqlite_backend 25%→100% (+46% overall)
-- ✅ **Real GPU hardware integration** - E2E tests validate actual GPU behavior
-- ✅ **Worker components fully tested** - Job execution, GPU monitoring, heartbeat, file handling (86% coverage)
-- ✅ **Core business logic well-tested** - Models, scheduling, job management (70% overall coverage)
-- ✅ **E2E infrastructure working** - Real processes, HTTP communication, GPU detection
-- ✅ **CLI testing comprehensive** - 88% coverage across all CLI modules
-- ✅ **Threading issues resolved** - All orchestrator threading tests now pass
+- ✅ **671 unit tests** with 100% pass rate
+- ✅ **88% overall code coverage** (3,116/3,558 lines)
+- ✅ **Singleton daemon:** 83% coverage with comprehensive mocking
+- ✅ **GPU monitor:** 81% coverage with comprehensive mocking  
+- ✅ **CLI coverage:** start 86%, stop 84%, submit 85%, jobs 98%, logs 100%, cancel 100%, status 100%
+- ✅ **TUI app:** 88% coverage
+- ✅ **Core components:** utils 84%, head_info 93%, logging 96%, models 97%
+- ✅ **Head component:** orchestrator 81%, api_server 100%, persistence 100%
+- ✅ **Storage component:** file_backend 98%, sqlite_backend 100%
+- ✅ **Worker components:** Job execution, GPU monitoring, heartbeat, file handling (87% coverage)
+- ✅ **49 unit test files** covering CLI commands, core utilities, API routes, TUI components
 
 ---
 
@@ -632,10 +709,10 @@ Update GitHub Actions / CI pipeline:
 
 | Category | Passing | Failed | Skipped | Total | Pass Rate |
 |----------|---------|--------|---------|-------|-----------|
-| **Unit Tests** | 127 | 0 | 0 | 127 | 100% ✅ |
+| **Unit Tests** | 671 | 0 | 0 | 671 | 100% ✅ |
 | **Integration Tests** | 177 | 0 | 0 | 177 | 100% ✅ |
 | **E2E Tests** | 17 | 0 | 0 | 17 | 100% ✅ |
-| **Total** | 321 | 0 | 0 | 321 | **100%** |
+| **Total** | **865** | 0 | 0 | **865** | **100%** |
 
 ### GPU Monitoring Tests
 

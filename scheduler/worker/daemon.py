@@ -1,6 +1,7 @@
 import logging
 import socket
 import signal
+import threading
 import time
 from typing import Optional
 
@@ -71,9 +72,10 @@ class WorkerDaemon:
         self.current_job = None
         self.current_job_pid = None
 
-        # Setup signal handlers
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
+        # Setup signal handlers (only in main thread)
+        if threading.current_thread() is threading.main_thread():
+            signal.signal(signal.SIGINT, self._signal_handler)
+            signal.signal(signal.SIGTERM, self._signal_handler)
 
     def start(self):
         """
