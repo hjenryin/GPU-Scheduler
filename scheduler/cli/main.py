@@ -41,7 +41,7 @@ def start(head, address, port, node_name, num_gpus, temp_dir, log_dir, block, lo
           gpu_poll_interval, gpu_util_threshold, gpu_mem_threshold, gpu_stable_time, job_startup_grace):
     """Start scheduler node"""
     try:
-            return start_command(
+            code = start_command(
             head=head,
             address=address,
             port=port,
@@ -60,6 +60,7 @@ def start(head, address, port, node_name, num_gpus, temp_dir, log_dir, block, lo
             gpu_stable_time=gpu_stable_time,
             job_startup_grace=job_startup_grace
         )
+            sys.exit(code)
     except KeyboardInterrupt:
         click.echo("\nInterrupted")
         sys.exit(130)
@@ -73,7 +74,8 @@ def start(head, address, port, node_name, num_gpus, temp_dir, log_dir, block, lo
 def stop(all_nodes):
     """Stop scheduler"""
     try:
-        return stop_command(all_nodes=all_nodes)
+        code = stop_command(all_nodes=all_nodes)
+        sys.exit(code)
     except KeyboardInterrupt:
         click.echo("\nInterrupted")
         sys.exit(130)
@@ -96,7 +98,7 @@ def stop(all_nodes):
 def submit(script, script_args, req, depends_on, name, priority, env, working_dir, async_submit, log_to_driver):
     """Submit a job"""
     try:
-            return submit_command(
+            code = submit_command(
             script=script,
             script_args=list(script_args),
             req=req,
@@ -108,6 +110,7 @@ def submit(script, script_args, req, depends_on, name, priority, env, working_di
             async_submit=async_submit,
             log_to_driver=log_to_driver
         )
+            sys.exit(code)
     except KeyboardInterrupt:
         click.echo("\nInterrupted")
         sys.exit(130)
@@ -124,12 +127,13 @@ def submit(script, script_args, req, depends_on, name, priority, env, working_di
 def jobs(job_ids, output_format, filter, limit):
     """List jobs"""
     try:
-            return jobs_command(
+            code = jobs_command(
             job_ids=list(job_ids) if job_ids else None,
             format=output_format,
             filter=filter,
             limit=limit
         )
+            sys.exit(code)
     except KeyboardInterrupt:
         click.echo("\nInterrupted")
         sys.exit(130)
@@ -148,7 +152,7 @@ def jobs(job_ids, output_format, filter, limit):
 def logs(job_id, follow, lines, timestamps, stderr, both):
     """View job logs"""
     try:
-            return logs_command(
+            code = logs_command(
             job_id=job_id,
             follow=follow,
             lines=lines,
@@ -156,6 +160,7 @@ def logs(job_id, follow, lines, timestamps, stderr, both):
             stderr=stderr,
             both=both
         )
+            sys.exit(code)
     except KeyboardInterrupt:
         click.echo("\nInterrupted")
         sys.exit(130)
@@ -169,7 +174,8 @@ def logs(job_id, follow, lines, timestamps, stderr, both):
 def cancel(job_ids):
     """Cancel jobs"""
     try:
-        return cancel_command(job_ids=list(job_ids))
+        code = cancel_command(job_ids=list(job_ids))
+        sys.exit(code)
     except KeyboardInterrupt:
         click.echo("\nInterrupted")
         sys.exit(130)
@@ -186,12 +192,13 @@ def cancel(job_ids):
 def config(subcommand, key, value, config_file):
     """Manage configuration"""
     try:
-            return config_command(
+            code = config_command(
             command=subcommand,
             key=key,
             value=value,
             config_file=config_file
         )
+            sys.exit(code)
     except KeyboardInterrupt:
         click.echo("\nInterrupted")
         sys.exit(130)
@@ -204,7 +211,8 @@ def config(subcommand, key, value, config_file):
 def status():
     """Show cluster status (TUI)"""
     try:
-            return status_command()
+            code = status_command()
+            sys.exit(code)
     except KeyboardInterrupt:
         click.echo("\nInterrupted")
         sys.exit(130)

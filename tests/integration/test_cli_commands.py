@@ -1,8 +1,13 @@
 """
-Integration tests for CLI commands.
-
-Tests all scheduler CLI commands using direct function calls with mocked dependencies.
+Legacy CLI tests (unit-style). These are skipped in favor of true integration
+tests that use Click's CliRunner and a live API server.
 """
+
+import pytest
+
+pytestmark = pytest.mark.skip(
+    reason="Replaced by real CLI integration tests using CliRunner against a live head node"
+)
 
 import os
 import json
