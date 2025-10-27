@@ -3,7 +3,8 @@
 This module tests the actual CLI commands as they would be used from the terminal.
 All tests use subprocess to invoke 'scheduler' commands directly.
 
-Note: This reuses the running_cluster fixture from test_real_processes.py
+Note: This module has its own running_cluster fixture to ensure test isolation
+from test_real_processes.py. Each test file gets its own scheduler instance.
 """
 
 import pytest
@@ -13,16 +14,184 @@ import tempfile
 import os
 import signal
 import re
+import multiprocessing
 from pathlib import Path
-
-# Import the running_cluster fixture from test_real_processes
-from .test_real_processes import running_cluster, temp_cluster_dir
 
 
 @pytest.fixture(scope="module")
-def temp_test_dir(temp_cluster_dir):
-    """Reuse the cluster temp dir"""
-    return temp_cluster_dir
+def temp_test_dir():
+    """Create a temporary directory for CLI E2E tests"""
+    with tempfile.TemporaryDirectory(prefix="scheduler_cli_e2e_") as temp_dir:
+        yield temp_dir
+
+
+def _run_head_process(port, temp_dir, ready_event):
+    """Run head node in a separate process"""
+    try:
+        import logging
+        import os
+        log_level = logging.DEBUG if os.environ.get('SCHEDULER_LOG_LEVEL') == 'DEBUG' else logging.INFO
+        logging.basicConfig(
+            level=log_level,
+            format='[HEAD] %(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+
+        from scheduler.head.orchestrator import Orchestrator
+        from scheduler.core import Config
+        from scheduler.core.config import HeadConfig, WorkerConfig, StorageConfig
+
+        config = Config(
+            head=HeadConfig(
+                port=port,
+                heartbeat_timeout=30,
+                scheduling_interval=1
+            ),
+            worker=WorkerConfig(
+                gpu_util_threshold=10.0,
+                gpu_mem_threshold=10.0,
+                gpu_stable_time=2,
+                heartbeat_interval=2,
+                gpu_poll_interval=2,
+                job_startup_grace=3
+            ),
+            storage=StorageConfig(
+                backend='file',
+                data_dir=os.path.join(temp_dir, 'head_data')
+            )
+        )
+
+        orchestrator = Orchestrator(config)
+        orchestrator.start()
+        ready_event.set()
+
+        while orchestrator.running:
+            time.sleep(0.5)
+
+    except Exception as e:
+        import logging
+        logging.error(f"Head process error: {e}", exc_info=True)
+        ready_event.set()
+
+
+def _run_worker_process(head_address, node_name, temp_dir, ready_event):
+    """Run worker node in a separate process"""
+    try:
+        import logging
+        import os
+        log_level = logging.DEBUG if os.environ.get('SCHEDULER_LOG_LEVEL') == 'DEBUG' else logging.INFO
+        logging.basicConfig(
+            level=log_level,
+            format=f'[WORKER-{node_name}] %(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+
+        from scheduler.worker.daemon import WorkerDaemon
+        from scheduler.core import Config
+        from scheduler.core.config import WorkerConfig
+
+        config = Config(
+            address=head_address,
+            worker=WorkerConfig(
+                temp_dir=os.path.join(temp_dir, f'worker_{node_name}'),
+                log_dir=os.path.join(temp_dir, f'logs_{node_name}'),
+                work_dir=os.path.join(temp_dir, f'work_{node_name}'),
+                heartbeat_interval=2,
+                gpu_poll_interval=2,
+                gpu_util_threshold=10.0,
+                gpu_mem_threshold=10.0,
+                gpu_stable_time=2,
+                job_startup_grace=3
+            )
+        )
+
+        daemon = WorkerDaemon(config, node_name, num_gpus=None)
+        ready_event.set()
+        daemon.run()
+
+    except Exception as e:
+        import logging
+        logging.error(f"Worker process error: {e}", exc_info=True)
+        ready_event.set()
+
+
+@pytest.fixture(scope="module")
+def running_cluster(temp_test_dir):
+    """Start actual head and worker processes for CLI testing
+    
+    This fixture is specific to test_cli_e2e.py to ensure test isolation.
+    It starts its own scheduler instance independent of other test files.
+    """
+    # Find an available port
+    import socket
+    sock = socket.socket()
+    sock.bind(('', 0))
+    port = sock.getsockname()[1]
+    sock.close()
+
+    head_address = f"localhost:{port}"
+
+    # Events to track when processes are ready
+    head_ready = multiprocessing.Event()
+    worker_ready = multiprocessing.Event()
+
+    # Start head process
+    head_proc = multiprocessing.Process(
+        target=_run_head_process,
+        args=(port, temp_test_dir, head_ready),
+        name="cli-test-head"
+    )
+    head_proc.start()
+
+    # Wait for head to be ready
+    if not head_ready.wait(timeout=10):
+        head_proc.terminate()
+        head_proc.join(timeout=5)
+        pytest.fail("Head node failed to start within 10 seconds")
+
+    time.sleep(2)
+
+    # Start worker process
+    worker_proc = multiprocessing.Process(
+        target=_run_worker_process,
+        args=(head_address, "cli-worker", temp_test_dir, worker_ready),
+        name="cli-test-worker"
+    )
+    worker_proc.start()
+
+    # Wait for worker to be ready
+    if not worker_ready.wait(timeout=10):
+        worker_proc.terminate()
+        head_proc.terminate()
+        pytest.fail("Worker failed to start within 10 seconds")
+
+    time.sleep(3)
+
+    cluster_info = {
+        'head_address': head_address,
+        'port': port,
+        'temp_dir': temp_test_dir,
+        'processes': {
+            'head': head_proc,
+            'worker': worker_proc
+        }
+    }
+
+    yield cluster_info
+
+    # Cleanup: terminate all processes
+    print("\n[CLI-TEST CLEANUP] Stopping cluster processes...")
+
+    for name, proc in cluster_info['processes'].items():
+        if proc.is_alive():
+            print(f"[CLI-TEST CLEANUP] Terminating {name}...")
+            proc.terminate()
+            proc.join(timeout=5)
+
+            if proc.is_alive():
+                print(f"[CLI-TEST CLEANUP] Force killing {name}...")
+                proc.kill()
+                proc.join()
+
+    print("[CLI-TEST CLEANUP] All processes stopped")
 
 
 def run_scheduler_cmd(cmd_args, env_override=None, timeout=30, input_data=None):

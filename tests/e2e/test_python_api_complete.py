@@ -2,17 +2,194 @@
 
 This module ensures all methods documented in README.md and API_REFERENCE.md
 work correctly with a real cluster.
+
+Note: This module has its own running_cluster fixture to ensure test isolation
+from other test files. Each test file gets its own scheduler instance.
 """
 
 import pytest
 import time
 import tempfile
 import os
+import multiprocessing
 from scheduler import SchedulerClient
 from scheduler.core.models import JobStatus, NodeStatus
 
-# Import the running_cluster fixture
-from .test_real_processes import running_cluster, temp_cluster_dir
+
+@pytest.fixture(scope="module")
+def temp_cluster_dir():
+    """Create a temporary directory for API tests"""
+    with tempfile.TemporaryDirectory(prefix="scheduler_api_test_") as temp_dir:
+        yield temp_dir
+
+
+def _run_head_process(port, temp_dir, ready_event):
+    """Run head node in a separate process"""
+    try:
+        import logging
+        import os
+        log_level = logging.DEBUG if os.environ.get('SCHEDULER_LOG_LEVEL') == 'DEBUG' else logging.INFO
+        logging.basicConfig(
+            level=log_level,
+            format='[API-HEAD] %(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+
+        from scheduler.head.orchestrator import Orchestrator
+        from scheduler.core import Config
+        from scheduler.core.config import HeadConfig, WorkerConfig, StorageConfig
+
+        config = Config(
+            head=HeadConfig(
+                port=port,
+                heartbeat_timeout=30,
+                scheduling_interval=1
+            ),
+            worker=WorkerConfig(
+                gpu_util_threshold=10.0,
+                gpu_mem_threshold=10.0,
+                gpu_stable_time=2,
+                heartbeat_interval=2,
+                gpu_poll_interval=2,
+                job_startup_grace=3
+            ),
+            storage=StorageConfig(
+                backend='file',
+                data_dir=os.path.join(temp_dir, 'head_data')
+            )
+        )
+
+        orchestrator = Orchestrator(config)
+        orchestrator.start()
+        ready_event.set()
+
+        while orchestrator.running:
+            time.sleep(0.5)
+
+    except Exception as e:
+        import logging
+        logging.error(f"Head process error: {e}", exc_info=True)
+        ready_event.set()
+
+
+def _run_worker_process(head_address, node_name, temp_dir, ready_event):
+    """Run worker node in a separate process"""
+    try:
+        import logging
+        import os
+        log_level = logging.DEBUG if os.environ.get('SCHEDULER_LOG_LEVEL') == 'DEBUG' else logging.INFO
+        logging.basicConfig(
+            level=log_level,
+            format=f'[API-WORKER-{node_name}] %(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+
+        from scheduler.worker.daemon import WorkerDaemon
+        from scheduler.core import Config
+        from scheduler.core.config import WorkerConfig
+
+        config = Config(
+            address=head_address,
+            worker=WorkerConfig(
+                temp_dir=os.path.join(temp_dir, f'worker_{node_name}'),
+                log_dir=os.path.join(temp_dir, f'logs_{node_name}'),
+                work_dir=os.path.join(temp_dir, f'work_{node_name}'),
+                heartbeat_interval=2,
+                gpu_poll_interval=2,
+                gpu_util_threshold=10.0,
+                gpu_mem_threshold=10.0,
+                gpu_stable_time=2,
+                job_startup_grace=3
+            )
+        )
+
+        daemon = WorkerDaemon(config, node_name, num_gpus=None)
+        ready_event.set()
+        daemon.run()
+
+    except Exception as e:
+        import logging
+        logging.error(f"Worker process error: {e}", exc_info=True)
+        ready_event.set()
+
+
+@pytest.fixture(scope="module")
+def running_cluster(temp_cluster_dir):
+    """Start actual head and worker processes for API testing
+    
+    This fixture is specific to test_python_api_complete.py to ensure test isolation.
+    It starts its own scheduler instance independent of other test files.
+    """
+    # Find an available port
+    import socket
+    sock = socket.socket()
+    sock.bind(('', 0))
+    port = sock.getsockname()[1]
+    sock.close()
+
+    head_address = f"localhost:{port}"
+
+    # Events to track when processes are ready
+    head_ready = multiprocessing.Event()
+    worker_ready = multiprocessing.Event()
+
+    # Start head process
+    head_proc = multiprocessing.Process(
+        target=_run_head_process,
+        args=(port, temp_cluster_dir, head_ready),
+        name="api-test-head"
+    )
+    head_proc.start()
+
+    # Wait for head to be ready
+    if not head_ready.wait(timeout=10):
+        head_proc.terminate()
+        head_proc.join(timeout=5)
+        pytest.fail("Head node failed to start within 10 seconds")
+
+    time.sleep(2)
+
+    # Start worker process
+    worker_proc = multiprocessing.Process(
+        target=_run_worker_process,
+        args=(head_address, "api-worker", temp_cluster_dir, worker_ready),
+        name="api-test-worker"
+    )
+    worker_proc.start()
+
+    # Wait for worker to be ready
+    if not worker_ready.wait(timeout=10):
+        worker_proc.terminate()
+        head_proc.terminate()
+        pytest.fail("Worker failed to start within 10 seconds")
+
+    time.sleep(3)
+
+    cluster_info = {
+        'head_address': head_address,
+        'port': port,
+        'temp_dir': temp_cluster_dir,
+        'processes': {
+            'head': head_proc,
+            'worker': worker_proc
+        }
+    }
+
+    yield cluster_info
+
+    # Cleanup: terminate all processes
+    print("\n[API-TEST CLEANUP] Stopping cluster processes...")
+
+    for name, proc in cluster_info['processes'].items():
+        if proc.is_alive():
+            print(f"[API-TEST CLEANUP] Terminating {name}...")
+            proc.terminate()
+            proc.join(timeout=5)
+
+            if proc.is_alive():
+                print(f"[API-TEST CLEANUP] Force killing {name}...")
+                proc.kill()
+                proc.join()
+
+    print("[API-TEST CLEANUP] All processes stopped")
 
 
 class TestPythonAPIComplete:
