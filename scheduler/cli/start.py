@@ -170,6 +170,8 @@ def _start_head_node(config: Config, block: bool) -> int:
     click.echo(f"API: http://localhost:{config.head.port}/api/v1")
 
     # Check for existing head node
+    # Use hardcoded location for lock files as documented
+    os.makedirs(os.path.expanduser("~/.scheduler"), exist_ok=True)
     lockfile = os.path.expanduser("~/.scheduler/head.lock")
     singleton = SingletonDaemon(lockfile)
 
@@ -247,6 +249,8 @@ def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optio
     save_head_info(config.address)
 
     # Check for existing worker
+    # Use hardcoded location for lock files as documented
+    os.makedirs(os.path.expanduser("~/.scheduler"), exist_ok=True)
     lockfile = os.path.expanduser(f"~/.scheduler/worker-{node_name}.lock")
     singleton = SingletonDaemon(lockfile)
 

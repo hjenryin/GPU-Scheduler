@@ -28,12 +28,12 @@ def stop_command(all_nodes: bool = False) -> int:
         return _stop_all_nodes()
     
     # Check if head node is running (for warning)
-    head_lockfile = os.path.expanduser("~/.scheduler/head.lock")
+    scheduler_dir = os.path.expanduser("~/.scheduler")
+    head_lockfile = os.path.join(scheduler_dir, "head.lock")
     head_running = is_daemon_running(head_lockfile)
     
     # Try to stop worker nodes (check common lock patterns)
     worker_stopped = False
-    scheduler_dir = os.path.expanduser("~/.scheduler")
     if os.path.exists(scheduler_dir):
         for filename in os.listdir(scheduler_dir):
             if filename.startswith("worker-") and filename.endswith(".lock"):
@@ -158,7 +158,8 @@ def _is_running_on_head_node() -> bool:
         True if running on head node, False if running on worker node
     """
     # Check if head lockfile exists locally
-    head_lockfile = os.path.expanduser("~/.scheduler/head.lock")
+    scheduler_dir = os.path.expanduser("~/.scheduler")
+    head_lockfile = os.path.join(scheduler_dir, "head.lock")
     return os.path.exists(head_lockfile) and is_daemon_running(head_lockfile)
 
 

@@ -21,8 +21,12 @@ class SingletonDaemon:
         self.lockfile: Optional[int] = None  # File descriptor
         self._original_signal_handlers = {}
         
-        # Setup signal handlers for cleanup
-        self._setup_signal_handlers()
+        # Setup signal handlers for cleanup (only works in main thread)
+        import threading
+        if threading.current_thread() is threading.main_thread():
+            self._setup_signal_handlers()
+        else:
+            logger.debug("Skipping signal handler setup (not in main thread)")
 
     def acquire_lock(self) -> bool:
         """
