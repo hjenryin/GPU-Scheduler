@@ -170,6 +170,8 @@ class WorkerDaemon:
                     time.sleep(5)
         except KeyboardInterrupt:
             logger.info("Received keyboard interrupt")
+            # Re-raise to propagate to parent context
+            raise
         finally:
             self.stop(graceful=True)
 
@@ -240,3 +242,6 @@ class WorkerDaemon:
         """Handle termination signals."""
         logger.info(f"Received signal {signum}")
         self.stop(graceful=True)
+        # Re-raise KeyboardInterrupt to allow proper cleanup in parent contexts
+        if signum == signal.SIGINT:
+            raise KeyboardInterrupt()

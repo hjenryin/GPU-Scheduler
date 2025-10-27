@@ -156,6 +156,8 @@ class Orchestrator:
         except KeyboardInterrupt:
             logger.info("Received keyboard interrupt")
             self.stop(graceful=True)
+            # Re-raise to propagate to parent context
+            raise
 
     def get_status(self) -> dict:
         """
@@ -240,6 +242,9 @@ class Orchestrator:
         logger.info(f"Received signal {signum}")
         if self.running:
             self.stop(graceful=True)
+        # Re-raise KeyboardInterrupt to allow proper cleanup in parent contexts
+        if signum == signal.SIGINT:
+            raise KeyboardInterrupt()
 
     def request_cluster_shutdown(self, graceful_timeout: int = 60, force: bool = False):
         """

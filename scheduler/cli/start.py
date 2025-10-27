@@ -224,6 +224,11 @@ def _start_head_node(config: Config, block: bool) -> int:
         # Lock will be released by orchestrator.stop() when run() completes
 
         return 0
+    except KeyboardInterrupt:
+        # Ctrl+C was pressed - this is expected
+        click.echo("\nShutting down gracefully...")
+        # Lock will be released by orchestrator.stop() which was already called
+        return 0
     except Exception as e:
         # Only release lock on error
         singleton.release_lock()
@@ -477,6 +482,11 @@ def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optio
         daemon = WorkerDaemon(config, node_name, num_gpus)
         click.echo("\nWorker node started. Press Ctrl+C to stop.")
         daemon.run()
+        return 0
+    except KeyboardInterrupt:
+        # Ctrl+C was pressed - this is expected
+        click.echo("\nShutting down gracefully...")
+        # daemon.stop() was already called in daemon.run()'s finally block
         return 0
     finally:
         singleton.release_lock()
