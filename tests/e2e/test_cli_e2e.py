@@ -57,9 +57,8 @@ def run_scheduler_cmd(cmd_args, env_override=None, timeout=30, input_data=None):
 class TestCLIStart:
     """Test 'scheduler start' command"""
     
-    def test_start_head_basic(self, temp_test_dir):
-        """Test starting head node with basic options"""
-        # This is tested by the running_cluster fixture, but let's verify the command exists
+    def test_start_help(self):
+        """Test that start command has proper help"""
         result = subprocess.run(
             ["conda", "run", "-n", "scheduler", "scheduler", "start", "--help"],
             capture_output=True,
@@ -67,10 +66,63 @@ class TestCLIStart:
             timeout=10
         )
         assert result.returncode == 0
-        assert "Start the scheduler" in result.stdout or "Start" in result.stdout
+        assert "Start" in result.stdout
         assert "--head" in result.stdout
         assert "--address" in result.stdout
         assert "--port" in result.stdout
+    
+    def test_start_validates_arguments(self):
+        """Test that start command validates arguments correctly"""
+        # Test: Must specify either --head or --address
+        result = subprocess.run(
+            ["conda", "run", "-n", "scheduler", "scheduler", "start"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        # Should fail with exit code 2 (argument error)
+        assert result.returncode == 2
+        assert "Must specify either --head or --address" in result.stdout or "Must specify" in result.stdout
+    
+    def test_start_head_with_options(self):
+        """Test that start --head accepts all documented options"""
+        # We can't actually start a head node without managing locks,
+        # but we can verify the command line parsing works
+        # Note: The running_cluster fixture already tests actual head node startup
+        
+        # Just verify the command accepts the documented flags without error
+        # by checking that --help shows all the expected options
+        result = subprocess.run(
+            ["conda", "run", "-n", "scheduler", "scheduler", "start", "--help"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        assert result.returncode == 0
+        
+        # Verify all documented options are present
+        expected_options = [
+            "--head",
+            "--address", 
+            "--port",
+            "--node-name",
+            "--num-gpus",
+            "--temp-dir",
+            "--log-dir",
+            "--block",
+            "--log-level",
+            "--heartbeat-timeout",
+            "--scheduling-interval",
+            "--gpu-poll-interval",
+            "--gpu-util-threshold",
+            "--gpu-mem-threshold",
+            "--gpu-stable-time",
+            "--job-startup-grace"
+        ]
+        
+        for option in expected_options:
+            assert option in result.stdout, f"Expected option {option} not found in help"
 
 
 class TestCLISubmit:
