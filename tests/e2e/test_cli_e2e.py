@@ -307,7 +307,7 @@ class TestCLIStart:
              "--address", running_cluster['head_address'],
              "--node-name", worker_name,
              "--temp-dir", temp_test_dir,
-             "--no-block"],
+             "--block=false"],
             capture_output=True,
             text=True,
             timeout=15
@@ -317,19 +317,18 @@ class TestCLIStart:
         
         # Give it time to register
         time.sleep(5)
-        
+
         # Verify worker is registered using jobs command (which shows nodes)
-        from scheduler.client import SchedulerClient
+        from scheduler.api import SchedulerClient
         client = SchedulerClient(running_cluster['head_address'])
         
         nodes = client.list_nodes()
-        node_names = [node['name'] for node in nodes]
+        node_names = [node.node_name for node in nodes]
         assert worker_name in node_names, f"Worker {worker_name} not registered. Found: {node_names}"
         
-        # Stop the worker
+        # Stop the worker (stop without --all stops all local workers)
         stop_result = subprocess.run(
-            ["conda", "run", "-n", "scheduler", "scheduler", "stop",
-             "--node-name", worker_name],
+            ["conda", "run", "-n", "scheduler", "scheduler", "stop"],
             capture_output=True,
             text=True,
             timeout=10
@@ -656,7 +655,7 @@ class TestCLIStop:
              "--address", running_cluster['head_address'],
              "--node-name", "test-stop-worker",
              "--temp-dir", temp_test_dir,
-             "--no-block"],
+             "--block=false"],
             capture_output=True,
             text=True,
             timeout=10
@@ -667,10 +666,9 @@ class TestCLIStop:
         # Give it time to start
         time.sleep(3)
         
-        # Now stop it
+        # Now stop it (stop command stops all local workers)
         stop_result = subprocess.run(
-            ["conda", "run", "-n", "scheduler", "scheduler", "stop", 
-             "--node-name", "test-stop-worker"],
+            ["conda", "run", "-n", "scheduler", "scheduler", "stop"],
             capture_output=True,
             text=True,
             timeout=10
