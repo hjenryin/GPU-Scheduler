@@ -155,7 +155,7 @@ class TestStartHeadNodeImplementation:
     @patch('scheduler.core.utils.is_port_available')
     @patch('scheduler.cli.start.SingletonDaemon')
     @patch('scheduler.cli.start.Orchestrator')
-    @patch('scheduler.cli.start._start_worker_node')
+    @patch('scheduler.cli.start._start_worker_node_internal')
     @patch('scheduler.cli.start.click.echo')
     def test_start_head_port_available(self, mock_echo, mock_worker, mock_orch_class, mock_singleton_class, mock_port_check):
         """Test starting head when port is available"""
@@ -179,8 +179,9 @@ class TestStartHeadNodeImplementation:
 
     @patch('scheduler.core.utils.is_port_available')
     @patch('scheduler.core.utils.find_available_port')
+    @patch('scheduler.cli.start._start_worker_node_internal')
     @patch('scheduler.cli.start.click.echo')
-    def test_start_head_port_unavailable(self, mock_echo, mock_find_port, mock_port_check):
+    def test_start_head_port_unavailable(self, mock_echo, mock_worker, mock_find_port, mock_port_check):
         """Test starting head when port is unavailable"""
         mock_port_check.return_value = False
         mock_find_port.return_value = 8266
@@ -191,10 +192,14 @@ class TestStartHeadNodeImplementation:
         )
         
         with patch('scheduler.cli.start.SingletonDaemon') as mock_singleton_class, \
-             patch('scheduler.cli.start.Orchestrator'):
+             patch('scheduler.cli.start.Orchestrator') as mock_orch_class:
             mock_singleton = MagicMock()
             mock_singleton.acquire_lock.return_value = True
             mock_singleton_class.return_value = mock_singleton
+            
+            mock_orch = MagicMock()
+            mock_orch.run.return_value = None
+            mock_orch_class.return_value = mock_orch
             
             result = _start_head_node(config, block=True)
             assert result == 0
@@ -228,16 +233,16 @@ class TestStartWorkerNodeImplementation:
 
     @patch('scheduler.core.head_info.save_head_info')
     @patch('scheduler.cli.start.SingletonDaemon')
-    @patch('scheduler.cli.start.WorkerDaemon')
+    @patch('scheduler.cli.start._daemonize_worker')
     @patch('scheduler.cli.start.click.echo')
-    def test_start_worker_success_background(self, mock_echo, mock_daemon_class, mock_singleton_class, mock_save_info):
+    def test_start_worker_success_background(self, mock_echo, mock_daemonize, mock_singleton_class, mock_save_info):
         """Test starting worker in background mode"""
         mock_singleton = MagicMock()
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
         
-        mock_daemon = MagicMock()
-        mock_daemon_class.return_value = mock_daemon
+        # Mock daemonize to return success without actually forking
+        mock_daemonize.return_value = 0
         
         config = Config(
             address="localhost:9000",
@@ -246,5 +251,11 @@ class TestStartWorkerNodeImplementation:
         
         result = _start_worker_node(config, node_name="test-node", num_gpus=None, block=False)
         assert result == 0
-        mock_daemon.start.assert_called_once()
+        # Verify that daemonize was called with the correct arguments
+        mock_daemonize.assert_called_once()
+        call_args = mock_daemonize.call_args
+        assert call_args[0][0] == config  # First arg is config
+        assert call_args[0][1] == "test-node"  # Second arg is node_name
+        assert call_args[0][2] is None  # Third arg is num_gpus
+        assert call_args[0][3] == mock_singleton  # Fourth arg is singleton
 
