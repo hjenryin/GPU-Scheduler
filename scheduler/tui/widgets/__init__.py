@@ -1,11 +1,6 @@
 """Custom Textual widgets for TUI."""
 
-from scheduler.tui.widgets.gpu_bar import GPUBar
-from scheduler.tui.widgets.node_table import NodeTable
-from scheduler.tui.widgets.job_table import JobTable
+# Note: Previously had custom widget wrappers (GPUBar, NodeTable, JobTable)
+# but they were unused. Screens use Textual's DataTable directly with inline logic.
 
-__all__ = [
-    "GPUBar",
-    "NodeTable",
-    "JobTable",
-]
+__all__ = []
