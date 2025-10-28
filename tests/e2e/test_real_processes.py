@@ -39,16 +39,16 @@ def _run_head_process(port, temp_dir, ready_event):
         config = Config(
             head=HeadConfig(
                 port=port,
-                heartbeat_timeout=30,
+                heartbeat_timeout=10,  # Reduced from 30 for faster e2e tests
                 scheduling_interval=1  # Faster scheduling for tests
             ),
             worker=WorkerConfig(
                 gpu_util_threshold=10.0,
                 gpu_mem_threshold=10.0,
-                gpu_stable_time=2,  # Match worker config for faster tests
-                heartbeat_interval=2,  # Must be <= gpu_stable_time
-                gpu_poll_interval=2,  # Must be <= gpu_stable_time
-                job_startup_grace=3
+                gpu_stable_time=1,  # Reduced from 2 for faster e2e tests
+                heartbeat_interval=1,  # Reduced from 2, must be <= gpu_stable_time
+                gpu_poll_interval=1,  # Reduced from 2, must be <= gpu_stable_time
+                job_startup_grace=2  # Reduced from 3 for faster e2e tests
             ),
             storage=StorageConfig(
                 backend='file',
@@ -99,12 +99,12 @@ def _run_worker_process(head_address, node_name, temp_dir, ready_event):
                 temp_dir=os.path.join(temp_dir, f'worker_{node_name}'),
                 log_dir=os.path.join(temp_dir, f'logs_{node_name}'),
                 work_dir=os.path.join(temp_dir, f'work_{node_name}'),
-                heartbeat_interval=2,  # Fast heartbeats for testing
-                gpu_poll_interval=2,  # Fast GPU polling for testing
+                heartbeat_interval=1,  # Reduced from 2 for faster e2e tests
+                gpu_poll_interval=1,  # Reduced from 2 for faster e2e tests
                 gpu_util_threshold=10.0,
                 gpu_mem_threshold=10.0,
-                gpu_stable_time=2,  # Reduced for faster tests with real GPUs
-                job_startup_grace=3  # Reduced for faster tests
+                gpu_stable_time=1,  # Reduced from 2 for faster e2e tests
+                job_startup_grace=2  # Reduced from 3 for faster e2e tests
             )
         )
 
@@ -176,7 +176,7 @@ def running_cluster(temp_cluster_dir):
         pytest.fail("Head node failed to start within 10 seconds")
 
     # Give API server a moment to fully initialize
-    time.sleep(2)
+    time.sleep(1)  # Reduced from 2 for faster e2e tests
 
     # Start worker process (auto-detect GPUs)
     worker_proc = multiprocessing.Process(
@@ -200,7 +200,7 @@ def running_cluster(temp_cluster_dir):
     print(f"Worker process is alive: {worker_proc.is_alive()}")
 
     # Give worker time to register and send first heartbeat
-    time.sleep(3)
+    time.sleep(2)  # Reduced from 3 for faster e2e tests
 
     cluster_info = {
         'head_address': head_address,
@@ -362,7 +362,7 @@ class TestRealProcesses:
             job_ids.append(job.job_id)
 
         # Wait a moment for scheduling
-        time.sleep(5)
+        time.sleep(3)  # Reduced from 5 for faster e2e tests
 
         # Check that multiple jobs are running concurrently (at least 2 if we have 2+ GPUs)
         jobs = [client.get_job(jid) for jid in job_ids]
@@ -418,7 +418,7 @@ class TestRealProcesses:
         client.cancel_job(job.job_id)
 
         # Wait for cancellation to take effect
-        time.sleep(3)
+        time.sleep(2)  # Reduced from 3 for faster e2e tests
 
         # Check that job was cancelled
         job = client.get_job(job.job_id)
@@ -617,7 +617,7 @@ class TestRealProcesses:
             job_ids.append(job.job_id)
 
         # Wait for them to complete
-        time.sleep(10)
+        time.sleep(6)  # Reduced from 10 for faster e2e tests
 
         # List all jobs
         all_jobs = client.list_jobs()
@@ -653,7 +653,7 @@ class TestRealProcessesExtended:
         # In a real scenario, this would involve process management
         
         # Wait a bit for the node to be marked as disconnected
-        time.sleep(5)
+        time.sleep(3)  # Reduced from 5 for faster e2e tests
         
         # Check that the node is still in the list but disconnected
         nodes_after_stop = client.list_nodes()

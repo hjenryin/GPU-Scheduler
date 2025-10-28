@@ -41,16 +41,16 @@ def _run_head_process(port, temp_dir, ready_event):
         config = Config(
             head=HeadConfig(
                 port=port,
-                heartbeat_timeout=30,
+                heartbeat_timeout=10,  # Reduced from 30 for faster e2e tests
                 scheduling_interval=1
             ),
             worker=WorkerConfig(
                 gpu_util_threshold=10.0,
                 gpu_mem_threshold=10.0,
-                gpu_stable_time=2,
-                heartbeat_interval=2,
-                gpu_poll_interval=2,
-                job_startup_grace=3
+                gpu_stable_time=1,  # Reduced from 2 for faster e2e tests
+                heartbeat_interval=1,  # Reduced from 2 for faster e2e tests
+                gpu_poll_interval=1,  # Reduced from 2 for faster e2e tests
+                job_startup_grace=2  # Reduced from 3 for faster e2e tests
             ),
             storage=StorageConfig(
                 backend='file',
@@ -92,12 +92,12 @@ def _run_worker_process(head_address, node_name, temp_dir, ready_event):
                 temp_dir=os.path.join(temp_dir, f'worker_{node_name}'),
                 log_dir=os.path.join(temp_dir, f'logs_{node_name}'),
                 work_dir=os.path.join(temp_dir, f'work_{node_name}'),
-                heartbeat_interval=2,
-                gpu_poll_interval=2,
+                heartbeat_interval=1,  # Reduced from 2 for faster e2e tests
+                gpu_poll_interval=1,  # Reduced from 2 for faster e2e tests
                 gpu_util_threshold=10.0,
                 gpu_mem_threshold=10.0,
-                gpu_stable_time=2,
-                job_startup_grace=3
+                gpu_stable_time=1,  # Reduced from 2 for faster e2e tests
+                job_startup_grace=2  # Reduced from 3 for faster e2e tests
             )
         )
 
@@ -145,7 +145,7 @@ def running_cluster(temp_cluster_dir):
         head_proc.join(timeout=5)
         pytest.fail("Head node failed to start within 10 seconds")
 
-    time.sleep(2)
+    time.sleep(1)  # Reduced from 2 for faster e2e tests
 
     # Start worker process
     worker_proc = multiprocessing.Process(
@@ -161,7 +161,7 @@ def running_cluster(temp_cluster_dir):
         head_proc.terminate()
         pytest.fail("Worker failed to start within 10 seconds")
 
-    time.sleep(3)
+    time.sleep(2)  # Reduced from 3 for faster e2e tests
 
     cluster_info = {
         'head_address': head_address,
