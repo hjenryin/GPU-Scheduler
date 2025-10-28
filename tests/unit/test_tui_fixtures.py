@@ -14,8 +14,8 @@ def mock_gpu_stats():
     """Create real GPU stats object."""
     stats = GPUStats(
         gpu_id=0,
-        utilization=45.5,
-        memory_used=2 * 1024 ** 3,  # 2GB
+        utilization=5.0,  # Low utilization, below 10% threshold
+        memory_used=512 * 1024 ** 2,  # 512MB - low memory usage
         memory_total=8 * 1024 ** 3,  # 8GB
         temperature=65,
         power_draw=150,
@@ -29,8 +29,8 @@ def mock_gpu_stats():
 def mock_gpu(mock_gpu_stats):
     """Create real GPU object."""
     gpu = GPU(gpu_id=0, stats=mock_gpu_stats)
-    # Set as stable (been free for 60 seconds)
-    gpu.stable_since = datetime.now() - timedelta(seconds=60)
+    # Set as stable (been free for 120 seconds to be sure)
+    gpu.stable_since = datetime.now() - timedelta(seconds=120)
     return gpu
 
 
@@ -80,9 +80,9 @@ def mock_node_disconnected(mock_gpus):
     # Create 4 GPUs for this node
     gpus = []
     for i in range(4):
-        stats = GPUStats(i, 10.0, 1*1024**3, 16*1024**3, 60, 100, 300, None)
+        stats = GPUStats(i, 5.0, 500*1024**2, 16*1024**3, 60, 100, 300, None)  # 5% util, low mem
         gpu = GPU(i, stats)
-        gpu.stable_since = datetime.now() - timedelta(seconds=60)
+        gpu.stable_since = datetime.now() - timedelta(seconds=120)  # Ensure stable
         gpus.append(gpu)
     
     node = Node(
