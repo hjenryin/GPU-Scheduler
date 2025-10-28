@@ -1,5 +1,6 @@
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.widgets import Header, Footer
 import logging
 from typing import Optional
 
@@ -63,6 +64,9 @@ class SchedulerTUI(App):
         Binding("q", "quit", "Quit", priority=True),
         Binding("h", "help", "Help"),
         Binding("r", "refresh", "Refresh"),
+        Binding("n", "switch_to_nodes", "Nodes"),
+        Binding("j", "switch_to_jobs", "Jobs"),
+        Binding("g", "switch_to_gpus", "GPUs"),
     ]
 
     SCREENS = {
@@ -81,9 +85,20 @@ class SchedulerTUI(App):
         """
         super().__init__()
         self.client = client
+        self.config = client.config if hasattr(client, 'config') else None
         self.refresh_interval = 2.0  # seconds
         self.nodes_data = []
         self.jobs_data = []
+        
+        # Default thresholds if config not available
+        if self.config:
+            self.util_threshold = self.config.worker.gpu_util_threshold
+            self.mem_threshold = self.config.worker.gpu_mem_threshold
+            self.stable_time = self.config.worker.gpu_stable_time
+        else:
+            self.util_threshold = 10.0
+            self.mem_threshold = 10.0
+            self.stable_time = 30
 
     def compose(self) -> ComposeResult:
         """
@@ -92,14 +107,19 @@ class SchedulerTUI(App):
         Returns:
             Yields widgets that compose the UI
         """
-        # Start with cluster screen
-        yield ClusterScreen()
+        # For screen-based apps, screens handle their own Header/Footer
+        # Return empty to satisfy the generator protocol
+        return
+        yield  # Make this a generator
 
     def on_mount(self):
         """
         Called when app is mounted.
         Sets up timers and initial data fetch.
         """
+        # Push the initial screen
+        self.push_screen("cluster")
+        
         # Set up periodic refresh
         self.set_interval(self.refresh_interval, self.refresh_data)
 
@@ -114,24 +134,35 @@ class SchedulerTUI(App):
             # Fetch data from API
             self.nodes_data = self.client.list_nodes()
             self.jobs_data = self.client.list_jobs()
+            
+            logger.info(f"Fetched {len(self.nodes_data)} nodes and {len(self.jobs_data)} jobs")
 
             # Update current screen if available
             try:
                 current_screen = self.screen
+                logger.info(f"Current screen type: {type(current_screen).__name__}")
+                
                 if isinstance(current_screen, ClusterScreen):
-                    current_screen.update_data(self.nodes_data, self.jobs_data)
+                    logger.info("Updating ClusterScreen data")
+                    current_screen.update_data(self.nodes_data, self.jobs_data, 
+                                              self.util_threshold, self.mem_threshold, self.stable_time)
                 elif isinstance(current_screen, NodesScreen):
-                    current_screen.update_data(self.nodes_data, self.jobs_data)
+                    logger.info("Updating NodesScreen data")
+                    current_screen.update_data(self.nodes_data, self.jobs_data,
+                                              self.util_threshold, self.mem_threshold, self.stable_time)
                 elif isinstance(current_screen, JobsScreen):
+                    logger.info("Updating JobsScreen data")
                     current_screen.update_data(self.jobs_data)
                 elif isinstance(current_screen, GPUsScreen):
-                    current_screen.update_data(self.nodes_data)
+                    logger.info("Updating GPUsScreen data")
+                    current_screen.update_data(self.nodes_data,
+                                              self.util_threshold, self.mem_threshold, self.stable_time)
             except Exception as screen_error:
                 # Screen not available (e.g., during testing or before app is mounted)
-                logger.debug(f"Could not update screen: {screen_error}")
+                logger.debug(f"Could not update screen: {screen_error}", exc_info=True)
 
         except Exception as e:
-            logger.error(f"Error refreshing data: {e}")
+            logger.error(f"Error refreshing data: {e}", exc_info=True)
             self.notify(f"Error refreshing data: {e}", severity="error")
 
     def action_quit(self):
@@ -234,4 +265,11 @@ def run_tui(client: Optional[SchedulerClient] = None, address: Optional[str] = N
         client = SchedulerClient(address=address)
 
     app = SchedulerTUI(client)
-    app.run()
+    
+    # Enable dev mode for better debugging - logs will show in textual console
+    # Run with: textual console then in another terminal run: textual run --dev scheduler.tui.app:run_tui
+    try:
+        app.run()
+    except Exception as e:
+        logger.error(f"Error running TUI: {e}", exc_info=True)
+        raise

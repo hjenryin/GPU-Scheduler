@@ -24,6 +24,9 @@ class NodesScreen(Screen):
         self.selected_node: Optional[str] = None
         self.nodes_data: List[Node] = []
         self.jobs_data: List[Job] = []
+        self.util_threshold: float = 10.0
+        self.mem_threshold: float = 10.0
+        self.stable_time: int = 30
 
     def compose(self) -> ComposeResult:
         """
@@ -64,16 +67,22 @@ class NodesScreen(Screen):
         gpu_table = self.query_one("#gpu-detail-table", DataTable)
         gpu_table.add_columns("GPU", "Util", "Memory", "Temp", "Power", "Job")
 
-    def update_data(self, nodes: List[Node], jobs: List[Job]):
+    def update_data(self, nodes: List[Node], jobs: List[Job], util_threshold: float = 10.0, mem_threshold: float = 10.0, stable_time: int = 30):
         """
         Update screen with new data.
 
         Args:
             nodes: List of Node instances
             jobs: List of Job instances
+            util_threshold: GPU utilization threshold
+            mem_threshold: GPU memory threshold
+            stable_time: Required stable time in seconds
         """
         self.nodes_data = nodes
         self.jobs_data = jobs
+        self.util_threshold = util_threshold
+        self.mem_threshold = mem_threshold
+        self.stable_time = stable_time
 
         # Update nodes list
         nodes_list = self.query_one("#nodes-list", DataTable)
@@ -122,7 +131,7 @@ class NodesScreen(Screen):
         self.query_one("#node-detail-header", Static).update(f"Node: {node_name}")
 
         # Update node info
-        free_gpu_count = len([gpu for gpu in node.gpus if gpu.available])
+        free_gpu_count = len([gpu for gpu in node.gpus if gpu.stats.running_job_id is None])
         info_text = (
             f"Status: {node.status}\n"
             f"Address: {node.address if hasattr(node, 'address') else 'N/A'}\n"
@@ -134,13 +143,13 @@ class NodesScreen(Screen):
         gpu_table = self.query_one("#gpu-detail-table", DataTable)
         gpu_table.clear()
         for gpu in node.gpus:
-            job_id = "free" if gpu.available else (gpu.stats.running_job_id or "in use")
+            job_id = "free" if gpu.stats.running_job_id is None else (gpu.stats.running_job_id or "in use")
             gpu_table.add_row(
                 str(gpu.gpu_id),
-                create_gpu_utilization_bar(gpu.utilization, width=10),
-                f"{format_gpu_memory(gpu.memory_used)}/{format_gpu_memory(gpu.memory_total)}",
-                f"{gpu.temperature}°C" if gpu.temperature else "N/A",
-                f"{gpu.power_draw}W" if gpu.power_draw else "N/A",
+                create_gpu_utilization_bar(gpu.stats.utilization, width=10),
+                f"{format_gpu_memory(gpu.stats.memory_used)}/{format_gpu_memory(gpu.stats.memory_total)}",
+                f"{gpu.stats.temperature}°C" if gpu.stats.temperature else "N/A",
+                f"{gpu.stats.power_draw}W" if gpu.stats.power_draw else "N/A",
                 job_id
             )
 

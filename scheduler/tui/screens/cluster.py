@@ -3,8 +3,11 @@ from textual.app import ComposeResult
 from textual.widgets import Header, Footer, Static, DataTable
 from textual.containers import Container, VerticalScroll
 from typing import List
+import logging
 from scheduler.core import Node, Job  # Import from peer submodule's public API
 from scheduler.tui.utils import get_status_color, create_gpu_utilization_bar, format_runtime
+
+logger = logging.getLogger(__name__)
 
 
 class ClusterScreen(Screen):
@@ -51,17 +54,24 @@ class ClusterScreen(Screen):
         job_table.add_columns("Job ID", "Name", "Status", "Node", "GPUs", "Runtime")
         job_table.cursor_type = "row"
 
-    def update_data(self, nodes: List[Node], jobs: List[Job]):
+    def update_data(self, nodes: List[Node], jobs: List[Job], 
+                    util_threshold: float = 10.0, mem_threshold: float = 10.0, stable_time: int = 30):
         """
         Update screen with new data.
 
         Args:
             nodes: List of Node instances
             jobs: List of Job instances
+            util_threshold: GPU utilization threshold
+            mem_threshold: GPU memory threshold
+            stable_time: Required stable time in seconds
         """
+        logger.info(f"ClusterScreen.update_data called with {len(nodes)} nodes and {len(jobs)} jobs")
+        
         # Update summary
         total_gpus = sum(node.num_gpus for node in nodes)
-        free_gpus = sum(len([gpu for gpu in node.gpus if gpu.available]) for node in nodes)
+        # Use the proper get_free_gpus method like the scheduler does
+        free_gpus = sum(len(node.get_free_gpus(util_threshold, mem_threshold, stable_time)) for node in nodes)
         in_use_gpus = total_gpus - free_gpus
 
         connected_nodes = len([n for n in nodes if n.status == "connected"])
@@ -77,13 +87,14 @@ class ClusterScreen(Screen):
             f"GPUs: {total_gpus} total, {free_gpus} free, {in_use_gpus} in use\n"
             f"Jobs: {pending_jobs} pending, {running_jobs} running, {completed_jobs} completed, {failed_jobs} failed"
         )
+        logger.info(f"Summary: {summary}")
         self.query_one("#cluster-summary", Static).update(summary)
 
         # Update node table
         node_table = self.query_one("#node-table", DataTable)
         node_table.clear()
         for node in nodes:
-            free_gpu_count = len([gpu for gpu in node.gpus if gpu.available])
+            free_gpu_count = len(node.get_free_gpus(util_threshold, mem_threshold, stable_time))
             running_job_count = len([j for j in jobs if j.assigned_node == node.node_name and j.status.value == "running"])
             node_table.add_row(
                 node.node_name,
@@ -97,13 +108,16 @@ class ClusterScreen(Screen):
         # Update GPU bars
         gpu_bars_text = ""
         for node in nodes:
+            logger.info(f"Node {node.node_name}: {len(node.gpus)} GPUs")
             gpu_line = f"{node.node_name}: "
             for gpu in node.gpus[:4]:  # Show first 4 GPUs
-                bar = create_gpu_utilization_bar(gpu.utilization, width=10)
+                bar = create_gpu_utilization_bar(gpu.stats.utilization, width=10)
                 gpu_line += f"GPU{gpu.gpu_id} {bar}  "
+                logger.debug(f"  GPU{gpu.gpu_id}: util={gpu.stats.utilization}%")
             if len(node.gpus) > 4:
                 gpu_line += "..."
             gpu_bars_text += gpu_line + "\n"
+        logger.info(f"GPU bars text length: {len(gpu_bars_text)}")
         self.query_one("#gpu-bars", Static).update(gpu_bars_text)
 
         # Update job table (show active jobs)

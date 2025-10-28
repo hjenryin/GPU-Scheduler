@@ -11,75 +11,89 @@ from scheduler.api import SchedulerClient
 
 @pytest.fixture
 def mock_gpu_stats():
-    """Create mock GPU stats."""
-    stats = Mock(spec=GPUStats)
-    stats.utilization = 45.5
-    stats.memory_used = 2 * 1024 ** 3  # 2GB
-    stats.memory_total = 8 * 1024 ** 3  # 8GB
-    stats.temperature = 65
-    stats.power_draw = 150
-    stats.running_job_id = None
+    """Create real GPU stats object."""
+    stats = GPUStats(
+        gpu_id=0,
+        utilization=45.5,
+        memory_used=2 * 1024 ** 3,  # 2GB
+        memory_total=8 * 1024 ** 3,  # 8GB
+        temperature=65,
+        power_draw=150,
+        power_limit=300,
+        running_job_id=None
+    )
     return stats
 
 
 @pytest.fixture
 def mock_gpu(mock_gpu_stats):
-    """Create mock GPU."""
-    gpu = Mock(spec=GPU)
-    gpu.gpu_id = 0
-    gpu.available = True
-    gpu.utilization = 45.5
-    gpu.memory_used = 2 * 1024 ** 3
-    gpu.memory_total = 8 * 1024 ** 3
-    gpu.temperature = 65
-    gpu.power_draw = 150
-    gpu.stats = mock_gpu_stats
+    """Create real GPU object."""
+    gpu = GPU(gpu_id=0, stats=mock_gpu_stats)
+    # Set as stable (been free for 60 seconds)
+    gpu.stable_since = datetime.now() - timedelta(seconds=60)
     return gpu
 
 
 @pytest.fixture
-def mock_gpu_occupied(mock_gpu_stats):
-    """Create mock occupied GPU."""
-    gpu = Mock(spec=GPU)
-    gpu.gpu_id = 1
-    gpu.available = False
-    gpu.utilization = 85.0
-    gpu.memory_used = 6 * 1024 ** 3
-    gpu.memory_total = 8 * 1024 ** 3
-    gpu.temperature = 75
-    gpu.power_draw = 200
-    gpu.stats = mock_gpu_stats
-    gpu.stats.running_job_id = "job_123"
+def mock_gpu_occupied():
+    """Create real occupied GPU object."""
+    stats = GPUStats(
+        gpu_id=1,
+        utilization=85.0,
+        memory_used=6 * 1024 ** 3,
+        memory_total=8 * 1024 ** 3,
+        temperature=75,
+        power_draw=200,
+        power_limit=300,
+        running_job_id="job_123"
+    )
+    gpu = GPU(gpu_id=1, stats=stats)
+    # Not stable (in use)
+    gpu.stable_since = None
     return gpu
 
 
 @pytest.fixture
 def mock_gpus(mock_gpu, mock_gpu_occupied):
-    """Create list of mock GPUs."""
+    """Create list of real GPU objects."""
     return [mock_gpu, mock_gpu_occupied]
 
 
 @pytest.fixture
 def mock_node(mock_gpus):
-    """Create mock node."""
-    node = Mock(spec=Node)
-    node.node_name = "gpu-server-01"
-    node.status = NodeStatus.CONNECTED
-    node.num_gpus = 2
-    node.gpus = mock_gpus
-    node.address = "192.168.1.100:8265"
+    """Create real node object with get_free_gpus method."""
+    node = Node(
+        node_name="gpu-server-01",
+        address="192.168.1.100:8265",
+        num_gpus=2,
+        gpus=mock_gpus,
+        status=NodeStatus.CONNECTED,
+        last_heartbeat=datetime.now(),
+        registered_at=datetime.now() - timedelta(hours=1)
+    )
     return node
 
 
 @pytest.fixture
 def mock_node_disconnected(mock_gpus):
-    """Create mock disconnected node."""
-    node = Mock(spec=Node)
-    node.node_name = "gpu-server-02"
-    node.status = NodeStatus.DISCONNECTED
-    node.num_gpus = 4
-    node.gpus = mock_gpus + mock_gpus  # 4 GPUs
-    node.address = "192.168.1.101:8265"
+    """Create real disconnected node object."""
+    # Create 4 GPUs for this node
+    gpus = []
+    for i in range(4):
+        stats = GPUStats(i, 10.0, 1*1024**3, 16*1024**3, 60, 100, 300, None)
+        gpu = GPU(i, stats)
+        gpu.stable_since = datetime.now() - timedelta(seconds=60)
+        gpus.append(gpu)
+    
+    node = Node(
+        node_name="gpu-server-02",
+        address="192.168.1.101:8265",
+        num_gpus=4,
+        gpus=gpus,
+        status=NodeStatus.DISCONNECTED,
+        last_heartbeat=datetime.now() - timedelta(minutes=10),
+        registered_at=datetime.now() - timedelta(hours=2)
+    )
     return node
 
 

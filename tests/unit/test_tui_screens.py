@@ -49,7 +49,8 @@ class TestClusterScreen:
             "#job-table": mock_job_table
         }.get(selector, Mock())
 
-        screen.update_data(mock_nodes, mock_jobs)
+        # Call with threshold parameters
+        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
         # Verify summary calculation
         mock_summary.update.assert_called_once()
@@ -68,7 +69,7 @@ class TestClusterScreen:
             "#node-table": mock_node_table
         }.get(selector, Mock())
 
-        screen.update_data(mock_nodes, mock_jobs)
+        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
         # Verify table operations
         mock_node_table.clear.assert_called_once()
@@ -84,7 +85,7 @@ class TestClusterScreen:
             "#gpu-bars": mock_gpu_bars
         }.get(selector, Mock())
 
-        screen.update_data(mock_nodes, mock_jobs)
+        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
         # Verify GPU bars update
         mock_gpu_bars.update.assert_called_once()
@@ -101,7 +102,7 @@ class TestClusterScreen:
             "#job-table": mock_job_table
         }.get(selector, Mock())
 
-        screen.update_data(mock_nodes, mock_jobs)
+        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
         # Verify job table operations
         mock_job_table.clear.assert_called_once()
@@ -137,7 +138,7 @@ class TestNodesScreen:
             "#nodes-list": mock_nodes_list
         }.get(selector, Mock())
 
-        screen.update_data(mock_nodes, mock_jobs)
+        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
         # Verify nodes list operations
         mock_nodes_list.clear.assert_called_once()
@@ -157,7 +158,7 @@ class TestNodesScreen:
             "#jobs-detail-list": Mock()
         }.get(selector, Mock())
 
-        screen.update_data(mock_nodes, mock_jobs)
+        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
         # Should auto-select first node
         assert screen.selected_node == mock_nodes[0].node_name
@@ -373,10 +374,11 @@ class TestGPUsScreen:
         
         mock_gpu_table = Mock()
         mock_query_one.side_effect = lambda selector, widget_type: {
-            "#gpus-table": mock_gpu_table
+            "#gpus-table": mock_gpu_table,
+            "#gpu-summary": Mock()
         }.get(selector, Mock())
 
-        screen.update_data(mock_nodes)
+        screen.update_data(mock_nodes, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
         # Verify GPU table operations
         mock_gpu_table.clear.assert_called_once()

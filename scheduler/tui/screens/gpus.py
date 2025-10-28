@@ -44,23 +44,26 @@ class GPUsScreen(Screen):
         gpu_table.add_columns("Node", "GPU", "Utilization", "Memory", "Temp", "Power", "Status", "Job")
         gpu_table.cursor_type = "row"
 
-    def update_data(self, nodes: List[Node]):
+    def update_data(self, nodes: List[Node], util_threshold: float = 10.0, mem_threshold: float = 10.0, stable_time: int = 30):
         """
         Update screen with new data.
 
         Args:
             nodes: List of Node instances
+            util_threshold: GPU utilization threshold
+            mem_threshold: GPU memory threshold
+            stable_time: Required stable time in seconds
         """
         # Calculate summary statistics
         total_gpus = sum(node.num_gpus for node in nodes)
-        free_gpus = sum(len([gpu for gpu in node.gpus if gpu.available]) for node in nodes)
+        free_gpus = sum(len(node.get_free_gpus(util_threshold, mem_threshold, stable_time)) for node in nodes)
         in_use_gpus = total_gpus - free_gpus
 
         # Calculate average utilization
         all_utils = []
         for node in nodes:
             for gpu in node.gpus:
-                all_utils.append(gpu.utilization)
+                all_utils.append(gpu.stats.utilization)
         avg_util = sum(all_utils) / len(all_utils) if all_utils else 0
 
         # Calculate total memory
@@ -68,8 +71,8 @@ class GPUsScreen(Screen):
         used_memory = 0
         for node in nodes:
             for gpu in node.gpus:
-                total_memory += gpu.memory_total
-                used_memory += gpu.memory_used
+                total_memory += gpu.stats.memory_total
+                used_memory += gpu.stats.memory_used
 
         summary = (
             f"Total GPUs: {total_gpus} | Free: {free_gpus} | In Use: {in_use_gpus} | "
@@ -85,16 +88,17 @@ class GPUsScreen(Screen):
 
         for node in nodes:
             for gpu in node.gpus:
-                status = "Free" if gpu.available else "In Use"
-                job_id = "-" if gpu.available else (gpu.stats.running_job_id or "in use")
+                # Check if GPU is free using stats
+                status = "Free" if gpu.stats.running_job_id is None else "In Use"
+                job_id = "-" if gpu.stats.running_job_id is None else (gpu.stats.running_job_id or "in use")
 
                 gpu_table.add_row(
                     node.node_name,
                     f"GPU {gpu.gpu_id}",
-                    create_gpu_utilization_bar(gpu.utilization, width=15),
-                    f"{format_gpu_memory(gpu.memory_used)}/{format_gpu_memory(gpu.memory_total)}",
-                    f"{gpu.temperature}°C" if gpu.temperature else "N/A",
-                    f"{gpu.power_draw}W" if gpu.power_draw else "N/A",
+                    create_gpu_utilization_bar(gpu.stats.utilization, width=15),
+                    f"{format_gpu_memory(gpu.stats.memory_used)}/{format_gpu_memory(gpu.stats.memory_total)}",
+                    f"{gpu.stats.temperature}°C" if gpu.stats.temperature else "N/A",
+                    f"{gpu.stats.power_draw}W" if gpu.stats.power_draw else "N/A",
                     status,
                     job_id
                 )

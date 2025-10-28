@@ -9,18 +9,22 @@ class TestSchedulerTUIComposition:
     """Tests for SchedulerTUI compose method"""
 
     @pytest.mark.asyncio
-    async def test_compose_returns_cluster_screen(self):
-        """Test that compose yields ClusterScreen"""
+    async def test_compose_returns_empty_for_screen_based_app(self):
+        """Test that compose returns empty generator for screen-based app"""
         mock_client = Mock(spec=SchedulerClient)
         app = SchedulerTUI(client=mock_client)
         
         # Get compose result
         composition = list(app.compose())
         
-        # Should yield ClusterScreen
-        assert len(composition) == 1
-        from scheduler.tui.screens.cluster import ClusterScreen
-        assert isinstance(composition[0], ClusterScreen)
+        # Should be empty since we use screens, not direct widgets
+        assert len(composition) == 0
+        
+        # But screens should be registered
+        assert "cluster" in app.SCREENS
+        assert "nodes" in app.SCREENS
+        assert "jobs" in app.SCREENS
+        assert "gpus" in app.SCREENS
 
 
 class TestSchedulerTUIInitialization:

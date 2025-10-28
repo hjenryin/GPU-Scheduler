@@ -29,19 +29,22 @@ class NodeTable(DataTable):
             self.cursor_type = "row"
             self._columns_setup = True
 
-    def update_nodes(self, nodes: List[Node]):
+    def update_nodes(self, nodes: List[Node], util_threshold: float = 10.0, mem_threshold: float = 10.0, stable_time: int = 30):
         """
         Update table with node data.
         
         Args:
             nodes: List of Node instances
+            util_threshold: GPU utilization threshold
+            mem_threshold: GPU memory threshold
+            stable_time: Required stable time in seconds
         """
         # Ensure columns are set up
         self._setup_columns()
         
         self.clear()
         for node in nodes:
-            free_gpu_count = len([gpu for gpu in node.gpus if gpu.available])
+            free_gpu_count = len(node.get_free_gpus(util_threshold, mem_threshold, stable_time))
             running_job_count = len([j for j in getattr(self, 'jobs_data', []) if j.assigned_node == node.node_name and j.status.value == "running"])
             self.add_row(
                 node.node_name,
