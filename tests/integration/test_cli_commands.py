@@ -4,6 +4,11 @@ tests that use Click's CliRunner and a live API server.
 """
 
 import pytest
+from scheduler.core import Config
+from scheduler.head.orchestrator import Orchestrator
+from scheduler.api import SchedulerClient
+from scheduler.worker.daemon import WorkerDaemon
+from scheduler.worker.singleton import WorkerSingleton
 
 pytestmark = pytest.mark.skip(
     reason="Replaced by real CLI integration tests using CliRunner against a live head node"
@@ -80,17 +85,17 @@ def running_job():
 class TestCLISubmit:
     """Test 'scheduler submit' command."""
 
-    @patch('scheduler.cli.submit.load_config')
-    @patch('scheduler.cli.submit.SchedulerClient')
-    @patch('os.path.exists')
-    @patch('os.path.abspath')
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
+    @patch('os.path.exists', autospec=True)
+    @patch('os.path.abspath', autospec=True)
     def test_submit_simple_job(self, mock_abspath, mock_exists, mock_client_class, mock_load_config, sample_job):
         """Test: scheduler submit --req 2 train.py"""
         mock_exists.return_value = True
         mock_abspath.return_value = '/abs/path/train.py'
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.submit_job.return_value = sample_job
 
@@ -106,7 +111,7 @@ class TestCLISubmit:
         assert call_kwargs['script'] == '/abs/path/train.py'
         assert call_kwargs['requirements'] == '2'
 
-    @patch('os.path.exists')
+    @patch('os.path.exists', autospec=True)
     def test_submit_script_not_found(self, mock_exists):
         """Test submitting non-existent script returns error."""
         mock_exists.return_value = False
@@ -118,17 +123,17 @@ class TestCLISubmit:
 
         assert exit_code == 4  # File not found error code
 
-    @patch('scheduler.cli.submit.load_config')
-    @patch('scheduler.cli.submit.SchedulerClient')
-    @patch('os.path.exists')
-    @patch('os.path.abspath')
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
+    @patch('os.path.exists', autospec=True)
+    @patch('os.path.abspath', autospec=True)
     def test_submit_with_name_and_priority(self, mock_abspath, mock_exists, mock_client_class, mock_load_config, sample_job):
         """Test submitting job with name and priority."""
         mock_exists.return_value = True
         mock_abspath.return_value = '/abs/path/train.py'
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.submit_job.return_value = sample_job
 
@@ -145,17 +150,17 @@ class TestCLISubmit:
         assert call_kwargs['name'] == 'my_job'
         assert call_kwargs['priority'] == 10
 
-    @patch('scheduler.cli.submit.load_config')
-    @patch('scheduler.cli.submit.SchedulerClient')
-    @patch('os.path.exists')
-    @patch('os.path.abspath')
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
+    @patch('os.path.exists', autospec=True)
+    @patch('os.path.abspath', autospec=True)
     def test_submit_with_env_vars(self, mock_abspath, mock_exists, mock_client_class, mock_load_config, sample_job):
         """Test submitting job with environment variables."""
         mock_exists.return_value = True
         mock_abspath.return_value = '/abs/path/train.py'
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.submit_job.return_value = sample_job
 
@@ -170,7 +175,7 @@ class TestCLISubmit:
         call_kwargs = mock_client.submit_job.call_args[1]
         assert call_kwargs['env_vars'] == {'KEY1': 'value1', 'KEY2': 'value2'}
 
-    @patch('os.path.exists')
+    @patch('os.path.exists', autospec=True)
     def test_submit_invalid_env_var_format(self, mock_exists):
         """Test invalid environment variable format."""
         mock_exists.return_value = True
@@ -184,17 +189,17 @@ class TestCLISubmit:
 
         assert exit_code == 2  # Validation error
 
-    @patch('scheduler.cli.submit.load_config')
-    @patch('scheduler.cli.submit.SchedulerClient')
-    @patch('os.path.exists')
-    @patch('os.path.abspath')
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
+    @patch('os.path.exists', autospec=True)
+    @patch('os.path.abspath', autospec=True)
     def test_submit_connection_error(self, mock_abspath, mock_exists, mock_client_class, mock_load_config):
         """Test connection error handling."""
         mock_exists.return_value = True
         mock_abspath.return_value = '/abs/path/train.py'
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.submit_job.side_effect = ConnectionException("Cannot connect")
 
@@ -206,17 +211,17 @@ class TestCLISubmit:
 
         assert exit_code == 3  # Connection error code
 
-    @patch('scheduler.cli.submit.load_config')
-    @patch('scheduler.cli.submit.SchedulerClient')
-    @patch('os.path.exists')
-    @patch('os.path.abspath')
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
+    @patch('os.path.exists', autospec=True)
+    @patch('os.path.abspath', autospec=True)
     def test_submit_validation_error(self, mock_abspath, mock_exists, mock_client_class, mock_load_config):
         """Test validation error handling."""
         mock_exists.return_value = True
         mock_abspath.return_value = '/abs/path/train.py'
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.submit_job.side_effect = ValidationException("Invalid requirements")
 
@@ -228,10 +233,10 @@ class TestCLISubmit:
 
         assert exit_code == 2  # Validation error code
 
-    @patch('scheduler.cli.submit.load_config')
-    @patch('scheduler.cli.submit.SchedulerClient')
-    @patch('os.path.exists')
-    @patch('os.path.abspath')
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
+    @patch('os.path.exists', autospec=True)
+    @patch('os.path.abspath', autospec=True)
     def test_submit_wait_for_completion(self, mock_abspath, mock_exists, mock_client_class, mock_load_config, sample_job):
         """Test submitting and waiting for job completion."""
         mock_exists.return_value = True
@@ -250,7 +255,7 @@ class TestCLISubmit:
             exit_code=0
         )
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.submit_job.return_value = sample_job
         mock_client.get_job.return_value = completed_job
@@ -268,13 +273,13 @@ class TestCLISubmit:
 class TestCLIJobs:
     """Test 'scheduler jobs' command."""
 
-    @patch('scheduler.cli.jobs.load_config')
-    @patch('scheduler.cli.jobs.SchedulerClient')
+    @patch('scheduler.cli.jobs.load_config', autospec=True)
+    @patch('scheduler.cli.jobs.SchedulerClient', autospec=True)
     def test_jobs_list_empty(self, mock_client_class, mock_load_config):
         """Test listing jobs when none exist."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.list_jobs.return_value = []
 
@@ -283,13 +288,13 @@ class TestCLIJobs:
         assert exit_code == 0
         mock_client.list_jobs.assert_called_once()
 
-    @patch('scheduler.cli.jobs.load_config')
-    @patch('scheduler.cli.jobs.SchedulerClient')
+    @patch('scheduler.cli.jobs.load_config', autospec=True)
+    @patch('scheduler.cli.jobs.SchedulerClient', autospec=True)
     def test_jobs_list_table_format(self, mock_client_class, mock_load_config, sample_job, running_job):
         """Test listing jobs in table format."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.list_jobs.return_value = [sample_job, running_job]
 
@@ -298,13 +303,13 @@ class TestCLIJobs:
         assert exit_code == 0
         mock_client.list_jobs.assert_called_once()
 
-    @patch('scheduler.cli.jobs.load_config')
-    @patch('scheduler.cli.jobs.SchedulerClient')
+    @patch('scheduler.cli.jobs.load_config', autospec=True)
+    @patch('scheduler.cli.jobs.SchedulerClient', autospec=True)
     def test_jobs_list_json_format(self, mock_client_class, mock_load_config, sample_job):
         """Test listing jobs in JSON format."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.list_jobs.return_value = [sample_job]
 
@@ -320,13 +325,13 @@ class TestCLIJobs:
         assert len(parsed) == 1
         assert parsed[0]['job_id'] == 'job_123456'
 
-    @patch('scheduler.cli.jobs.load_config')
-    @patch('scheduler.cli.jobs.SchedulerClient')
+    @patch('scheduler.cli.jobs.load_config', autospec=True)
+    @patch('scheduler.cli.jobs.SchedulerClient', autospec=True)
     def test_jobs_filter_by_status(self, mock_client_class, mock_load_config, running_job):
         """Test filtering jobs by status."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.list_jobs.return_value = [running_job]
 
@@ -335,13 +340,13 @@ class TestCLIJobs:
         assert exit_code == 0
         mock_client.list_jobs.assert_called_once_with(status_filter='running', limit=50)
 
-    @patch('scheduler.cli.jobs.load_config')
-    @patch('scheduler.cli.jobs.SchedulerClient')
+    @patch('scheduler.cli.jobs.load_config', autospec=True)
+    @patch('scheduler.cli.jobs.SchedulerClient', autospec=True)
     def test_jobs_get_specific_job(self, mock_client_class, mock_load_config, sample_job):
         """Test getting specific job by ID."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.get_job.return_value = sample_job
 
@@ -350,13 +355,13 @@ class TestCLIJobs:
         assert exit_code == 0
         mock_client.get_job.assert_called_once_with('job_123456')
 
-    @patch('scheduler.cli.jobs.load_config')
-    @patch('scheduler.cli.jobs.SchedulerClient')
+    @patch('scheduler.cli.jobs.load_config', autospec=True)
+    @patch('scheduler.cli.jobs.SchedulerClient', autospec=True)
     def test_jobs_limit(self, mock_client_class, mock_load_config, sample_job):
         """Test limiting number of jobs returned."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.list_jobs.return_value = [sample_job]
 
@@ -365,13 +370,13 @@ class TestCLIJobs:
         assert exit_code == 0
         mock_client.list_jobs.assert_called_once_with(status_filter=None, limit=10)
 
-    @patch('scheduler.cli.jobs.load_config')
-    @patch('scheduler.cli.jobs.SchedulerClient')
+    @patch('scheduler.cli.jobs.load_config', autospec=True)
+    @patch('scheduler.cli.jobs.SchedulerClient', autospec=True)
     def test_jobs_connection_error(self, mock_client_class, mock_load_config):
         """Test connection error handling."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.list_jobs.side_effect = ConnectionException("Cannot connect")
 
@@ -383,13 +388,13 @@ class TestCLIJobs:
 class TestCLILogs:
     """Test 'scheduler logs' command."""
 
-    @patch('scheduler.cli.logs.load_config')
-    @patch('scheduler.cli.logs.SchedulerClient')
+    @patch('scheduler.cli.logs.load_config', autospec=True)
+    @patch('scheduler.cli.logs.SchedulerClient', autospec=True)
     def test_logs_get_stdout(self, mock_client_class, mock_load_config):
         """Test getting stdout logs."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.get_job_logs.return_value = "Log line 1\nLog line 2"
 
@@ -398,13 +403,13 @@ class TestCLILogs:
         assert exit_code == 0
         mock_client.get_job_logs.assert_called_once_with('job_123', lines=100, stderr=False)
 
-    @patch('scheduler.cli.logs.load_config')
-    @patch('scheduler.cli.logs.SchedulerClient')
+    @patch('scheduler.cli.logs.load_config', autospec=True)
+    @patch('scheduler.cli.logs.SchedulerClient', autospec=True)
     def test_logs_get_stderr(self, mock_client_class, mock_load_config):
         """Test getting stderr logs."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.get_job_logs.return_value = "Error line 1"
 
@@ -413,13 +418,13 @@ class TestCLILogs:
         assert exit_code == 0
         mock_client.get_job_logs.assert_called_with('job_123', lines=100, stderr=True)
 
-    @patch('scheduler.cli.logs.load_config')
-    @patch('scheduler.cli.logs.SchedulerClient')
+    @patch('scheduler.cli.logs.load_config', autospec=True)
+    @patch('scheduler.cli.logs.SchedulerClient', autospec=True)
     def test_logs_get_both(self, mock_client_class, mock_load_config):
         """Test getting both stdout and stderr logs."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.get_job_logs.side_effect = ["stdout logs", "stderr logs"]
 
@@ -428,13 +433,13 @@ class TestCLILogs:
         assert exit_code == 0
         assert mock_client.get_job_logs.call_count == 2
 
-    @patch('scheduler.cli.logs.load_config')
-    @patch('scheduler.cli.logs.SchedulerClient')
+    @patch('scheduler.cli.logs.load_config', autospec=True)
+    @patch('scheduler.cli.logs.SchedulerClient', autospec=True)
     def test_logs_with_line_limit(self, mock_client_class, mock_load_config):
         """Test getting logs with custom line limit."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.get_job_logs.return_value = "logs"
 
@@ -443,13 +448,13 @@ class TestCLILogs:
         assert exit_code == 0
         mock_client.get_job_logs.assert_called_once_with('job_123', lines=50, stderr=False)
 
-    @patch('scheduler.cli.logs.load_config')
-    @patch('scheduler.cli.logs.SchedulerClient')
+    @patch('scheduler.cli.logs.load_config', autospec=True)
+    @patch('scheduler.cli.logs.SchedulerClient', autospec=True)
     def test_logs_job_not_found(self, mock_client_class, mock_load_config):
         """Test logs for non-existent job."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.get_job_logs.side_effect = JobNotFoundException("Job not found")
 
@@ -457,13 +462,13 @@ class TestCLILogs:
 
         assert exit_code == 4
 
-    @patch('scheduler.cli.logs.load_config')
-    @patch('scheduler.cli.logs.SchedulerClient')
+    @patch('scheduler.cli.logs.load_config', autospec=True)
+    @patch('scheduler.cli.logs.SchedulerClient', autospec=True)
     def test_logs_connection_error(self, mock_client_class, mock_load_config):
         """Test connection error handling."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.get_job_logs.side_effect = ConnectionException("Cannot connect")
 
@@ -471,13 +476,13 @@ class TestCLILogs:
 
         assert exit_code == 3
 
-    @patch('scheduler.cli.logs.load_config')
-    @patch('scheduler.cli.logs.SchedulerClient')
+    @patch('scheduler.cli.logs.load_config', autospec=True)
+    @patch('scheduler.cli.logs.SchedulerClient', autospec=True)
     def test_logs_follow_with_interrupt(self, mock_client_class, mock_load_config):
         """Test following logs with keyboard interrupt."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.stream_job_logs.side_effect = KeyboardInterrupt()
 
@@ -490,13 +495,13 @@ class TestCLILogs:
 class TestCLICancel:
     """Test 'scheduler cancel' command."""
 
-    @patch('scheduler.cli.cancel.load_config')
-    @patch('scheduler.cli.cancel.SchedulerClient')
+    @patch('scheduler.cli.cancel.load_config', autospec=True)
+    @patch('scheduler.cli.cancel.SchedulerClient', autospec=True)
     def test_cancel_single_job(self, mock_client_class, mock_load_config):
         """Test cancelling a single job."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
 
         exit_code = cancel_command(job_ids=['job_123'])
@@ -504,13 +509,13 @@ class TestCLICancel:
         assert exit_code == 0
         mock_client.cancel_job.assert_called_once_with('job_123')
 
-    @patch('scheduler.cli.cancel.load_config')
-    @patch('scheduler.cli.cancel.SchedulerClient')
+    @patch('scheduler.cli.cancel.load_config', autospec=True)
+    @patch('scheduler.cli.cancel.SchedulerClient', autospec=True)
     def test_cancel_multiple_jobs(self, mock_client_class, mock_load_config):
         """Test cancelling multiple jobs."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
 
         exit_code = cancel_command(job_ids=['job_1', 'job_2', 'job_3'])
@@ -518,13 +523,13 @@ class TestCLICancel:
         assert exit_code == 0
         assert mock_client.cancel_job.call_count == 3
 
-    @patch('scheduler.cli.cancel.load_config')
-    @patch('scheduler.cli.cancel.SchedulerClient')
+    @patch('scheduler.cli.cancel.load_config', autospec=True)
+    @patch('scheduler.cli.cancel.SchedulerClient', autospec=True)
     def test_cancel_job_not_found(self, mock_client_class, mock_load_config):
         """Test cancelling non-existent job (should not error)."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.cancel_job.side_effect = JobNotFoundException("Job not found")
 
@@ -533,13 +538,13 @@ class TestCLICancel:
         # Should return 0 even if job not found (prints message)
         assert exit_code == 0
 
-    @patch('scheduler.cli.cancel.load_config')
-    @patch('scheduler.cli.cancel.SchedulerClient')
+    @patch('scheduler.cli.cancel.load_config', autospec=True)
+    @patch('scheduler.cli.cancel.SchedulerClient', autospec=True)
     def test_cancel_connection_error(self, mock_client_class, mock_load_config):
         """Test connection error handling."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.cancel_job.side_effect = ConnectionException("Cannot connect")
 
@@ -551,7 +556,7 @@ class TestCLICancel:
 class TestCLIConfig:
     """Test 'scheduler config' commands."""
 
-    @patch('scheduler.cli.config.init_config')
+    @patch('scheduler.cli.config.init_config', autospec=True)
     def test_config_init(self, mock_init_config):
         """Test: scheduler config init"""
         # Note: This test reveals a bug - config.py references constants.DEFAULT_CONFIG_FILE
@@ -564,7 +569,7 @@ class TestCLIConfig:
         assert exit_code in [0, 1]  # Either success or error
         mock_init_config.assert_called_once()
 
-    @patch('scheduler.cli.config.load_config')
+    @patch('scheduler.cli.config.load_config', autospec=True)
     def test_config_show(self, mock_load_config, mock_config):
         """Test: scheduler config show"""
         mock_load_config.return_value = mock_config
@@ -577,7 +582,7 @@ class TestCLIConfig:
         assert 'head' in output
         assert '8265' in output
 
-    @patch('scheduler.cli.config.load_config')
+    @patch('scheduler.cli.config.load_config', autospec=True)
     def test_config_get_simple_key(self, mock_load_config, mock_config):
         """Test: scheduler config get key"""
         mock_load_config.return_value = mock_config
@@ -589,7 +594,7 @@ class TestCLIConfig:
         assert exit_code == 0
         assert 'port' in output
 
-    @patch('scheduler.cli.config.load_config')
+    @patch('scheduler.cli.config.load_config', autospec=True)
     def test_config_get_nested_key(self, mock_load_config, mock_config):
         """Test: scheduler config get head.port"""
         mock_load_config.return_value = mock_config
@@ -601,8 +606,8 @@ class TestCLIConfig:
         assert exit_code == 0
         assert '8265' in output
 
-    @patch('scheduler.cli.config.load_config')
-    @patch('scheduler.cli.config.save_config')
+    @patch('scheduler.cli.config.load_config', autospec=True)
+    @patch('scheduler.cli.config.save_config', autospec=True)
     def test_config_set_simple_value(self, mock_save_config, mock_load_config, mock_config):
         """Test: scheduler config set key value"""
         mock_load_config.return_value = mock_config
@@ -615,8 +620,8 @@ class TestCLIConfig:
         updated_config = mock_save_config.call_args[0][0]
         assert updated_config['new_key'] == 'new_value'
 
-    @patch('scheduler.cli.config.load_config')
-    @patch('scheduler.cli.config.save_config')
+    @patch('scheduler.cli.config.load_config', autospec=True)
+    @patch('scheduler.cli.config.save_config', autospec=True)
     def test_config_set_nested_value(self, mock_save_config, mock_load_config, mock_config):
         """Test: scheduler config set head.port 9999"""
         mock_load_config.return_value = mock_config
@@ -644,7 +649,7 @@ class TestCLIConfig:
 
         assert exit_code == 2
 
-    @patch('scheduler.cli.config.load_config')
+    @patch('scheduler.cli.config.load_config', autospec=True)
     def test_config_file_not_found(self, mock_load_config):
         """Test config command when config file doesn't exist."""
         mock_load_config.side_effect = FileNotFoundError()
@@ -663,20 +668,20 @@ class TestCLIStart:
 
         assert exit_code == 2  # Validation error
 
-    @patch('scheduler.cli.start.load_config')
-    @patch('scheduler.cli.start.SingletonDaemon')
-    @patch('scheduler.cli.start.Orchestrator')
+    @patch('scheduler.cli.start.load_config', autospec=True)
+    @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
+    @patch('scheduler.cli.start.Orchestrator', autospec=True)
     def test_start_head_node(self, mock_orchestrator_class, mock_singleton_class, mock_load_config, mock_config):
         """Test: scheduler start --head"""
         mock_load_config.return_value = mock_config
 
         # Mock singleton lock
-        mock_singleton = Mock()
+        mock_singleton = Mock(spec_set=WorkerSingleton)
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
 
         # Mock orchestrator
-        mock_orchestrator = Mock()
+        mock_orchestrator = Mock(spec_set=Orchestrator)
         mock_orchestrator_class.return_value = mock_orchestrator
 
         exit_code = start_command(head=True, block=False)
@@ -685,20 +690,20 @@ class TestCLIStart:
         mock_orchestrator_class.assert_called_once()
         mock_orchestrator.start.assert_called_once()
 
-    @patch('scheduler.cli.start.load_config')
-    @patch('scheduler.cli.start.SingletonDaemon')
-    @patch('scheduler.cli.start.WorkerDaemon')
+    @patch('scheduler.cli.start.load_config', autospec=True)
+    @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
+    @patch('scheduler.cli.start.WorkerDaemon', autospec=True)
     def test_start_worker_node(self, mock_worker_class, mock_singleton_class, mock_load_config, mock_config):
         """Test: scheduler start --address=localhost:8265"""
         mock_load_config.return_value = mock_config
 
         # Mock singleton lock
-        mock_singleton = Mock()
+        mock_singleton = Mock(spec_set=WorkerSingleton)
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
 
         # Mock worker daemon
-        mock_worker = Mock()
+        mock_worker = Mock(spec_set=WorkerDaemon)
         mock_worker_class.return_value = mock_worker
 
         exit_code = start_command(address='localhost:8265', block=False)
@@ -707,14 +712,14 @@ class TestCLIStart:
         mock_worker_class.assert_called_once()
         mock_worker.start.assert_called_once()
 
-    @patch('scheduler.cli.start.load_config')
-    @patch('scheduler.cli.start.SingletonDaemon')
+    @patch('scheduler.cli.start.load_config', autospec=True)
+    @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
     def test_start_head_already_running(self, mock_singleton_class, mock_load_config, mock_config):
         """Test starting head when already running."""
         mock_load_config.return_value = mock_config
 
         # Mock singleton lock (fails to acquire)
-        mock_singleton = Mock()
+        mock_singleton = Mock(spec_set=WorkerSingleton)
         mock_singleton.acquire_lock.return_value = False
         mock_singleton_class.return_value = mock_singleton
 
@@ -722,14 +727,14 @@ class TestCLIStart:
 
         assert exit_code == 1  # Already running
 
-    @patch('scheduler.cli.start.load_config')
-    @patch('scheduler.cli.start.SingletonDaemon')
+    @patch('scheduler.cli.start.load_config', autospec=True)
+    @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
     def test_start_worker_already_running(self, mock_singleton_class, mock_load_config, mock_config):
         """Test starting worker when already running."""
         mock_load_config.return_value = mock_config
 
         # Mock singleton lock (fails to acquire)
-        mock_singleton = Mock()
+        mock_singleton = Mock(spec_set=WorkerSingleton)
         mock_singleton.acquire_lock.return_value = False
         mock_singleton_class.return_value = mock_singleton
 
@@ -741,15 +746,15 @@ class TestCLIStart:
         """Test starting with both --head and --address (should warn but use head)."""
         # This should start as head but print warning
         # The actual implementation starts as head, ignoring address
-        with patch('scheduler.cli.start.load_config') as mock_load_config, \
-             patch('scheduler.cli.start.SingletonDaemon') as mock_singleton_class, \
-             patch('scheduler.cli.start.Orchestrator') as mock_orchestrator_class:
+        with patch('scheduler.cli.start.load_config', autospec=True) as mock_load_config, \
+             patch('scheduler.cli.start.SingletonDaemon', autospec=True) as mock_singleton_class, \
+             patch('scheduler.cli.start.Orchestrator', autospec=True) as mock_orchestrator_class:
 
             mock_load_config.return_value = Config(head=HeadConfig(port=8265))
-            mock_singleton = Mock()
+            mock_singleton = Mock(spec_set=WorkerSingleton)
             mock_singleton.acquire_lock.return_value = True
             mock_singleton_class.return_value = mock_singleton
-            mock_orchestrator = Mock()
+            mock_orchestrator = Mock(spec_set=Orchestrator)
             mock_orchestrator_class.return_value = mock_orchestrator
 
             exit_code = start_command(head=True, address='localhost:8265', block=False)
@@ -757,16 +762,16 @@ class TestCLIStart:
             # Should succeed and start as head
             assert exit_code == 0
 
-    @patch('scheduler.cli.start.load_config')
-    @patch('scheduler.cli.start.SingletonDaemon')
-    @patch('scheduler.cli.start.Orchestrator')
+    @patch('scheduler.cli.start.load_config', autospec=True)
+    @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
+    @patch('scheduler.cli.start.Orchestrator', autospec=True)
     def test_start_head_with_temp_and_log_dirs(self, mock_orchestrator_class, mock_singleton_class, mock_load_config):
         """Test starting head with temp_dir and log_dir options."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265))
-        mock_singleton = Mock()
+        mock_singleton = Mock(spec_set=WorkerSingleton)
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
-        mock_orchestrator = Mock()
+        mock_orchestrator = Mock(spec_set=Orchestrator)
         mock_orchestrator_class.return_value = mock_orchestrator
 
         exit_code = start_command(
@@ -778,16 +783,16 @@ class TestCLIStart:
 
         assert exit_code == 0
 
-    @patch('scheduler.cli.start.load_config')
-    @patch('scheduler.cli.start.SingletonDaemon')
-    @patch('scheduler.cli.start.WorkerDaemon')
+    @patch('scheduler.cli.start.load_config', autospec=True)
+    @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
+    @patch('scheduler.cli.start.WorkerDaemon', autospec=True)
     def test_start_worker_with_address_and_port(self, mock_worker_class, mock_singleton_class, mock_load_config):
         """Test starting worker with address containing port."""
         mock_load_config.return_value = Config()
-        mock_singleton = Mock()
+        mock_singleton = Mock(spec_set=WorkerSingleton)
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
-        mock_worker = Mock()
+        mock_worker = Mock(spec_set=WorkerDaemon)
         mock_worker_class.return_value = mock_worker
 
         exit_code = start_command(address='192.168.1.100:9000', block=False)
@@ -797,16 +802,16 @@ class TestCLIStart:
         call_config = mock_worker_class.call_args[0][0]
         assert call_config.address == '192.168.1.100:9000'
 
-    @patch('scheduler.cli.start.load_config')
-    @patch('scheduler.cli.start.SingletonDaemon')
-    @patch('scheduler.cli.start.Orchestrator')
+    @patch('scheduler.cli.start.load_config', autospec=True)
+    @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
+    @patch('scheduler.cli.start.Orchestrator', autospec=True)
     def test_start_head_with_kwargs(self, mock_orchestrator_class, mock_singleton_class, mock_load_config):
         """Test starting head with additional kwargs (heartbeat, scheduling)."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265))
-        mock_singleton = Mock()
+        mock_singleton = Mock(spec_set=WorkerSingleton)
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
-        mock_orchestrator = Mock()
+        mock_orchestrator = Mock(spec_set=Orchestrator)
         mock_orchestrator_class.return_value = mock_orchestrator
 
         exit_code = start_command(
@@ -822,16 +827,16 @@ class TestCLIStart:
         assert call_config.head.heartbeat_timeout == 5
         assert call_config.head.scheduling_interval == 2
 
-    @patch('scheduler.cli.start.load_config')
-    @patch('scheduler.cli.start.SingletonDaemon')
-    @patch('scheduler.cli.start.WorkerDaemon')
+    @patch('scheduler.cli.start.load_config', autospec=True)
+    @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
+    @patch('scheduler.cli.start.WorkerDaemon', autospec=True)
     def test_start_worker_with_kwargs(self, mock_worker_class, mock_singleton_class, mock_load_config):
         """Test starting worker with additional kwargs (gpu, job settings)."""
         mock_load_config.return_value = Config()
-        mock_singleton = Mock()
+        mock_singleton = Mock(spec_set=WorkerSingleton)
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
-        mock_worker = Mock()
+        mock_worker = Mock(spec_set=WorkerDaemon)
         mock_worker_class.return_value = mock_worker
 
         exit_code = start_command(
@@ -847,13 +852,13 @@ class TestCLIStart:
         assert call_config.worker.gpu_poll_interval == 1
         assert call_config.worker.job_startup_grace == 3600
 
-    @patch('scheduler.cli.start.load_config')
-    @patch('scheduler.cli.start.SingletonDaemon')
-    @patch('scheduler.cli.start.Orchestrator')
+    @patch('scheduler.cli.start.load_config', autospec=True)
+    @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
+    @patch('scheduler.cli.start.Orchestrator', autospec=True)
     def test_start_head_validation_error(self, mock_orchestrator_class, mock_singleton_class, mock_load_config):
         """Test starting head with validation error."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265))
-        mock_singleton = Mock()
+        mock_singleton = Mock(spec_set=WorkerSingleton)
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
         mock_orchestrator_class.side_effect = ValidationException("Invalid config")
@@ -862,13 +867,13 @@ class TestCLIStart:
 
         assert exit_code == 2
 
-    @patch('scheduler.cli.start.load_config')
-    @patch('scheduler.cli.start.SingletonDaemon')
-    @patch('scheduler.cli.start.WorkerDaemon')
+    @patch('scheduler.cli.start.load_config', autospec=True)
+    @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
+    @patch('scheduler.cli.start.WorkerDaemon', autospec=True)
     def test_start_worker_connection_error(self, mock_worker_class, mock_singleton_class, mock_load_config):
         """Test starting worker with connection error."""
         mock_load_config.return_value = Config()
-        mock_singleton = Mock()
+        mock_singleton = Mock(spec_set=WorkerSingleton)
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
         mock_worker_class.side_effect = ConnectionException("Cannot connect to head")
@@ -877,13 +882,13 @@ class TestCLIStart:
 
         assert exit_code == 3
 
-    @patch('scheduler.cli.start.load_config')
-    @patch('scheduler.cli.start.SingletonDaemon')
-    @patch('scheduler.cli.start.Orchestrator')
+    @patch('scheduler.cli.start.load_config', autospec=True)
+    @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
+    @patch('scheduler.cli.start.Orchestrator', autospec=True)
     def test_start_head_permission_error(self, mock_orchestrator_class, mock_singleton_class, mock_load_config):
         """Test starting head with permission error."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265))
-        mock_singleton = Mock()
+        mock_singleton = Mock(spec_set=WorkerSingleton)
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
         mock_orchestrator_class.side_effect = PermissionDeniedException("Port in use")
@@ -892,13 +897,13 @@ class TestCLIStart:
 
         assert exit_code == 5
 
-    @patch('scheduler.cli.start.load_config')
-    @patch('scheduler.cli.start.SingletonDaemon')
-    @patch('scheduler.cli.start.Orchestrator')
+    @patch('scheduler.cli.start.load_config', autospec=True)
+    @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
+    @patch('scheduler.cli.start.Orchestrator', autospec=True)
     def test_start_head_keyboard_interrupt(self, mock_orchestrator_class, mock_singleton_class, mock_load_config):
         """Test starting head with keyboard interrupt."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265))
-        mock_singleton = Mock()
+        mock_singleton = Mock(spec_set=WorkerSingleton)
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
         mock_orchestrator_class.side_effect = KeyboardInterrupt()
@@ -907,13 +912,13 @@ class TestCLIStart:
 
         assert exit_code == 0
 
-    @patch('scheduler.cli.start.load_config')
-    @patch('scheduler.cli.start.SingletonDaemon')
-    @patch('scheduler.cli.start.Orchestrator')
+    @patch('scheduler.cli.start.load_config', autospec=True)
+    @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
+    @patch('scheduler.cli.start.Orchestrator', autospec=True)
     def test_start_head_unexpected_error(self, mock_orchestrator_class, mock_singleton_class, mock_load_config):
         """Test starting head with unexpected error."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265))
-        mock_singleton = Mock()
+        mock_singleton = Mock(spec_set=WorkerSingleton)
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
         mock_orchestrator_class.side_effect = RuntimeError("Unexpected error")
@@ -922,16 +927,16 @@ class TestCLIStart:
 
         assert exit_code == 1
 
-    @patch('scheduler.cli.start.load_config')
-    @patch('scheduler.cli.start.SingletonDaemon')
-    @patch('scheduler.cli.start.Orchestrator')
+    @patch('scheduler.cli.start.load_config', autospec=True)
+    @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
+    @patch('scheduler.cli.start.Orchestrator', autospec=True)
     def test_start_head_blocking_mode(self, mock_orchestrator_class, mock_singleton_class, mock_load_config):
         """Test starting head in blocking mode."""
         mock_load_config.return_value = Config(head=HeadConfig(port=8265))
-        mock_singleton = Mock()
+        mock_singleton = Mock(spec_set=WorkerSingleton)
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
-        mock_orchestrator = Mock()
+        mock_orchestrator = Mock(spec_set=Orchestrator)
         mock_orchestrator_class.return_value = mock_orchestrator
 
         exit_code = start_command(head=True, block=True)
@@ -941,16 +946,16 @@ class TestCLIStart:
         mock_orchestrator.run.assert_called_once()
         mock_orchestrator.start.assert_not_called()
 
-    @patch('scheduler.cli.start.load_config')
-    @patch('scheduler.cli.start.SingletonDaemon')
-    @patch('scheduler.cli.start.WorkerDaemon')
+    @patch('scheduler.cli.start.load_config', autospec=True)
+    @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
+    @patch('scheduler.cli.start.WorkerDaemon', autospec=True)
     def test_start_worker_blocking_mode(self, mock_worker_class, mock_singleton_class, mock_load_config):
         """Test starting worker in blocking mode."""
         mock_load_config.return_value = Config()
-        mock_singleton = Mock()
+        mock_singleton = Mock(spec_set=WorkerSingleton)
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
-        mock_worker = Mock()
+        mock_worker = Mock(spec_set=WorkerDaemon)
         mock_worker_class.return_value = mock_worker
 
         exit_code = start_command(address='localhost:8265', block=True)
@@ -960,18 +965,18 @@ class TestCLIStart:
         mock_worker.run.assert_called_once()
         mock_worker.start.assert_not_called()
 
-    @patch('scheduler.cli.start.load_config')
+    @patch('scheduler.cli.start.load_config', autospec=True)
     def test_start_load_config_fails(self, mock_load_config):
         """Test starting when load_config fails (creates empty config)."""
         mock_load_config.side_effect = Exception("Config not found")
 
-        with patch('scheduler.cli.start.SingletonDaemon') as mock_singleton_class, \
-             patch('scheduler.cli.start.Orchestrator') as mock_orchestrator_class:
+        with patch('scheduler.cli.start.SingletonDaemon', autospec=True) as mock_singleton_class, \
+             patch('scheduler.cli.start.Orchestrator', autospec=True) as mock_orchestrator_class:
 
-            mock_singleton = Mock()
+            mock_singleton = Mock(spec_set=WorkerSingleton)
             mock_singleton.acquire_lock.return_value = True
             mock_singleton_class.return_value = mock_singleton
-            mock_orchestrator = Mock()
+            mock_orchestrator = Mock(spec_set=Orchestrator)
             mock_orchestrator_class.return_value = mock_orchestrator
 
             exit_code = start_command(head=True, block=False)
@@ -983,12 +988,12 @@ class TestCLIStart:
 class TestCLIStop:
     """Test 'scheduler stop' command."""
 
-    @patch('scheduler.cli.stop.is_daemon_running')
+    @patch('scheduler.cli.stop.is_daemon_running', autospec=True)
     @patch('builtins.open', new_callable=mock_open, read_data='12345')
-    @patch('os.kill')
-    @patch('os.path.exists')
-    @patch('os.listdir')
-    @patch('os.remove')
+    @patch('os.kill', autospec=True)
+    @patch('os.path.exists', autospec=True)
+    @patch('os.listdir', autospec=True)
+    @patch('os.remove', autospec=True)
     def test_stop_head_node(self, mock_remove, mock_listdir, mock_exists, mock_kill, mock_file, mock_is_running):
         """Test stopping head node."""
         mock_is_running.return_value = True
@@ -1000,12 +1005,12 @@ class TestCLIStop:
         assert exit_code == 0
         mock_kill.assert_called()
 
-    @patch('scheduler.cli.stop.is_daemon_running')
+    @patch('scheduler.cli.stop.is_daemon_running', autospec=True)
     @patch('builtins.open', new_callable=mock_open, read_data='12345')
-    @patch('os.kill')
-    @patch('os.path.exists')
-    @patch('os.listdir')
-    @patch('os.remove')
+    @patch('os.kill', autospec=True)
+    @patch('os.path.exists', autospec=True)
+    @patch('os.listdir', autospec=True)
+    @patch('os.remove', autospec=True)
     def test_stop_worker_node(self, mock_remove, mock_listdir, mock_exists, mock_kill, mock_file, mock_is_running):
         """Test stopping worker node."""
         # Head not running, worker is running
@@ -1018,9 +1023,9 @@ class TestCLIStop:
         assert exit_code == 0
         mock_kill.assert_called()
 
-    @patch('scheduler.cli.stop.is_daemon_running')
-    @patch('os.path.exists')
-    @patch('os.listdir')
+    @patch('scheduler.cli.stop.is_daemon_running', autospec=True)
+    @patch('os.path.exists', autospec=True)
+    @patch('os.listdir', autospec=True)
     def test_stop_no_processes_running(self, mock_listdir, mock_exists, mock_is_running):
         """Test stopping when no processes are running."""
         mock_is_running.return_value = False
@@ -1031,12 +1036,12 @@ class TestCLIStop:
 
         assert exit_code == 1  # No processes found
 
-    @patch('scheduler.cli.stop.is_daemon_running')
+    @patch('scheduler.cli.stop.is_daemon_running', autospec=True)
     @patch('builtins.open', new_callable=mock_open, read_data='12345')
-    @patch('os.kill')
-    @patch('os.path.exists')
-    @patch('os.listdir')
-    @patch('os.remove')
+    @patch('os.kill', autospec=True)
+    @patch('os.path.exists', autospec=True)
+    @patch('os.listdir', autospec=True)
+    @patch('os.remove', autospec=True)
     @patch('signal.SIGKILL', 9, create=True)  # Mock SIGKILL for Windows
     def test_stop_with_force(self, mock_remove, mock_listdir, mock_exists, mock_kill, mock_file, mock_is_running):
         """Test force stopping."""
@@ -1050,34 +1055,34 @@ class TestCLIStop:
         assert exit_code == 0
         mock_kill.assert_called()
 
-    @patch('scheduler.cli.stop.load_config')
-    @patch('scheduler.cli.stop.SchedulerClient')
-    @patch('scheduler.cli.stop._is_running_on_head_node')
-    @patch('scheduler.cli.stop._stop_daemon')
-    @patch('scheduler.cli.stop._stop_local_worker_nodes')
+    @patch('scheduler.cli.stop.load_config', autospec=True)
+    @patch('scheduler.cli.stop.SchedulerClient', autospec=True)
+    @patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+    @patch('scheduler.cli.stop._stop_daemon', autospec=True)
+    @patch('scheduler.cli.stop._stop_local_worker_nodes', autospec=True)
     def test_stop_all_nodes_success(self, mock_stop_workers, mock_stop_daemon, mock_is_head, mock_client_class, mock_load_config):
         """Test stopping all nodes successfully."""
         # Mock configuration
-        mock_config = Mock()
+        mock_config = Mock(spec_set=Config)
         mock_config.address = "localhost:8265"
         mock_load_config.return_value = mock_config
         
         # Mock client and nodes
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         
         # Create mock nodes
-        mock_node1 = Mock()
+        mock_node1 = Mock(spec_set=Node)
         mock_node1.node_name = "head"
         mock_node1.address = "localhost:8265"
         mock_node1.status.value = "connected"
         
-        mock_node2 = Mock()
+        mock_node2 = Mock(spec_set=Node)
         mock_node2.node_name = "worker1"
         mock_node2.address = "192.168.1.100:8265"
         mock_node2.status.value = "connected"
         
-        mock_node3 = Mock()
+        mock_node3 = Mock(spec_set=Node)
         mock_node3.node_name = "worker2"
         mock_node3.address = "192.168.1.101:8265"
         mock_node3.status.value = "disconnected"
@@ -1096,17 +1101,17 @@ class TestCLIStop:
         mock_stop_daemon.assert_called_once()
         mock_stop_workers.assert_called_once()
         
-    @patch('scheduler.cli.stop.load_config')
-    @patch('scheduler.cli.stop.SchedulerClient')
+    @patch('scheduler.cli.stop.load_config', autospec=True)
+    @patch('scheduler.cli.stop.SchedulerClient', autospec=True)
     def test_stop_all_nodes_no_nodes(self, mock_client_class, mock_load_config):
         """Test stopping all nodes when no nodes are found."""
         # Mock configuration
-        mock_config = Mock()
+        mock_config = Mock(spec_set=Config)
         mock_config.address = "localhost:8265"
         mock_load_config.return_value = mock_config
         
         # Mock client with no nodes
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.list_nodes.return_value = []
         
@@ -1115,17 +1120,17 @@ class TestCLIStop:
         assert exit_code == 1
         mock_client.list_nodes.assert_called_once()
         
-    @patch('scheduler.cli.stop.load_config')
-    @patch('scheduler.cli.stop.SchedulerClient')
+    @patch('scheduler.cli.stop.load_config', autospec=True)
+    @patch('scheduler.cli.stop.SchedulerClient', autospec=True)
     def test_stop_all_nodes_connection_error(self, mock_client_class, mock_load_config):
         """Test stopping all nodes when connection fails."""
         # Mock configuration
-        mock_config = Mock()
+        mock_config = Mock(spec_set=Config)
         mock_config.address = "localhost:8265"
         mock_load_config.return_value = mock_config
         
         # Mock client that raises connection error
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.list_nodes.side_effect = ConnectionException("Connection failed")
         
@@ -1134,29 +1139,29 @@ class TestCLIStop:
         assert exit_code == 1
         mock_client.list_nodes.assert_called_once()
         
-    @patch('scheduler.cli.stop.load_config')
-    @patch('scheduler.cli.stop.SchedulerClient')
-    @patch('scheduler.cli.stop._is_running_on_head_node')
-    @patch('scheduler.cli.stop._stop_daemon')
-    @patch('scheduler.cli.stop._stop_local_worker_nodes')
+    @patch('scheduler.cli.stop.load_config', autospec=True)
+    @patch('scheduler.cli.stop.SchedulerClient', autospec=True)
+    @patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+    @patch('scheduler.cli.stop._stop_daemon', autospec=True)
+    @patch('scheduler.cli.stop._stop_local_worker_nodes', autospec=True)
     def test_stop_all_nodes_head_not_running(self, mock_stop_workers, mock_stop_daemon, mock_is_head, mock_client_class, mock_load_config):
         """Test stopping all nodes when head node is not running locally."""
         # Mock configuration
-        mock_config = Mock()
+        mock_config = Mock(spec_set=Config)
         mock_config.address = "localhost:8265"
         mock_load_config.return_value = mock_config
         
         # Mock client and nodes
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         
         # Create mock nodes
-        mock_node1 = Mock()
+        mock_node1 = Mock(spec_set=Node)
         mock_node1.node_name = "head"
         mock_node1.address = "localhost:8265"
         mock_node1.status.value = "connected"
         
-        mock_node2 = Mock()
+        mock_node2 = Mock(spec_set=Node)
         mock_node2.node_name = "worker1"
         mock_node2.address = "192.168.1.100:8265"
         mock_node2.status.value = "connected"
@@ -1175,28 +1180,28 @@ class TestCLIStop:
         mock_stop_daemon.assert_called_once()
         mock_stop_workers.assert_called_once()
 
-    @patch('scheduler.cli.stop.load_config')
-    @patch('scheduler.cli.stop.SchedulerClient')
-    @patch('scheduler.cli.stop._is_running_on_head_node')
-    @patch('scheduler.cli.stop._stop_local_worker_nodes')
+    @patch('scheduler.cli.stop.load_config', autospec=True)
+    @patch('scheduler.cli.stop.SchedulerClient', autospec=True)
+    @patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+    @patch('scheduler.cli.stop._stop_local_worker_nodes', autospec=True)
     def test_stop_all_nodes_from_worker_node(self, mock_stop_workers, mock_is_head, mock_client_class, mock_load_config):
         """Test stopping all nodes when called from worker node."""
         # Mock configuration
-        mock_config = Mock()
+        mock_config = Mock(spec_set=Config)
         mock_config.address = "192.168.1.50:8265"
         mock_load_config.return_value = mock_config
         
         # Mock client and nodes
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         
         # Create mock nodes
-        mock_node1 = Mock()
+        mock_node1 = Mock(spec_set=Node)
         mock_node1.node_name = "head"
         mock_node1.address = "192.168.1.50:8265"
         mock_node1.status.value = "connected"
         
-        mock_node2 = Mock()
+        mock_node2 = Mock(spec_set=Node)
         mock_node2.node_name = "worker1"
         mock_node2.address = "192.168.1.100:8265"
         mock_node2.status.value = "connected"
@@ -1215,29 +1220,29 @@ class TestCLIStop:
         mock_client.shutdown_cluster.assert_called_once_with(graceful_timeout=60, force=False)
         mock_stop_workers.assert_called_once()
 
-    @patch('scheduler.cli.stop.load_config')
-    @patch('scheduler.cli.stop.SchedulerClient')
-    @patch('scheduler.cli.stop._is_running_on_head_node')
-    @patch('scheduler.cli.stop._stop_daemon')
-    @patch('scheduler.cli.stop._stop_local_worker_nodes')
+    @patch('scheduler.cli.stop.load_config', autospec=True)
+    @patch('scheduler.cli.stop.SchedulerClient', autospec=True)
+    @patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+    @patch('scheduler.cli.stop._stop_daemon', autospec=True)
+    @patch('scheduler.cli.stop._stop_local_worker_nodes', autospec=True)
     def test_stop_all_nodes_from_head_node(self, mock_stop_workers, mock_stop_daemon, mock_is_head, mock_client_class, mock_load_config):
         """Test stopping all nodes when called from head node."""
         # Mock configuration
-        mock_config = Mock()
+        mock_config = Mock(spec_set=Config)
         mock_config.address = "localhost:8265"
         mock_load_config.return_value = mock_config
         
         # Mock client and nodes
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         
         # Create mock nodes
-        mock_node1 = Mock()
+        mock_node1 = Mock(spec_set=Node)
         mock_node1.node_name = "head"
         mock_node1.address = "localhost:8265"
         mock_node1.status.value = "connected"
         
-        mock_node2 = Mock()
+        mock_node2 = Mock(spec_set=Node)
         mock_node2.node_name = "worker1"
         mock_node2.address = "192.168.1.100:8265"
         mock_node2.status.value = "connected"
@@ -1258,22 +1263,22 @@ class TestCLIStop:
         # Should not call shutdown_cluster when running from head
         mock_client.shutdown_cluster.assert_not_called()
 
-    @patch('scheduler.cli.stop.load_config')
-    @patch('scheduler.cli.stop.SchedulerClient')
-    @patch('scheduler.cli.stop._is_running_on_head_node')
+    @patch('scheduler.cli.stop.load_config', autospec=True)
+    @patch('scheduler.cli.stop.SchedulerClient', autospec=True)
+    @patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
     def test_stop_all_nodes_worker_api_failure(self, mock_is_head, mock_client_class, mock_load_config):
         """Test stopping all nodes when worker API call fails."""
         # Mock configuration
-        mock_config = Mock()
+        mock_config = Mock(spec_set=Config)
         mock_config.address = "192.168.1.50:8265"
         mock_load_config.return_value = mock_config
         
         # Mock client and nodes
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         
         # Create mock nodes
-        mock_node1 = Mock()
+        mock_node1 = Mock(spec_set=Node)
         mock_node1.node_name = "head"
         mock_node1.address = "192.168.1.50:8265"
         mock_node1.status.value = "connected"
@@ -1297,7 +1302,7 @@ class TestCLIMain:
     Tests actual command routing through argparse with mocked command functions.
     """
 
-    @patch('sys.argv', ['scheduler'])
+    @patch('sys.argv', ['scheduler'], autospec=True)
     def test_no_command_shows_help(self):
         """Test running 'scheduler' without command returns error."""
         from scheduler.cli.main import main
@@ -1309,8 +1314,8 @@ class TestCLIMain:
         from scheduler.cli.main import main
         assert callable(main)
 
-    @patch('sys.argv', ['scheduler', 'start', '--head'])
-    @patch('scheduler.cli.main.start_command')
+    @patch('sys.argv', ['scheduler', 'start', '--head'], autospec=True)
+    @patch('scheduler.cli.main.start_command', autospec=True)
     def test_main_routes_start_command(self, mock_start_cmd):
         """Test main() routes to start_command with parsed args."""
         from scheduler.cli.main import main
@@ -1323,8 +1328,8 @@ class TestCLIMain:
         call_kwargs = mock_start_cmd.call_args[1]
         assert call_kwargs['head'] is True
 
-    @patch('sys.argv', ['scheduler', 'stop'])
-    @patch('scheduler.cli.main.stop_command')
+    @patch('sys.argv', ['scheduler', 'stop'], autospec=True)
+    @patch('scheduler.cli.main.stop_command', autospec=True)
     def test_main_routes_stop_command(self, mock_stop_cmd):
         """Test main() routes to stop_command with parsed args."""
         from scheduler.cli.main import main
@@ -1335,8 +1340,8 @@ class TestCLIMain:
         assert exit_code == 0
         mock_stop_cmd.assert_called_once_with(all_nodes=False)
 
-    @patch('sys.argv', ['scheduler', 'submit', 'train.py', '--req', '2', '--name', 'my_job'])
-    @patch('scheduler.cli.main.submit_command')
+    @patch('sys.argv', ['scheduler', 'submit', 'train.py', '--req', '2', '--name', 'my_job'], autospec=True)
+    @patch('scheduler.cli.main.submit_command', autospec=True)
     def test_main_routes_submit_command(self, mock_submit_cmd):
         """Test main() routes to submit_command with parsed args."""
         from scheduler.cli.main import main
@@ -1351,8 +1356,8 @@ class TestCLIMain:
         assert call_kwargs['req'] == '2'
         assert call_kwargs['name'] == 'my_job'
 
-    @patch('sys.argv', ['scheduler', 'jobs', '--format', 'json', '--limit', '10'])
-    @patch('scheduler.cli.main.jobs_command')
+    @patch('sys.argv', ['scheduler', 'jobs', '--format', 'json', '--limit', '10'], autospec=True)
+    @patch('scheduler.cli.main.jobs_command', autospec=True)
     def test_main_routes_jobs_command(self, mock_jobs_cmd):
         """Test main() routes to jobs_command with parsed args."""
         from scheduler.cli.main import main
@@ -1366,8 +1371,8 @@ class TestCLIMain:
         assert call_kwargs['format'] == 'json'
         assert call_kwargs['limit'] == 10
 
-    @patch('sys.argv', ['scheduler', 'jobs', 'job_123', 'job_456'])
-    @patch('scheduler.cli.main.jobs_command')
+    @patch('sys.argv', ['scheduler', 'jobs', 'job_123', 'job_456'], autospec=True)
+    @patch('scheduler.cli.main.jobs_command', autospec=True)
     def test_main_routes_jobs_with_ids(self, mock_jobs_cmd):
         """Test main() routes jobs command with specific job IDs."""
         from scheduler.cli.main import main
@@ -1379,8 +1384,8 @@ class TestCLIMain:
         call_kwargs = mock_jobs_cmd.call_args[1]
         assert call_kwargs['job_ids'] == ['job_123', 'job_456']
 
-    @patch('sys.argv', ['scheduler', 'logs', 'job_123', '-f', '--stderr'])
-    @patch('scheduler.cli.main.logs_command')
+    @patch('sys.argv', ['scheduler', 'logs', 'job_123', '-f', '--stderr'], autospec=True)
+    @patch('scheduler.cli.main.logs_command', autospec=True)
     def test_main_routes_logs_command(self, mock_logs_cmd):
         """Test main() routes to logs_command with parsed args."""
         from scheduler.cli.main import main
@@ -1395,8 +1400,8 @@ class TestCLIMain:
         assert call_kwargs['follow'] is True
         assert call_kwargs['stderr'] is True
 
-    @patch('sys.argv', ['scheduler', 'cancel', 'job_1', 'job_2'])
-    @patch('scheduler.cli.main.cancel_command')
+    @patch('sys.argv', ['scheduler', 'cancel', 'job_1', 'job_2'], autospec=True)
+    @patch('scheduler.cli.main.cancel_command', autospec=True)
     def test_main_routes_cancel_command(self, mock_cancel_cmd):
         """Test main() routes to cancel_command with parsed args."""
         from scheduler.cli.main import main
@@ -1409,8 +1414,8 @@ class TestCLIMain:
         call_kwargs = mock_cancel_cmd.call_args[1]
         assert call_kwargs['job_ids'] == ['job_1', 'job_2']
 
-    @patch('sys.argv', ['scheduler', 'config', 'init'])
-    @patch('scheduler.cli.main.config_command')
+    @patch('sys.argv', ['scheduler', 'config', 'init'], autospec=True)
+    @patch('scheduler.cli.main.config_command', autospec=True)
     def test_main_routes_config_init(self, mock_config_cmd):
         """Test main() routes to config_command for init."""
         from scheduler.cli.main import main
@@ -1423,8 +1428,8 @@ class TestCLIMain:
         call_kwargs = mock_config_cmd.call_args[1]
         assert call_kwargs['command'] == 'init'
 
-    @patch('sys.argv', ['scheduler', 'config', 'set', 'head_node.port', '9000'])
-    @patch('scheduler.cli.main.config_command')
+    @patch('sys.argv', ['scheduler', 'config', 'set', 'head_node.port', '9000'], autospec=True)
+    @patch('scheduler.cli.main.config_command', autospec=True)
     def test_main_routes_config_set(self, mock_config_cmd):
         """Test main() routes to config_command for set."""
         from scheduler.cli.main import main
@@ -1439,8 +1444,8 @@ class TestCLIMain:
         assert call_kwargs['key'] == 'head_node.port'
         assert call_kwargs['value'] == '9000'
 
-    @patch('sys.argv', ['scheduler', 'status'])
-    @patch('scheduler.cli.main.status_command')
+    @patch('sys.argv', ['scheduler', 'status'], autospec=True)
+    @patch('scheduler.cli.main.status_command', autospec=True)
     def test_main_routes_status_command(self, mock_status_cmd):
         """Test main() routes to status_command."""
         from scheduler.cli.main import main
@@ -1451,8 +1456,8 @@ class TestCLIMain:
         assert exit_code == 0
         mock_status_cmd.assert_called_once()
 
-    @patch('sys.argv', ['scheduler', 'start', '--head'])
-    @patch('scheduler.cli.main.start_command')
+    @patch('sys.argv', ['scheduler', 'start', '--head'], autospec=True)
+    @patch('scheduler.cli.main.start_command', autospec=True)
     def test_main_handles_keyboard_interrupt(self, mock_start_cmd):
         """Test main() handles KeyboardInterrupt gracefully."""
         from scheduler.cli.main import main
@@ -1462,8 +1467,8 @@ class TestCLIMain:
 
         assert exit_code == 130
 
-    @patch('sys.argv', ['scheduler', 'submit', 'train.py'])
-    @patch('scheduler.cli.main.submit_command')
+    @patch('sys.argv', ['scheduler', 'submit', 'train.py'], autospec=True)
+    @patch('scheduler.cli.main.submit_command', autospec=True)
     def test_main_handles_generic_exception(self, mock_submit_cmd):
         """Test main() handles generic exceptions."""
         from scheduler.cli.main import main
@@ -1473,8 +1478,8 @@ class TestCLIMain:
 
         assert exit_code == 1
 
-    @patch('sys.argv', ['scheduler', 'submit', 'script.py', 'arg1', 'arg2', '--req', '1'])
-    @patch('scheduler.cli.main.submit_command')
+    @patch('sys.argv', ['scheduler', 'submit', 'script.py', 'arg1', 'arg2', '--req', '1'], autospec=True)
+    @patch('scheduler.cli.main.submit_command', autospec=True)
     def test_main_submit_with_script_args(self, mock_submit_cmd):
         """Test main() handles submit with script arguments."""
         from scheduler.cli.main import main
@@ -1487,8 +1492,8 @@ class TestCLIMain:
         assert call_kwargs['script'] == 'script.py'
         assert call_kwargs['script_args'] == ['arg1', 'arg2']
 
-    @patch('sys.argv', ['scheduler', 'start', '--address', 'localhost:8265', '--port', '9000'])
-    @patch('scheduler.cli.main.start_command')
+    @patch('sys.argv', ['scheduler', 'start', '--address', 'localhost:8265', '--port', '9000'], autospec=True)
+    @patch('scheduler.cli.main.start_command', autospec=True)
     def test_main_start_with_all_options(self, mock_start_cmd):
         """Test main() handles start command with all options."""
         from scheduler.cli.main import main
@@ -1502,8 +1507,8 @@ class TestCLIMain:
         assert call_kwargs['port'] == 9000
         assert call_kwargs['head'] is False
 
-    @patch('sys.argv', ['scheduler', 'jobs', '--filter', 'running', '--format', 'table'])
-    @patch('scheduler.cli.main.jobs_command')
+    @patch('sys.argv', ['scheduler', 'jobs', '--filter', 'running', '--format', 'table'], autospec=True)
+    @patch('scheduler.cli.main.jobs_command', autospec=True)
     def test_main_jobs_with_filter(self, mock_jobs_cmd):
         """Test main() handles jobs command with status filter."""
         from scheduler.cli.main import main
@@ -1516,8 +1521,8 @@ class TestCLIMain:
         assert call_kwargs['filter'] == 'running'
         assert call_kwargs['format'] == 'table'
 
-    @patch('sys.argv', ['scheduler', 'logs', 'job_123', '-n', '50', '--both'])
-    @patch('scheduler.cli.main.logs_command')
+    @patch('sys.argv', ['scheduler', 'logs', 'job_123', '-n', '50', '--both'], autospec=True)
+    @patch('scheduler.cli.main.logs_command', autospec=True)
     def test_main_logs_with_lines_and_both(self, mock_logs_cmd):
         """Test main() handles logs command with line limit and both streams."""
         from scheduler.cli.main import main
@@ -1531,8 +1536,8 @@ class TestCLIMain:
         assert call_kwargs['lines'] == 50
         assert call_kwargs['both'] is True
 
-    @patch('sys.argv', ['scheduler', 'config', 'show'])
-    @patch('scheduler.cli.main.config_command')
+    @patch('sys.argv', ['scheduler', 'config', 'show'], autospec=True)
+    @patch('scheduler.cli.main.config_command', autospec=True)
     def test_main_config_show(self, mock_config_cmd):
         """Test main() handles config show command."""
         from scheduler.cli.main import main
@@ -1544,8 +1549,8 @@ class TestCLIMain:
         call_kwargs = mock_config_cmd.call_args[1]
         assert call_kwargs['command'] == 'show'
 
-    @patch('sys.argv', ['scheduler', 'config', 'get', 'head_node.port'])
-    @patch('scheduler.cli.main.config_command')
+    @patch('sys.argv', ['scheduler', 'config', 'get', 'head_node.port'], autospec=True)
+    @patch('scheduler.cli.main.config_command', autospec=True)
     def test_main_config_get(self, mock_config_cmd):
         """Test main() handles config get command."""
         from scheduler.cli.main import main
@@ -1558,8 +1563,8 @@ class TestCLIMain:
         assert call_kwargs['command'] == 'get'
         assert call_kwargs['key'] == 'head_node.port'
 
-    @patch('sys.argv', ['scheduler', 'start', '--head', '--port', '9000', '--node-name', 'test-node', '--num-gpus', '4', '--log-level', 'DEBUG'])
-    @patch('scheduler.cli.main.start_command')
+    @patch('sys.argv', ['scheduler', 'start', '--head', '--port', '9000', '--node-name', 'test-node', '--num-gpus', '4', '--log-level', 'DEBUG'], autospec=True)
+    @patch('scheduler.cli.main.start_command', autospec=True)
     def test_main_start_head_with_all_args(self, mock_start_cmd):
         """Test main() handles start command with all arguments."""
         from scheduler.cli.main import main
@@ -1575,8 +1580,8 @@ class TestCLIMain:
         assert call_kwargs['num_gpus'] == 4
         assert call_kwargs['log_level'] == 'DEBUG'
 
-    @patch('sys.argv', ['scheduler', 'submit', 'train.py', '--req', '2', '--priority', '5', '--async'])
-    @patch('scheduler.cli.main.submit_command')
+    @patch('sys.argv', ['scheduler', 'submit', 'train.py', '--req', '2', '--priority', '5', '--async'], autospec=True)
+    @patch('scheduler.cli.main.submit_command', autospec=True)
     def test_main_submit_with_async_flag(self, mock_submit_cmd):
         """Test main() handles submit with async flag."""
         from scheduler.cli.main import main
@@ -1588,8 +1593,8 @@ class TestCLIMain:
         call_kwargs = mock_submit_cmd.call_args[1]
         assert call_kwargs['async_submit'] is True
 
-    @patch('sys.argv', ['scheduler', 'submit', 'train.py', '--req', '1', '--log-to-driver'])
-    @patch('scheduler.cli.main.submit_command')
+    @patch('sys.argv', ['scheduler', 'submit', 'train.py', '--req', '1', '--log-to-driver'], autospec=True)
+    @patch('scheduler.cli.main.submit_command', autospec=True)
     def test_main_submit_with_log_to_driver(self, mock_submit_cmd):
         """Test main() handles submit with log-to-driver flag."""
         from scheduler.cli.main import main
@@ -1601,8 +1606,8 @@ class TestCLIMain:
         call_kwargs = mock_submit_cmd.call_args[1]
         assert call_kwargs['log_to_driver'] is True
 
-    @patch('sys.argv', ['scheduler', 'jobs'])
-    @patch('scheduler.cli.main.jobs_command')
+    @patch('sys.argv', ['scheduler', 'jobs'], autospec=True)
+    @patch('scheduler.cli.main.jobs_command', autospec=True)
     def test_main_jobs_without_job_ids(self, mock_jobs_cmd):
         """Test main() handles jobs command without specific IDs."""
         from scheduler.cli.main import main
@@ -1615,8 +1620,8 @@ class TestCLIMain:
         # When no job_ids provided, should be None
         assert call_kwargs['job_ids'] is None
 
-    @patch('sys.argv', ['scheduler', 'start', '--address', '192.168.1.100:8265'])
-    @patch('scheduler.cli.main.start_command')
+    @patch('sys.argv', ['scheduler', 'start', '--address', '192.168.1.100:8265'], autospec=True)
+    @patch('scheduler.cli.main.start_command', autospec=True)
     def test_main_start_worker_with_address(self, mock_start_cmd):
         """Test main() handles start worker with address."""
         from scheduler.cli.main import main
@@ -1657,15 +1662,15 @@ class TestCLIExitCodes:
 class TestCLIStatus:
     """Test 'scheduler status' command."""
 
-    @patch('scheduler.cli.status.load_config')
-    @patch('scheduler.cli.status.SchedulerClient')
-    @patch('scheduler.cli.status.run_tui')
+    @patch('scheduler.cli.status.load_config', autospec=True)
+    @patch('scheduler.cli.status.SchedulerClient', autospec=True)
+    @patch('scheduler.cli.status.run_tui', autospec=True)
     def test_status_command_success(self, mock_run_tui, mock_client_class, mock_load_config):
         """Test launching status TUI successfully."""
         from scheduler.cli.status import status_command
 
         mock_load_config.return_value = Config(address='localhost:8265')
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.list_nodes.return_value = []
 
@@ -1674,14 +1679,14 @@ class TestCLIStatus:
         assert exit_code == 0
         mock_run_tui.assert_called_once()
 
-    @patch('scheduler.cli.status.load_config')
-    @patch('scheduler.cli.status.SchedulerClient')
+    @patch('scheduler.cli.status.load_config', autospec=True)
+    @patch('scheduler.cli.status.SchedulerClient', autospec=True)
     def test_status_command_connection_error(self, mock_client_class, mock_load_config):
         """Test status command when cannot connect to head node."""
         from scheduler.cli.status import status_command
 
         mock_load_config.return_value = Config(address='localhost:8265')
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.list_nodes.side_effect = ConnectionException("Cannot connect")
 
@@ -1689,15 +1694,15 @@ class TestCLIStatus:
 
         assert exit_code == 1
 
-    @patch('scheduler.cli.status.load_config')
-    @patch('scheduler.cli.status.SchedulerClient')
-    @patch('scheduler.cli.status.run_tui')
+    @patch('scheduler.cli.status.load_config', autospec=True)
+    @patch('scheduler.cli.status.SchedulerClient', autospec=True)
+    @patch('scheduler.cli.status.run_tui', autospec=True)
     def test_status_command_keyboard_interrupt(self, mock_run_tui, mock_client_class, mock_load_config):
         """Test status command handles keyboard interrupt."""
         from scheduler.cli.status import status_command
 
         mock_load_config.return_value = Config(address='localhost:8265')
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.list_nodes.return_value = []
         mock_run_tui.side_effect = KeyboardInterrupt()
@@ -1706,7 +1711,7 @@ class TestCLIStatus:
 
         assert exit_code == 0  # Graceful exit
 
-    @patch('scheduler.cli.status.load_config')
+    @patch('scheduler.cli.status.load_config', autospec=True)
     def test_status_command_generic_error(self, mock_load_config):
         """Test status command handles generic errors."""
         from scheduler.cli.status import status_command
@@ -1721,17 +1726,17 @@ class TestCLIStatus:
 class TestCLIEdgeCases:
     """Test edge cases and error conditions."""
 
-    @patch('scheduler.cli.submit.load_config')
-    @patch('scheduler.cli.submit.SchedulerClient')
-    @patch('os.path.exists')
-    @patch('os.path.abspath')
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
+    @patch('os.path.exists', autospec=True)
+    @patch('os.path.abspath', autospec=True)
     def test_submit_with_script_args(self, mock_abspath, mock_exists, mock_client_class, mock_load_config, sample_job):
         """Test submitting job with script arguments."""
         mock_exists.return_value = True
         mock_abspath.return_value = '/abs/path/train.py'
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.submit_job.return_value = sample_job
 
@@ -1746,17 +1751,17 @@ class TestCLIEdgeCases:
         call_kwargs = mock_client.submit_job.call_args[1]
         assert call_kwargs['script_args'] == ['--epochs', '100', '--lr', '0.001']
 
-    @patch('scheduler.cli.submit.load_config')
-    @patch('scheduler.cli.submit.SchedulerClient')
-    @patch('os.path.exists')
-    @patch('os.path.abspath')
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
+    @patch('os.path.exists', autospec=True)
+    @patch('os.path.abspath', autospec=True)
     def test_submit_with_dependencies(self, mock_abspath, mock_exists, mock_client_class, mock_load_config, sample_job):
         """Test submitting job with dependencies."""
         mock_exists.return_value = True
         mock_abspath.return_value = '/abs/path/train.py'
         mock_load_config.return_value = Config(head=HeadConfig(port=8265), address='localhost:8265')
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_client.submit_job.return_value = sample_job
 

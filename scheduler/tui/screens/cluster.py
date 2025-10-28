@@ -130,6 +130,6 @@ class ClusterScreen(Screen):
                 job.name or "N/A",
                 job.status.value,
                 job.assigned_node or "-",
-                str(job.requirements.num_gpus) if job.requirements else "?",
+                str(job.requirements) if job.requirements else "?",
                 format_runtime(job.runtime) if hasattr(job, 'runtime') else "-"
             )

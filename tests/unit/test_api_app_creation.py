@@ -11,8 +11,8 @@ class TestCreateApp:
 
     def test_create_app_registers_routes(self):
         """Test that create_app registers all routes"""
-        mock_job_manager = Mock(spec=JobManager)
-        mock_node_manager = Mock(spec=NodeManager)
+        mock_job_manager = Mock(spec_set=JobManager)
+        mock_node_manager = Mock(spec_set=NodeManager)
         
         app = create_app(mock_job_manager, mock_node_manager)
         
@@ -34,8 +34,8 @@ class TestCreateApp:
         _job_manager = None
         _node_manager = None
         
-        mock_job_manager = Mock(spec=JobManager)
-        mock_node_manager = Mock(spec=NodeManager)
+        mock_job_manager = Mock(spec_set=JobManager)
+        mock_node_manager = Mock(spec_set=NodeManager)
         
         app = create_app(mock_job_manager, mock_node_manager)
         
@@ -44,8 +44,8 @@ class TestCreateApp:
 
     def test_create_app_configures_fastapi(self):
         """Test that create_app configures FastAPI app"""
-        mock_job_manager = Mock(spec=JobManager)
-        mock_node_manager = Mock(spec=NodeManager)
+        mock_job_manager = Mock(spec_set=JobManager)
+        mock_node_manager = Mock(spec_set=NodeManager)
         
         app = create_app(mock_job_manager, mock_node_manager)
         

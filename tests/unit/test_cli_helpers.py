@@ -9,7 +9,7 @@ from scheduler.cli.helpers import check_head_address_or_prompt
 class TestCLIHelpers:
     """Tests for CLI helper functions"""
 
-    @patch('scheduler.cli.helpers.load_head_info')
+    @patch('scheduler.cli.helpers.load_head_info', autospec=True)
     def test_check_head_address_available(self, mock_load_head_info):
         """Test check_head_address_or_prompt returns True when address available"""
         mock_load_head_info.return_value = "localhost:8265"
@@ -19,8 +19,8 @@ class TestCLIHelpers:
         assert result is True
         mock_load_head_info.assert_called_once()
 
-    @patch('scheduler.cli.helpers.load_head_info')
-    @patch('scheduler.cli.helpers.click.echo')
+    @patch('scheduler.cli.helpers.load_head_info', autospec=True)
+    @patch('scheduler.cli.helpers.click.echo', autospec=True)
     def test_check_head_address_not_available(self, mock_echo, mock_load_head_info):
         """Test check_head_address_or_prompt returns False and shows message when address not available"""
         mock_load_head_info.return_value = None
@@ -34,8 +34,8 @@ class TestCLIHelpers:
         assert any("Error" in msg or "❌" in msg for msg in calls)
         assert any("start" in msg.lower() for msg in calls)
 
-    @patch('scheduler.cli.helpers.load_head_info')
-    @patch('scheduler.cli.helpers.click.echo')
+    @patch('scheduler.cli.helpers.load_head_info', autospec=True)
+    @patch('scheduler.cli.helpers.click.echo', autospec=True)
     def test_check_head_address_empty_string(self, mock_echo, mock_load_head_info):
         """Test check_head_address_or_prompt returns False for empty string"""
         mock_load_head_info.return_value = ""

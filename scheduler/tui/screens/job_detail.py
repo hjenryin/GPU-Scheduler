@@ -107,7 +107,7 @@ class JobDetailScreen(Screen):
             f"Arguments:   {' '.join(job.script_args) if job.script_args else 'None'}\n"
             f"Working Dir: {job.working_dir or 'Default'}\n"
             f"Environment: {len(job.env_vars) if job.env_vars else 0} variables\n"
-            f"Requirements: {job.requirements.num_gpus if job.requirements else '?'} GPUs"
+            f"Requirements: {str(job.requirements) if job.requirements else '?'}"
         )
         if job.requirements and job.requirements.alternatives:
             alt_str = ", ".join([f"{node or 'any'}:{ngpus}" for node, ngpus in job.requirements.alternatives])

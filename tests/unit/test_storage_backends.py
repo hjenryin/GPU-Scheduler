@@ -193,7 +193,7 @@ class TestFileBackend:
 
     def test_write_json_permission_error(self, file_backend):
         """Test _write_json with permission error"""
-        with patch('builtins.open', side_effect=PermissionError("Permission denied")):
+        with patch('builtins.open', side_effect=PermissionError("Permission denied"), autospec=True):
             with pytest.raises(PermissionError):
                 file_backend._write_json("/root/readonly/file.json", {"test": "data"})
 
@@ -493,7 +493,7 @@ class TestSQLiteBackend:
         # Create a path that will cause connection error
         invalid_path = os.path.join(temp_dir, "invalid", "path", "test.db")
         
-        with patch('sqlite3.connect', side_effect=sqlite3.Error("Connection failed")):
+        with patch('sqlite3.connect', side_effect=sqlite3.Error("Connection failed"), autospec=True):
             with pytest.raises(sqlite3.Error):
                 SQLiteBackend(db_path=invalid_path)
 
@@ -508,8 +508,8 @@ class TestSQLiteBackend:
         )
         
         # Mock to_dict to return unserializable data
-        with patch.object(job, 'to_dict', return_value={'invalid': object()}):
-            with patch('json.dumps', side_effect=TypeError("Object not serializable")):
+        with patch.object(job, 'to_dict', return_value={'invalid': object()}, autospec=True):
+            with patch('json.dumps', side_effect=TypeError("Object not serializable"), autospec=True):
                 with pytest.raises(TypeError):
                     sqlite_backend.save_job(job)
 
@@ -521,7 +521,7 @@ class TestSQLiteBackend:
         sqlite_backend.conn.commit()
         
         # Loading should handle the error gracefully
-        with patch('json.loads', side_effect=json.JSONDecodeError("Invalid JSON", "", 0)):
+        with patch('json.loads', side_effect=json.JSONDecodeError("Invalid JSON", "", 0), autospec=True):
             with pytest.raises(json.JSONDecodeError):
                 sqlite_backend.load_job("test-job-001")
 
@@ -531,6 +531,6 @@ class TestSQLiteBackend:
         from scheduler.core.exceptions import PermissionDeniedException
         
         # Mock ensure_dir_exists to raise PermissionDeniedException
-        with patch('scheduler.storage.sqlite_backend.ensure_dir_exists', side_effect=PermissionDeniedException("Cannot create directory")):
+        with patch('scheduler.storage.sqlite_backend.ensure_dir_exists', side_effect=PermissionDeniedException("Cannot create directory"), autospec=True):
             with pytest.raises(PermissionDeniedException):
                 SQLiteBackend(db_path=os.path.join(temp_dir, "test.db"))

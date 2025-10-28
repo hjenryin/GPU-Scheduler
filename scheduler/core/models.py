@@ -29,6 +29,16 @@ class NodeStatus(Enum):
 
 class GPUStats:
     """GPU statistics snapshot"""
+    
+    # Class attributes with defaults (enables create_autospec to work with spec_set)
+    gpu_id: int = 0
+    utilization: float = 0.0
+    memory_used: int = 0
+    memory_total: int = 0
+    temperature: int = 0
+    power_draw: int = 0
+    power_limit: int = 0
+    running_job_id: Optional[str] = None
 
     def __init__(
         self,
@@ -116,6 +126,11 @@ class GPUStats:
 
 class GPU:
     """GPU resource representation"""
+    
+    # Class attributes with defaults (enables create_autospec to work with spec_set)
+    gpu_id: int = 0
+    stats: GPUStats = None
+    stable_since: Optional[datetime] = None
 
     def __init__(
         self,
@@ -213,6 +228,9 @@ class GPU:
 
 class JobRequirement:
     """Job resource requirement specification"""
+    
+    # Class attribute with default (enables create_autospec to work with spec_set)
+    _alternatives: List[Tuple[Optional[str], int]] = []
 
     def __init__(self, requirement_str: str):
         """
@@ -302,6 +320,26 @@ class JobRequirement:
 
 class Job:
     """Job representation"""
+    
+    # Class attributes with defaults (enables create_autospec to work with spec_set)
+    job_id: str = None
+    name: str = None
+    script: str = None
+    requirements: JobRequirement = None
+    script_args: List[str] = None
+    working_dir: Optional[str] = None
+    env_vars: Dict[str, str] = None
+    dependencies: List[str] = None
+    priority: int = 0
+    submitted_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    status: JobStatus = JobStatus.PENDING
+    assigned_node: Optional[str] = None
+    assigned_gpus: Optional[List[int]] = None
+    exit_code: Optional[int] = None
+    error_message: Optional[str] = None
+    versioned_script_path: Optional[str] = None
 
     def __init__(
         self,
@@ -474,6 +512,16 @@ class Job:
 
 class Node:
     """Worker node representation"""
+    
+    # Class attributes with defaults (enables create_autospec to work with spec_set)
+    node_name: str = None
+    address: str = None
+    num_gpus: int = 0
+    gpus: List[GPU] = None
+    status: NodeStatus = NodeStatus.INITIALIZING
+    last_heartbeat: Optional[datetime] = None
+    registered_at: Optional[datetime] = None
+    grace_period_until: Optional[datetime] = None
 
     def __init__(
         self,

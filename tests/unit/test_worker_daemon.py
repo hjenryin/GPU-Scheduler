@@ -7,16 +7,17 @@ from unittest.mock import Mock, patch, MagicMock, call
 from scheduler.worker.daemon import WorkerDaemon
 from scheduler.core.exceptions import ConnectionException
 from scheduler.core.models import Job, JobRequirement, JobStatus
+from scheduler.api.client import SchedulerClient
 
 
 class TestWorkerDaemon:
     """Tests for WorkerDaemon class"""
 
-    @patch('scheduler.worker.daemon.SchedulerClient')
-    @patch('scheduler.worker.daemon.HeartbeatSender')
-    @patch('scheduler.worker.daemon.JobExecutor')
-    @patch('scheduler.worker.daemon.GPUMonitor')
-    @patch('scheduler.worker.daemon.FileHandler')
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
     def test_init_with_auto_detect_gpus(self, mock_file_handler, mock_gpu_monitor,
                                        mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test daemon initialization with GPU auto-detection"""
@@ -35,11 +36,11 @@ class TestWorkerDaemon:
         # Verify GPU monitor was created
         mock_gpu_monitor.assert_called_once_with(test_config)
 
-    @patch('scheduler.worker.daemon.SchedulerClient')
-    @patch('scheduler.worker.daemon.HeartbeatSender')
-    @patch('scheduler.worker.daemon.JobExecutor')
-    @patch('scheduler.worker.daemon.GPUMonitor')
-    @patch('scheduler.worker.daemon.FileHandler')
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
     def test_init_with_specified_gpus(self, mock_file_handler, mock_gpu_monitor,
                                       mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test daemon initialization with specified GPU count"""
@@ -52,12 +53,12 @@ class TestWorkerDaemon:
         # detect_gpus should not be called
         mock_monitor_instance.detect_gpus.assert_not_called()
 
-    @patch('scheduler.worker.daemon.SchedulerClient')
-    @patch('scheduler.worker.daemon.HeartbeatSender')
-    @patch('scheduler.worker.daemon.JobExecutor')
-    @patch('scheduler.worker.daemon.GPUMonitor')
-    @patch('scheduler.worker.daemon.FileHandler')
-    @patch('scheduler.worker.daemon.get_local_ip')
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
+    @patch('scheduler.worker.daemon.get_local_ip', autospec=True)
     def test_init_address_configuration(self, mock_get_ip, mock_file_handler, mock_gpu_monitor,
                                        mock_job_executor, mock_heartbeat, mock_client):
         """Test address configuration"""
@@ -81,11 +82,11 @@ class TestWorkerDaemon:
 
         assert daemon2.head_address == "localhost:9999"
 
-    @patch('scheduler.worker.daemon.SchedulerClient')
-    @patch('scheduler.worker.daemon.HeartbeatSender')
-    @patch('scheduler.worker.daemon.JobExecutor')
-    @patch('scheduler.worker.daemon.GPUMonitor')
-    @patch('scheduler.worker.daemon.FileHandler')
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
     def test_start_success(self, mock_file_handler, mock_gpu_monitor,
                           mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test successful daemon start"""
@@ -100,7 +101,7 @@ class TestWorkerDaemon:
         mock_heartbeat_instance.start = Mock()
         mock_heartbeat.return_value = mock_heartbeat_instance
 
-        mock_client_instance = Mock()
+        mock_client_instance = Mock(spec_set=SchedulerClient)
         mock_client_instance.register_node.return_value = {"status": "ok"}
         mock_client.return_value = mock_client_instance
 
@@ -119,11 +120,11 @@ class TestWorkerDaemon:
         # Clean up
         daemon.stop(graceful=False)
 
-    @patch('scheduler.worker.daemon.SchedulerClient')
-    @patch('scheduler.worker.daemon.HeartbeatSender')
-    @patch('scheduler.worker.daemon.JobExecutor')
-    @patch('scheduler.worker.daemon.GPUMonitor')
-    @patch('scheduler.worker.daemon.FileHandler')
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
     def test_start_registration_failure(self, mock_file_handler, mock_gpu_monitor,
                                        mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test daemon start with registration failure"""
@@ -131,7 +132,7 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        mock_client_instance = Mock()
+        mock_client_instance = Mock(spec_set=SchedulerClient)
         mock_client_instance.register_node.side_effect = Exception("Connection refused")
         mock_client.return_value = mock_client_instance
 
@@ -143,11 +144,11 @@ class TestWorkerDaemon:
         # Daemon should not be running
         assert daemon.running is False
 
-    @patch('scheduler.worker.daemon.SchedulerClient')
-    @patch('scheduler.worker.daemon.HeartbeatSender')
-    @patch('scheduler.worker.daemon.JobExecutor')
-    @patch('scheduler.worker.daemon.GPUMonitor')
-    @patch('scheduler.worker.daemon.FileHandler')
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
     def test_start_already_running(self, mock_file_handler, mock_gpu_monitor,
                                    mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test starting daemon when already running"""
@@ -160,7 +161,7 @@ class TestWorkerDaemon:
         mock_heartbeat_instance.stop = Mock()
         mock_heartbeat.return_value = mock_heartbeat_instance
 
-        mock_client_instance = Mock()
+        mock_client_instance = Mock(spec_set=SchedulerClient)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
@@ -174,11 +175,11 @@ class TestWorkerDaemon:
         # Clean up
         daemon.stop(graceful=False)
 
-    @patch('scheduler.worker.daemon.SchedulerClient')
-    @patch('scheduler.worker.daemon.HeartbeatSender')
-    @patch('scheduler.worker.daemon.JobExecutor')
-    @patch('scheduler.worker.daemon.GPUMonitor')
-    @patch('scheduler.worker.daemon.FileHandler')
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
     def test_stop_graceful_no_job(self, mock_file_handler, mock_gpu_monitor,
                                   mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test graceful daemon stop with no running job"""
@@ -189,7 +190,7 @@ class TestWorkerDaemon:
         mock_heartbeat_instance = Mock()
         mock_heartbeat.return_value = mock_heartbeat_instance
 
-        mock_client_instance = Mock()
+        mock_client_instance = Mock(spec_set=SchedulerClient)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
@@ -201,12 +202,12 @@ class TestWorkerDaemon:
         mock_heartbeat_instance.stop.assert_called_once()
         mock_monitor_instance.stop_monitoring.assert_called_once()
 
-    @patch('scheduler.worker.daemon.SchedulerClient')
-    @patch('scheduler.worker.daemon.HeartbeatSender')
-    @patch('scheduler.worker.daemon.JobExecutor')
-    @patch('scheduler.worker.daemon.GPUMonitor')
-    @patch('scheduler.worker.daemon.FileHandler')
-    @patch('time.sleep')
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
+    @patch('time.sleep', autospec=True)
     def test_stop_graceful_with_completing_job(self, mock_sleep, mock_file_handler, mock_gpu_monitor,
                                                mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test graceful stop waits for job to complete"""
@@ -222,7 +223,7 @@ class TestWorkerDaemon:
         ]
         mock_job_executor.return_value = mock_executor_instance
 
-        mock_client_instance = Mock()
+        mock_client_instance = Mock(spec_set=SchedulerClient)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
@@ -237,13 +238,13 @@ class TestWorkerDaemon:
         # Should have waited for job
         assert mock_executor_instance.get_job_status.call_count == 2
 
-    @patch('scheduler.worker.daemon.SchedulerClient')
-    @patch('scheduler.worker.daemon.HeartbeatSender')
-    @patch('scheduler.worker.daemon.JobExecutor')
-    @patch('scheduler.worker.daemon.GPUMonitor')
-    @patch('scheduler.worker.daemon.FileHandler')
-    @patch('time.sleep')
-    @patch('time.time')
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
+    @patch('time.sleep', autospec=True)
+    @patch('time.time', autospec=True)
     def test_stop_graceful_timeout_terminates_job(self, mock_time, mock_sleep, mock_file_handler,
                                                   mock_gpu_monitor, mock_job_executor,
                                                   mock_heartbeat, mock_client, test_config):
@@ -262,7 +263,7 @@ class TestWorkerDaemon:
         mock_heartbeat_instance.stop = Mock()
         mock_heartbeat.return_value = mock_heartbeat_instance
 
-        mock_client_instance = Mock()
+        mock_client_instance = Mock(spec_set=SchedulerClient)
         mock_client.return_value = mock_client_instance
 
         # Mock time to simulate timeout: start_time=0, then after timeout it becomes 61
@@ -287,11 +288,11 @@ class TestWorkerDaemon:
         # Should have terminated the job
         mock_executor_instance.terminate_job.assert_called_once_with(12345)
 
-    @patch('scheduler.worker.daemon.SchedulerClient')
-    @patch('scheduler.worker.daemon.HeartbeatSender')
-    @patch('scheduler.worker.daemon.JobExecutor')
-    @patch('scheduler.worker.daemon.GPUMonitor')
-    @patch('scheduler.worker.daemon.FileHandler')
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
     def test_stop_not_running(self, mock_file_handler, mock_gpu_monitor,
                               mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test stopping daemon when not running"""
@@ -306,11 +307,11 @@ class TestWorkerDaemon:
 
         assert daemon.running is False
 
-    @patch('scheduler.worker.daemon.SchedulerClient')
-    @patch('scheduler.worker.daemon.HeartbeatSender')
-    @patch('scheduler.worker.daemon.JobExecutor')
-    @patch('scheduler.worker.daemon.GPUMonitor')
-    @patch('scheduler.worker.daemon.FileHandler')
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
     def test_execute_job_success(self, mock_file_handler, mock_gpu_monitor,
                                  mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test successful job execution"""
@@ -324,7 +325,7 @@ class TestWorkerDaemon:
         mock_executor_instance.get_job_status.return_value = (False, 0)
         mock_job_executor.return_value = mock_executor_instance
 
-        mock_client_instance = Mock()
+        mock_client_instance = Mock(spec_set=SchedulerClient)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
@@ -351,11 +352,11 @@ class TestWorkerDaemon:
         assert daemon.current_job is None
         assert daemon.current_job_pid is None
 
-    @patch('scheduler.worker.daemon.SchedulerClient')
-    @patch('scheduler.worker.daemon.HeartbeatSender')
-    @patch('scheduler.worker.daemon.JobExecutor')
-    @patch('scheduler.worker.daemon.GPUMonitor')
-    @patch('scheduler.worker.daemon.FileHandler')
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
     def test_execute_job_failure(self, mock_file_handler, mock_gpu_monitor,
                                  mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test job execution failure"""
@@ -369,7 +370,7 @@ class TestWorkerDaemon:
         mock_executor_instance.get_job_status.return_value = (False, 1)
         mock_job_executor.return_value = mock_executor_instance
 
-        mock_client_instance = Mock()
+        mock_client_instance = Mock(spec_set=SchedulerClient)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
@@ -391,11 +392,11 @@ class TestWorkerDaemon:
         assert call_args[0][0] == "job-002"
         assert "Exit code: 1" in call_args[0][1]
 
-    @patch('scheduler.worker.daemon.SchedulerClient')
-    @patch('scheduler.worker.daemon.HeartbeatSender')
-    @patch('scheduler.worker.daemon.JobExecutor')
-    @patch('scheduler.worker.daemon.GPUMonitor')
-    @patch('scheduler.worker.daemon.FileHandler')
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
     def test_execute_job_no_assigned_gpus(self, mock_file_handler, mock_gpu_monitor,
                                           mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test job execution when no GPUs are assigned (use all)"""
@@ -408,7 +409,7 @@ class TestWorkerDaemon:
         mock_executor_instance.get_job_status.return_value = (False, 0)
         mock_job_executor.return_value = mock_executor_instance
 
-        mock_client_instance = Mock()
+        mock_client_instance = Mock(spec_set=SchedulerClient)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node", num_gpus=4)
@@ -429,11 +430,11 @@ class TestWorkerDaemon:
         call_args = mock_executor_instance.execute_job.call_args
         assert call_args[0][1] == [0, 1, 2, 3]
 
-    @patch('scheduler.worker.daemon.SchedulerClient')
-    @patch('scheduler.worker.daemon.HeartbeatSender')
-    @patch('scheduler.worker.daemon.JobExecutor')
-    @patch('scheduler.worker.daemon.GPUMonitor')
-    @patch('scheduler.worker.daemon.FileHandler')
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
     def test_execute_job_exception_during_execution(self, mock_file_handler, mock_gpu_monitor,
                                                     mock_job_executor, mock_heartbeat,
                                                     mock_client, test_config):
@@ -446,7 +447,7 @@ class TestWorkerDaemon:
         mock_executor_instance.execute_job.side_effect = Exception("Execution failed")
         mock_job_executor.return_value = mock_executor_instance
 
-        mock_client_instance = Mock()
+        mock_client_instance = Mock(spec_set=SchedulerClient)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
@@ -468,11 +469,11 @@ class TestWorkerDaemon:
         # Job should be cleared
         assert daemon.current_job is None
 
-    @patch('scheduler.worker.daemon.SchedulerClient')
-    @patch('scheduler.worker.daemon.HeartbeatSender')
-    @patch('scheduler.worker.daemon.JobExecutor')
-    @patch('scheduler.worker.daemon.GPUMonitor')
-    @patch('scheduler.worker.daemon.FileHandler')
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
     def test_register_with_head(self, mock_file_handler, mock_gpu_monitor,
                                 mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test worker registration with head node"""
@@ -480,7 +481,7 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        mock_client_instance = Mock()
+        mock_client_instance = Mock(spec_set=SchedulerClient)
         mock_client_instance.register_node.return_value = {"status": "registered"}
         mock_client.return_value = mock_client_instance
 
@@ -494,11 +495,11 @@ class TestWorkerDaemon:
         assert call_args[1]['node_name'] == "test-node"
         assert call_args[1]['num_gpus'] == 2
 
-    @patch('scheduler.worker.daemon.SchedulerClient')
-    @patch('scheduler.worker.daemon.HeartbeatSender')
-    @patch('scheduler.worker.daemon.JobExecutor')
-    @patch('scheduler.worker.daemon.GPUMonitor')
-    @patch('scheduler.worker.daemon.FileHandler')
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
     def test_signal_handler(self, mock_file_handler, mock_gpu_monitor,
                            mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test signal handler for graceful shutdown"""
@@ -509,7 +510,7 @@ class TestWorkerDaemon:
         mock_heartbeat_instance = Mock()
         mock_heartbeat.return_value = mock_heartbeat_instance
 
-        mock_client_instance = Mock()
+        mock_client_instance = Mock(spec_set=SchedulerClient)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")

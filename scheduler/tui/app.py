@@ -5,6 +5,7 @@ import logging
 from typing import Optional
 
 from scheduler.api import SchedulerClient
+from scheduler.core import Config
 from scheduler.tui.screens import ClusterScreen, NodesScreen, JobsScreen, GPUsScreen
 
 logger = logging.getLogger(__name__)
@@ -12,6 +13,13 @@ logger = logging.getLogger(__name__)
 
 class SchedulerTUI(App):
     """Main Textual TUI application"""
+    
+    # Class attributes with type annotations and defaults for proper mocking with spec_set
+    client: SchedulerClient = None  # type: ignore
+    config: Optional[Config] = None
+    refresh_interval: float = 2.0
+    nodes_data: list = []
+    jobs_data: list = []
 
     CSS = """
     Screen {

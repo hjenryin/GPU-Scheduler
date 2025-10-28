@@ -826,3 +826,476 @@ When adding new features:
 - [pytest documentation](https://docs.pytest.org/)
 - [pytest-cov documentation](https://pytest-cov.readthedocs.io/)
 - [Python testing best practices](https://docs.python-guide.org/writing/tests/)
+
+---
+
+# Mock Specification Guidelines
+
+This section outlines the guidelines for creating robust, maintainable mocks in our test suite. These practices help catch API mismatches at test time rather than in production.
+
+## Core Principles
+
+### 1. **Always Use Specifications on Mocks**
+
+Never use bare `Mock()` or `MagicMock()` without specifications. Always constrain mocks to match the real objects they're replacing.
+
+**Why?** Unspecified mocks accept any attribute access or method call, allowing tests to pass even when the code uses non-existent APIs.
+
+---
+
+## Specification Patterns
+
+### 2. **Use `autospec=True` for `patch()` Calls**
+
+When patching functions, methods, or classes, always use `autospec=True`:
+
+```python
+@patch('module.path.function_name', autospec=True)
+def test_something(mock_function):
+    # Mock validates function signature
+    pass
+```
+
+**Why?** `autospec=True` validates that:
+- Function calls match the real function's signature
+- Method calls have the correct number of arguments
+- Prevents calling non-existent methods
+
+**Exceptions:**
+- `mock_open()`: Cannot use autospec (use as-is)
+- Lambda functions: Cannot be autospec'd
+- Exception classes when used as `side_effect`: Use without autospec
+
+---
+
+### 3. **Use `spec_set=True` for Mock Instances**
+
+For internal code (code you control), use `spec_set=True` to prevent setting non-existent attributes:
+
+```python
+from unittest.mock import create_autospec
+
+mock_obj = create_autospec(MyClass, instance=True, spec_set=True)
+```
+
+**Why?** `spec_set=True` prevents:
+- Setting attributes that don't exist on the real class
+- Typos in attribute names
+- Accessing wrong APIs
+
+**When to use:**
+- Internal classes and data models
+- Any code where you control the interface
+
+---
+
+### 4. **Use `spec_set` with Caution for External Libraries**
+
+For external library code, prefer `spec_set` but fall back to `spec` only when necessary:
+
+```python
+# ✅ Preferred - try spec_set first (if attributes are defined)
+mock_response = create_autospec(requests.Response, instance=True, spec_set=True)
+
+# ⚠️ Fallback - use spec only if confirmed the library initializes attributes in __init__
+# This comes at risk - only use if you've verified the attribute exists but isn't visible to spec_set
+mock_response = Mock(spec=requests.Response)
+mock_response.status_code = 200  # Set runtime attribute
+
+# ❌ Last resort - plain Mock() without any spec (avoid!)
+mock_response = Mock()
+```
+
+**Decision process:**
+1. **First, try `spec_set=True`**: Most external libraries work fine with spec_set
+2. **If AttributeError occurs**: Check if the attribute is actually initialized in `__init__` (not a class attribute)
+3. **Verify it's real**: Confirm the attribute exists in the library's actual implementation
+4. **Only then use `spec`**: Accept the risk that you might set non-existent attributes
+
+**Why this approach?**
+- `spec_set` is safer - catches typos and wrong attributes even for external code
+- `spec` allows setting any attribute, which risks tests passing with wrong APIs
+- Use `spec` only when you've confirmed the limitation is in the spec system, not your code
+
+**When to use `spec` (not `spec_set`):**
+- External library has complex `__init__` that sets attributes dynamically
+- Attribute definitely exists but isn't visible as a class attribute
+- You've verified the attribute in the library's source code
+- The risk of typos is low (simple, well-known attributes)
+
+**External libraries we mock in our tests:**
+- ✅ **Textual widgets** (DataTable, Static, Input) - Successfully using `spec_set=True`
+- ✅ **pynvml** (NVIDIA GPU library) - Properly mocked in unit tests with `MagicMock()`
+- ✅ **subprocess.Popen** - Using `autospec=True` with `@patch`
+- ✅ **threading.Thread** - Using `autospec=True` with `@patch`
+- ✅ **uvicorn.Server** - Using `autospec=True` with `@patch`
+- ✅ **requests.Response** - Using `Mock(spec=requests.Response)` after testing
+  - **Tested:** `spec_set=True` fails (AttributeError: status_code)
+  - **Reason:** `status_code`, `text`, `headers` set in `__init__`, not class attributes
+  - **Decision:** Use `spec` fallback (verified necessary)
+
+---
+
+### 5. **Class Attributes Enable `spec_set`**
+
+For classes to work with `create_autospec(..., spec_set=True)`, they need class attributes with **both type annotations AND default values**:
+
+```python
+class MyClass:
+    # Type annotation alone is NOT enough
+    attribute1: str  # ❌ Won't work with spec_set
+    
+    # Need default values
+    attribute2: str = ""  # ✅ Works with spec_set
+    attribute3: Optional[int] = None  # ✅ Works with spec_set
+    attribute4: list = []  # ✅ Works with spec_set
+```
+
+**Why?** `create_autospec` inspects the class at the class level, not instance level. Attributes set only in `__init__` are not visible to the spec system.
+
+---
+
+### 6. **Patching Instance Methods: Include `self` Parameter**
+
+When patching instance methods with `autospec=True`, the mock's `side_effect` function must include `self` as the first parameter:
+
+```python
+@patch('module.MyClass.instance_method', autospec=True)
+def test_something(mock_method):
+    # ✅ Correct - includes self parameter
+    def side_effect_func(self, arg1, arg2):
+        return arg1 + arg2
+    mock_method.side_effect = side_effect_func
+    
+    # ❌ Wrong - missing self parameter (will fail with autospec)
+    def side_effect_func(arg1, arg2):
+        return arg1 + arg2
+    mock_method.side_effect = side_effect_func
+```
+
+**Why?** `autospec=True` enforces the actual signature of the method, which includes `self` for instance methods.
+
+**Pattern:**
+```python
+# For instance methods
+mock_method.side_effect = lambda self, *args, **kwargs: return_value
+
+# For class methods
+mock_method.side_effect = lambda cls, *args, **kwargs: return_value
+
+# For static methods or functions (no self/cls)
+mock_method.side_effect = lambda *args, **kwargs: return_value
+```
+
+**Common mistake:**
+```python
+# This will raise: TypeError: <lambda>() missing 1 required positional argument
+@patch.object(MyClass, 'method', autospec=True)
+def test_method(mock_method):
+    mock_method.side_effect = lambda selector, widget_type: {}  # Missing self!
+```
+
+---
+
+## Patching Patterns
+
+### 7. **Patch at the Usage Point, Not Definition Point**
+
+Patch where the object is **used**, not where it's **defined**:
+
+```python
+# mymodule.py imports: from othermodule import SomeClass
+
+# ❌ Wrong - patches definition
+@patch('othermodule.SomeClass', autospec=True)
+
+# ✅ Correct - patches usage
+@patch('mymodule.SomeClass', autospec=True)
+```
+
+**Why?** Python's import system creates references. You must patch where the reference is used, not where it's originally defined.
+
+---
+
+### 8. **Avoid Double Mocking**
+
+Don't re-patch attributes that are already mocked by fixtures or parent patches:
+
+```python
+# ❌ Wrong - double mocking
+@pytest.fixture
+def orchestrator():
+    mock_orch = Mock()
+    mock_orch.node_manager = Mock(spec=NodeManager, autospec=True)
+    return mock_orch
+
+def test_something(orchestrator):
+    # Don't do this - node_manager is already mocked!
+    with patch.object(orchestrator, 'node_manager', autospec=True):
+        pass
+
+# ✅ Correct - use the already-mocked attribute
+def test_something(orchestrator):
+    orchestrator.node_manager.some_method.return_value = "value"
+    # Use orchestrator.node_manager directly
+```
+
+**Why?** Double mocking causes:
+- `TypeError: Cannot autospec attr ... already mocked out`
+- Confusion about which mock is actually used
+- Loss of configuration from the first mock
+
+---
+
+### 9. **Mocking Properties: Use `PropertyMock`**
+
+When mocking properties (not regular attributes), use `PropertyMock`:
+
+```python
+from unittest.mock import PropertyMock, patch
+
+with patch.object(MyClass, 'my_property', new_callable=PropertyMock) as mock_prop:
+    mock_prop.return_value = "some value"
+    # Access instance.my_property returns "some value"
+```
+
+**Why?** Properties are descriptors that need special handling. Regular `Mock()` won't work correctly.
+
+**Pattern for mocking Textual's `app` property:**
+```python
+mock_app_instance = create_autospec(SchedulerTUI, instance=True, spec_set=True)
+with patch.object(screen.__class__, 'app', new_callable=PropertyMock) as mock_app_prop:
+    mock_app_prop.return_value = mock_app_instance
+    # screen.app now returns mock_app_instance
+```
+
+---
+
+### 10. **Cannot Combine `autospec` and `new_callable`**
+
+You cannot use both `autospec=True` and `new_callable` together:
+
+```python
+# ❌ Wrong - raises ValueError
+with patch.object(obj, 'attr', autospec=True, new_callable=PropertyMock):
+    pass
+
+# ✅ Correct - use one or the other
+with patch.object(obj, 'attr', new_callable=PropertyMock):
+    pass
+
+# ✅ Or use autospec without new_callable
+with patch.object(obj, 'attr', autospec=True):
+    pass
+```
+
+**Why?** These are mutually exclusive options in unittest.mock.
+
+---
+
+### 11. **Mocking Patched Classes: Use `return_value`**
+
+When you patch a class with `autospec=True`, use `.return_value` to configure the instance:
+
+```python
+@patch('module.threading.Thread', autospec=True)
+def test_something(mock_thread_class):
+    # ✅ Correct - configure the instance returned by Thread()
+    mock_thread_instance = mock_thread_class.return_value
+    mock_thread_instance.is_alive.return_value = False
+    
+    # ❌ Wrong - trying to create a separate mock
+    mock_thread = Mock(spec_set=threading.Thread)  # Don't do this!
+```
+
+**Why?** When you patch a class, the patch replaces the class itself. Calling the patched class returns `mock_class.return_value`, not a new instance.
+
+**Exception:** Only use a separate mock when you're NOT patching the class (e.g., passing a mock to a function that expects an instance).
+
+---
+
+### 12. **Don't Mock Frozen Dataclasses**
+
+For frozen dataclasses (like `@dataclass(frozen=True)`), create real instances instead of mocking:
+
+```python
+from scheduler.core import Config
+
+# ❌ Wrong - frozen dataclass can't have attributes set
+mock_config = Mock(spec_set=Config)
+mock_config.some_attr = "value"  # Error!
+
+# ✅ Correct - create real instance
+config = Config(
+    head=HeadConfig(...),
+    worker=WorkerConfig(...)
+)
+```
+
+**Why?** Frozen dataclasses don't allow attribute assignment after creation, which breaks mock attribute setting.
+
+---
+
+### 13. **Textual Widgets: Use Specific Types**
+
+When mocking Textual widgets, use the specific widget type, not a generic type:
+
+```python
+from textual.widgets import DataTable, Static
+from unittest.mock import create_autospec
+
+# ✅ Correct - specific widget types
+mock_table = create_autospec(DataTable, instance=True, spec_set=True)
+mock_static = create_autospec(Static, instance=True, spec_set=True)
+
+# ❌ Wrong - generic Mock won't have widget-specific methods
+mock_table = Mock()
+```
+
+**Why?** Each Textual widget has specific methods (e.g., `DataTable.add_row()`, `Static.update()`). Using the correct type ensures your tests validate the right API calls.
+
+---
+
+## Configuration Patterns
+
+### 14. **Configuring Mock Return Values**
+
+Set return values on mocked methods to control behavior:
+
+```python
+mock_obj = create_autospec(MyClass, instance=True, spec_set=True)
+
+# For methods
+mock_obj.some_method.return_value = "result"
+
+# For properties (if defined as class attributes with defaults)
+mock_obj.some_property = "value"
+
+# For nested attributes (if defined in spec)
+mock_obj.child.method.return_value = 42
+```
+
+---
+
+### 15. **Side Effects for Exceptions and Sequences**
+
+Use `side_effect` for exceptions or returning different values on successive calls:
+
+```python
+# Raise an exception
+mock_obj.method.side_effect = ValueError("error message")
+
+# Return different values on successive calls
+mock_obj.method.side_effect = [1, 2, 3]
+
+# Call with custom logic
+def custom_logic(*args, **kwargs):
+    return args[0] * 2
+mock_obj.method.side_effect = custom_logic
+```
+
+---
+
+## Testing Workflow
+
+### 16. **Let Spec Violations Fail Tests**
+
+When mocks with proper specs fail, this indicates a real problem:
+
+```python
+# Test fails with: AttributeError: Mock object has no attribute 'wrong_attr'
+mock_obj.wrong_attr  # Good! This catches bugs!
+```
+
+**Response strategy:**
+1. First, check if the test is using the wrong API (**most common**)
+2. If the API is correct, check if the class needs the attribute added
+3. Update the class to have the attribute with a default value
+4. Re-run tests
+
+**Don't:** Remove `spec_set=True` to make the test pass. That defeats the purpose!
+
+---
+
+### 17. **Prefer `create_autospec` Over Manual Mock Configuration**
+
+When possible, use `create_autospec` instead of manually configuring mocks:
+
+```python
+# ✅ Better - automatic spec from class
+mock_obj = create_autospec(MyClass, instance=True, spec_set=True)
+
+# ❌ More verbose - manual configuration
+mock_obj = Mock(spec_set=MyClass)
+mock_obj.method1 = Mock(return_value=1)
+mock_obj.method2 = Mock(return_value=2)
+```
+
+**Why?** `create_autospec` automatically:
+- Creates mock methods for all real methods
+- Sets up correct method signatures
+- Handles instance vs. class mocking
+
+---
+
+## Summary: Decision Tree
+
+```
+Need to mock something?
+│
+├─ Is it a function/method/class to patch?
+│  └─ Use: @patch('usage.path', autospec=True)
+│     Exception: mock_open, lambdas, exception classes
+│     Note: Include 'self' in side_effect for instance methods
+│
+├─ Is it an instance of internal code (your code)?
+│  └─ Use: create_autospec(Class, instance=True, spec_set=True)
+│     Requirement: Class must have attributes with defaults
+│
+├─ Is it an instance of external library?
+│  ├─ Try: create_autospec(Class, instance=True, spec_set=True) first
+│  └─ Fallback: Mock(spec=ExternalClass) only if verified necessary
+│     (Accept the risk - use only when confirmed attribute exists but isn't visible)
+│
+├─ Is it a property?
+│  └─ Use: patch.object(Class, 'prop', new_callable=PropertyMock)
+│     (Cannot combine with autospec)
+│
+├─ Is it already mocked by a fixture?
+│  └─ Don't re-mock! Configure the existing mock
+│
+└─ Is it a frozen dataclass?
+   └─ Don't mock! Create a real instance
+```
+
+---
+
+## Common Pitfalls
+
+1. ❌ Using bare `Mock()` → Always use `spec` or `spec_set`
+2. ❌ Patching at definition instead of usage → Patch where imported
+3. ❌ Double mocking fixture attributes → Use existing mocks
+4. ❌ Using `spec` too quickly for external libraries → Try `spec_set` first
+5. ❌ Type annotations without defaults → Add default values
+6. ❌ Combining `autospec` and `new_callable` → Use one or the other
+7. ❌ Creating separate mock for patched class → Use `.return_value`
+8. ❌ Mocking frozen dataclasses → Create real instances
+9. ❌ Missing `self` parameter in side_effect → Include for instance methods
+
+---
+
+## Benefits of This Approach
+
+✅ **Catches bugs early:** API mismatches fail at test time, not production  
+✅ **Refactoring safety:** Renaming/removing methods breaks tests immediately  
+✅ **Self-documenting:** Specs show what APIs are being used  
+✅ **Type safety:** Complements type checkers like mypy  
+✅ **Maintainability:** Changes to interfaces are caught by test suite
+
+---
+
+## Additional Resources
+
+- [unittest.mock documentation](https://docs.python.org/3/library/unittest.mock.html)
+- [Python Mock Gotchas](https://alexmarandon.com/articles/python_mock_gotchas/)
+- [Stop Mocking, Start Testing](https://nedbatchelder.com/blog/201206/tldw_stop_mocking_start_testing.html)

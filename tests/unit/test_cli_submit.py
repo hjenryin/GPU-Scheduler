@@ -6,6 +6,8 @@ from unittest.mock import patch, Mock, MagicMock
 from scheduler.cli.submit import submit_command
 from scheduler.api import SchedulerClient
 from scheduler.core.exceptions import ValidationException, ConnectionException
+from scheduler.core import Job
+from scheduler.api.client import SchedulerClient
 
 
 class TestSubmitCommand:
@@ -34,15 +36,15 @@ class TestSubmitCommand:
         finally:
             os.unlink(temp_script)
 
-    @patch('scheduler.cli.submit.load_config')
-    @patch('scheduler.cli.submit.SchedulerClient')
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
     def test_submit_success(self, mock_client_class, mock_load_config):
         """Test successful job submission"""
-        mock_job = Mock()
+        mock_job = Mock(spec_set=Job)
         mock_job.job_id = "job_123"
         mock_job.status.value = "pending"
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.submit_job.return_value = mock_job
         mock_client_class.return_value = mock_client
 
@@ -51,7 +53,7 @@ class TestSubmitCommand:
             temp_script = f.name
 
         try:
-            with patch('scheduler.cli.submit.click.echo'):
+            with patch('scheduler.cli.submit.click.echo', autospec=True):
                 # Use async_submit to avoid waiting loop
                 result = submit_command(
                     script=temp_script,
@@ -64,15 +66,15 @@ class TestSubmitCommand:
         finally:
             os.unlink(temp_script)
 
-    @patch('scheduler.cli.submit.load_config')
-    @patch('scheduler.cli.submit.SchedulerClient')
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
     def test_submit_with_all_parameters(self, mock_client_class, mock_load_config):
         """Test submitting job with all parameters"""
-        mock_job = Mock()
+        mock_job = Mock(spec_set=Job)
         mock_job.job_id = "job_123"
         mock_job.status.value = "pending"
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.submit_job.return_value = mock_job
         mock_client_class.return_value = mock_client
 
@@ -81,7 +83,7 @@ class TestSubmitCommand:
             temp_script = f.name
 
         try:
-            with patch('scheduler.cli.submit.click.echo'):
+            with patch('scheduler.cli.submit.click.echo', autospec=True):
                 # Use async_submit to avoid waiting loop
                 result = submit_command(
                     script=temp_script,
@@ -109,11 +111,11 @@ class TestSubmitCommand:
         finally:
             os.unlink(temp_script)
 
-    @patch('scheduler.cli.submit.load_config')
-    @patch('scheduler.cli.submit.SchedulerClient')
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
     def test_submit_validation_exception(self, mock_client_class, mock_load_config):
         """Test handling ValidationException"""
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.submit_job.side_effect = ValidationException("Invalid requirements")
         mock_client_class.return_value = mock_client
 
@@ -122,17 +124,17 @@ class TestSubmitCommand:
             temp_script = f.name
 
         try:
-            with patch('scheduler.cli.submit.click.echo'):
+            with patch('scheduler.cli.submit.click.echo', autospec=True):
                 result = submit_command(script=temp_script, req="invalid")
                 assert result == 2
         finally:
             os.unlink(temp_script)
 
-    @patch('scheduler.cli.submit.load_config')
-    @patch('scheduler.cli.submit.SchedulerClient')
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
     def test_submit_connection_exception(self, mock_client_class, mock_load_config):
         """Test handling ConnectionException"""
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.submit_job.side_effect = ConnectionException("Cannot connect")
         mock_client_class.return_value = mock_client
 
@@ -141,21 +143,21 @@ class TestSubmitCommand:
             temp_script = f.name
 
         try:
-            with patch('scheduler.cli.submit.click.echo'):
+            with patch('scheduler.cli.submit.click.echo', autospec=True):
                 result = submit_command(script=temp_script)
                 assert result == 3
         finally:
             os.unlink(temp_script)
 
-    @patch('scheduler.cli.submit.load_config')
-    @patch('scheduler.cli.submit.SchedulerClient')
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
     def test_submit_async_mode(self, mock_client_class, mock_load_config):
         """Test async submission mode"""
-        mock_job = Mock()
+        mock_job = Mock(spec_set=Job)
         mock_job.job_id = "job_123"
         mock_job.status.value = "pending"
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.submit_job.return_value = mock_job
         mock_client_class.return_value = mock_client
 
@@ -164,7 +166,7 @@ class TestSubmitCommand:
             temp_script = f.name
 
         try:
-            with patch('scheduler.cli.submit.click.echo'):
+            with patch('scheduler.cli.submit.click.echo', autospec=True):
                 result = submit_command(
                     script=temp_script,
                     async_submit=True
@@ -174,20 +176,20 @@ class TestSubmitCommand:
         finally:
             os.unlink(temp_script)
 
-    @patch('scheduler.cli.submit.load_config')
-    @patch('scheduler.cli.submit.SchedulerClient')
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
     def test_submit_wait_for_completion(self, mock_client_class, mock_load_config):
         """Test waiting for job completion"""
-        mock_completed_job = Mock()
+        mock_completed_job = Mock(spec_set=Job)
         mock_completed_job.job_id = "job_123"
         mock_completed_job.status.value = "completed"
         mock_completed_job.exit_code = 0
         mock_completed_job.error_message = None
 
-        mock_pending_job = Mock()
+        mock_pending_job = Mock(spec_set=Job)
         mock_pending_job.status.value = "running"
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.submit_job.return_value = mock_pending_job
         mock_client.get_job.side_effect = [mock_pending_job, mock_completed_job]
         mock_client_class.return_value = mock_client
@@ -197,27 +199,27 @@ class TestSubmitCommand:
             temp_script = f.name
 
         try:
-            with patch('scheduler.cli.submit.click.echo'), \
-                 patch('scheduler.cli.submit.time.sleep'):
+            with patch('scheduler.cli.submit.click.echo', autospec=True), \
+                 patch('scheduler.cli.submit.time.sleep', autospec=True):
                 result = submit_command(script=temp_script)
                 assert result == 0  # Completed successfully
         finally:
             os.unlink(temp_script)
 
-    @patch('scheduler.cli.submit.load_config')
-    @patch('scheduler.cli.submit.SchedulerClient')
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
     def test_submit_wait_for_failure(self, mock_client_class, mock_load_config):
         """Test waiting for job failure"""
-        mock_failed_job = Mock()
+        mock_failed_job = Mock(spec_set=Job)
         mock_failed_job.job_id = "job_123"
         mock_failed_job.status.value = "failed"
         mock_failed_job.exit_code = 1
         mock_failed_job.error_message = "Error occurred"
 
-        mock_pending_job = Mock()
+        mock_pending_job = Mock(spec_set=Job)
         mock_pending_job.status.value = "running"
 
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.submit_job.return_value = mock_pending_job
         mock_client.get_job.side_effect = [mock_pending_job, mock_failed_job]
         mock_client_class.return_value = mock_client
@@ -227,8 +229,8 @@ class TestSubmitCommand:
             temp_script = f.name
 
         try:
-            with patch('scheduler.cli.submit.click.echo'), \
-                 patch('scheduler.cli.submit.time.sleep'):
+            with patch('scheduler.cli.submit.click.echo', autospec=True), \
+                 patch('scheduler.cli.submit.time.sleep', autospec=True):
                 result = submit_command(script=temp_script)
                 assert result == 1  # Failed
         finally:

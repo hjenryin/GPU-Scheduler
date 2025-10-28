@@ -60,7 +60,7 @@ class TestSingletonDaemon:
         
         # Try to acquire lock again (should fail)
         daemon2 = SingletonDaemon(temp_lockfile)
-        with patch('scheduler.worker.singleton.os.kill') as mock_kill:
+        with patch('scheduler.worker.singleton.os.kill', autospec=True) as mock_kill:
             # Mock kill to simulate process is running
             mock_kill.return_value = None  # os.kill(pid, 0) doesn't raise when process exists
             result = daemon2.acquire_lock()
@@ -75,7 +75,7 @@ class TestSingletonDaemon:
             json.dump({'pid': 99999}, f)
         
         daemon = SingletonDaemon(temp_lockfile)
-        with patch('scheduler.worker.singleton.os.kill') as mock_kill:
+        with patch('scheduler.worker.singleton.os.kill', autospec=True) as mock_kill:
             # Mock kill to simulate process not found
             mock_kill.side_effect = OSError()  # Process doesn't exist
             result = daemon.acquire_lock()
@@ -124,7 +124,7 @@ class TestSingletonDaemon:
         """Test releasing lock when file close raises exception"""
         singleton.acquire_lock()
         
-        with patch('scheduler.worker.singleton.os.close', side_effect=OSError("test error")):
+        with patch('scheduler.worker.singleton.os.close', side_effect=OSError("test error"), autospec=True):
             # Should not raise
             singleton.release_lock()
 
@@ -140,7 +140,7 @@ class TestSingletonDaemon:
         daemon1.acquire_lock()
         
         daemon2 = SingletonDaemon(temp_lockfile)
-        with patch('scheduler.worker.singleton.os.kill') as mock_kill:
+        with patch('scheduler.worker.singleton.os.kill', autospec=True) as mock_kill:
             mock_kill.return_value = None
             
             with pytest.raises(RuntimeError, match="Failed to acquire singleton lock"):
@@ -165,8 +165,8 @@ class TestSingletonDaemon:
         singleton.acquire_lock()
         
         # Simulate signal handler being called
-        with patch('scheduler.worker.singleton.os.kill') as mock_kill:
-            with patch('scheduler.worker.singleton.logger') as mock_logger:
+        with patch('scheduler.worker.singleton.os.kill', autospec=True) as mock_kill:
+            with patch('scheduler.worker.singleton.logger', autospec=True) as mock_logger:
                 # Call the cleanup handler
                 cleanup_handler = singleton._original_signal_handlers.get(signal.SIGTERM)
                 if cleanup_handler and hasattr(cleanup_handler, '__wrapped__'):
@@ -221,6 +221,6 @@ class TestIsDaemonRunning:
 
     def test_missing_file_after_check(self, temp_lockfile):
         """Test when lockfile is removed between checks"""
-        with patch('scheduler.worker.singleton.os.path.exists', return_value=False):
+        with patch('scheduler.worker.singleton.os.path.exists', return_value=False, autospec=True):
             assert is_daemon_running(temp_lockfile) is False
 

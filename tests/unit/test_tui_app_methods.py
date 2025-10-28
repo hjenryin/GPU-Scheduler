@@ -3,6 +3,8 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from scheduler.tui.app import SchedulerTUI
 from scheduler.api import SchedulerClient
+from textual.app import App
+from scheduler.api.client import SchedulerClient
 
 
 class TestSchedulerTUIComposition:
@@ -11,7 +13,7 @@ class TestSchedulerTUIComposition:
     @pytest.mark.asyncio
     async def test_compose_returns_empty_for_screen_based_app(self):
         """Test that compose returns empty generator for screen-based app"""
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         app = SchedulerTUI(client=mock_client)
         
         # Get compose result
@@ -32,7 +34,7 @@ class TestSchedulerTUIInitialization:
 
     def test_init_sets_client(self):
         """Test that __init__ sets the client"""
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         app = SchedulerTUI(client=mock_client)
         
         assert app.client == mock_client
@@ -47,7 +49,7 @@ class TestSchedulerTUIActions:
     @pytest.mark.asyncio
     async def test_action_quit(self):
         """Test quit action"""
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         app = SchedulerTUI(client=mock_client)
         
         async with app.run_test() as pilot:
@@ -59,7 +61,7 @@ class TestSchedulerTUIActions:
 
     def test_action_refresh(self):
         """Test refresh action"""
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_nodes.return_value = []
         mock_client.list_jobs.return_value = []
         app = SchedulerTUI(client=mock_client)
@@ -74,7 +76,7 @@ class TestSchedulerTUIActions:
 
     def test_action_help(self):
         """Test help action"""
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         app = SchedulerTUI(client=mock_client)
         
         # Test that action exists
@@ -83,7 +85,7 @@ class TestSchedulerTUIActions:
 
     def test_action_switch_to_cluster(self):
         """Test switch to cluster action"""
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_nodes.return_value = []
         mock_client.list_jobs.return_value = []
         app = SchedulerTUI(client=mock_client)
@@ -103,7 +105,7 @@ class TestSchedulerTUIRefreshData:
 
     def test_refresh_data_fetches_from_client(self):
         """Test that refresh_data calls client methods"""
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_nodes.return_value = [Mock(), Mock()]
         mock_client.list_jobs.return_value = [Mock()]
         
@@ -122,7 +124,7 @@ class TestSchedulerTUIRefreshData:
 
     def test_refresh_data_handles_exception(self):
         """Test that refresh_data handles exceptions gracefully"""
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_nodes.side_effect = Exception("Network error")
         
         app = SchedulerTUI(client=mock_client)
@@ -137,7 +139,7 @@ class TestSchedulerTUIRefreshData:
     async def test_refresh_data_updates_cluster_screen(self):
         """Test that refresh_data updates ClusterScreen when screen is available"""
         from scheduler.tui.screens.cluster import ClusterScreen
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_nodes.return_value = [Mock()]
         mock_client.list_jobs.return_value = [Mock()]
         
@@ -159,7 +161,7 @@ class TestSchedulerTUIIntervalSetup:
     @pytest.mark.asyncio
     async def test_on_mount_sets_intervals(self):
         """Test that on_mount sets up refresh interval"""
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         app = SchedulerTUI(client=mock_client)
         
         # on_mount is called during app initialization
@@ -173,7 +175,7 @@ class TestSchedulerTUIScreenSwitching:
 
     def test_action_switch_to_nodes(self):
         """Test switch to nodes screen action"""
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_nodes.return_value = []
         mock_client.list_jobs.return_value = []
         app = SchedulerTUI(client=mock_client)
@@ -190,7 +192,7 @@ class TestSchedulerTUIScreenSwitching:
 
     def test_action_switch_to_jobs(self):
         """Test switch to jobs screen action"""
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_nodes.return_value = []
         mock_client.list_jobs.return_value = []
         app = SchedulerTUI(client=mock_client)
@@ -206,7 +208,7 @@ class TestSchedulerTUIScreenSwitching:
 
     def test_action_switch_to_gpus(self):
         """Test switch to gpus screen action"""
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_nodes.return_value = []
         mock_client.list_jobs.return_value = []
         app = SchedulerTUI(client=mock_client)
@@ -224,13 +226,13 @@ class TestSchedulerTUIScreenSwitching:
 class TestRunTUI:
     """Tests for run_tui function"""
 
-    @patch('scheduler.tui.app.SchedulerTUI')
+    @patch('scheduler.tui.app.SchedulerTUI', autospec=True)
     def test_run_tui_with_client(self, mock_tui_class):
         """Test run_tui with client"""
         from scheduler.tui.app import run_tui
         
-        mock_client = Mock(spec=SchedulerClient)
-        mock_app = MagicMock()
+        mock_client = Mock(spec_set=SchedulerClient)
+        mock_app = MagicMock(spec_set=App)
         mock_tui_class.return_value = mock_app
         
         run_tui(client=mock_client)
@@ -238,15 +240,15 @@ class TestRunTUI:
         mock_tui_class.assert_called_once_with(mock_client)
         mock_app.run.assert_called_once()
 
-    @patch('scheduler.tui.app.SchedulerClient')
-    @patch('scheduler.tui.app.SchedulerTUI')
+    @patch('scheduler.tui.app.SchedulerClient', autospec=True)
+    @patch('scheduler.tui.app.SchedulerTUI', autospec=True)
     def test_run_tui_with_address(self, mock_tui_class, mock_client_class):
         """Test run_tui with address"""
         from scheduler.tui.app import run_tui
         
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
-        mock_app = MagicMock()
+        mock_app = MagicMock(spec_set=App)
         mock_tui_class.return_value = mock_app
         
         run_tui(address="localhost:8265")
@@ -255,15 +257,15 @@ class TestRunTUI:
         mock_tui_class.assert_called_once_with(mock_client)
         mock_app.run.assert_called_once()
 
-    @patch('scheduler.tui.app.SchedulerClient')
-    @patch('scheduler.tui.app.SchedulerTUI')
+    @patch('scheduler.tui.app.SchedulerClient', autospec=True)
+    @patch('scheduler.tui.app.SchedulerTUI', autospec=True)
     def test_run_tui_without_parameters(self, mock_tui_class, mock_client_class):
         """Test run_tui without parameters"""
         from scheduler.tui.app import run_tui
         
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
-        mock_app = MagicMock()
+        mock_app = MagicMock(spec_set=App)
         mock_tui_class.return_value = mock_app
         
         run_tui()
@@ -279,7 +281,7 @@ class TestSchedulerTUIKeyboardShortcuts:
     @pytest.mark.asyncio
     async def test_r_key_triggers_refresh(self):
         """Test that 'r' key triggers refresh"""
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_nodes.return_value = []
         mock_client.list_jobs.return_value = []
         
@@ -298,7 +300,7 @@ class TestSchedulerTUIKeyboardShortcuts:
     @pytest.mark.asyncio
     async def test_h_key_triggers_help(self):
         """Test that 'h' key triggers help"""
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         app = SchedulerTUI(client=mock_client)
         
         async with app.run_test() as pilot:
@@ -318,7 +320,7 @@ class TestSchedulerTUIRefreshDataWithScreens:
     async def test_refresh_data_with_nodes_screen(self):
         """Test refresh_data with NodesScreen"""
         from scheduler.tui.screens.nodes import NodesScreen
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_nodes.return_value = [Mock()]
         mock_client.list_jobs.return_value = []
         
@@ -333,7 +335,7 @@ class TestSchedulerTUIRefreshDataWithScreens:
     def test_refresh_data_with_jobs_screen(self):
         """Test refresh_data with JobsScreen"""
         from scheduler.tui.screens.jobs import JobsScreen
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_nodes.return_value = []
         mock_client.list_jobs.return_value = [Mock()]
         
@@ -346,7 +348,7 @@ class TestSchedulerTUIRefreshDataWithScreens:
     def test_refresh_data_with_gpus_screen(self):
         """Test refresh_data with GPUsScreen"""
         from scheduler.tui.screens.gpus import GPUsScreen
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_nodes.return_value = [Mock()]
         mock_client.list_jobs.return_value = []
         

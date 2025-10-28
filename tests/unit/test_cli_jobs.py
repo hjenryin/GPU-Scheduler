@@ -4,17 +4,20 @@ from unittest.mock import patch, Mock
 from datetime import datetime
 from scheduler.cli.jobs import jobs_command, _print_job_table, _print_job_details
 from scheduler.core.models import Job, JobStatus, JobRequirement
+from scheduler.core import Job
+from scheduler.api import SchedulerClient
+from scheduler.api.client import SchedulerClient
 
 
 class TestJobsCommand:
     """Tests for jobs_command function"""
 
-    @patch('scheduler.cli.jobs.load_config')
-    @patch('scheduler.cli.jobs.SchedulerClient')
+    @patch('scheduler.cli.jobs.load_config', autospec=True)
+    @patch('scheduler.cli.jobs.SchedulerClient', autospec=True)
     def test_list_jobs_success(self, mock_client_class, mock_load_config):
         """Test listing jobs successfully"""
         # Create a proper mock job with all necessary attributes
-        mock_job = Mock()
+        mock_job = Mock(spec_set=Job)
         mock_job.to_dict.return_value = {
             "job_id": "job_123",
             "name": "test",
@@ -28,21 +31,21 @@ class TestJobsCommand:
         mock_job.started_at = None
         mock_job.completed_at = None
         
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_jobs.return_value = [mock_job]
         mock_client_class.return_value = mock_client
         mock_load_config.return_value = Mock()
 
-        with patch('scheduler.cli.jobs.click.echo') as mock_echo:
+        with patch('scheduler.cli.jobs.click.echo', autospec=True) as mock_echo:
             result = jobs_command()
             assert result == 0
             mock_client.list_jobs.assert_called_once()
 
-    @patch('scheduler.cli.jobs.load_config')
-    @patch('scheduler.cli.jobs.SchedulerClient')
+    @patch('scheduler.cli.jobs.load_config', autospec=True)
+    @patch('scheduler.cli.jobs.SchedulerClient', autospec=True)
     def test_list_jobs_with_filter(self, mock_client_class, mock_load_config):
         """Test listing jobs with status filter"""
-        mock_job = Mock()
+        mock_job = Mock(spec_set=Job)
         mock_job.to_dict.return_value = {"job_id": "job_123"}
         mock_job.job_id = "job_123"
         mock_job.name = "test"
@@ -52,70 +55,70 @@ class TestJobsCommand:
         mock_job.started_at = None
         mock_job.completed_at = None
         
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_jobs.return_value = [mock_job]
         mock_client_class.return_value = mock_client
         mock_load_config.return_value = Mock()
 
-        with patch('scheduler.cli.jobs.click.echo'):
+        with patch('scheduler.cli.jobs.click.echo', autospec=True):
             result = jobs_command(filter="running", limit=10)
             assert result == 0
             mock_client.list_jobs.assert_called_once_with(status_filter="running", limit=10)
 
-    @patch('scheduler.cli.jobs.load_config')
-    @patch('scheduler.cli.jobs.SchedulerClient')
+    @patch('scheduler.cli.jobs.load_config', autospec=True)
+    @patch('scheduler.cli.jobs.SchedulerClient', autospec=True)
     def test_get_specific_job_ids(self, mock_client_class, mock_load_config):
         """Test getting specific job IDs"""
-        mock_job = Mock()
+        mock_job = Mock(spec_set=Job)
         mock_job.to_dict.return_value = {"job_id": "job_123"}
         
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.get_job.return_value = mock_job
         mock_client_class.return_value = mock_client
 
-        with patch('scheduler.cli.jobs.click.echo'):
+        with patch('scheduler.cli.jobs.click.echo', autospec=True):
             result = jobs_command(job_ids=["job_123", "job_456"])
             assert result == 0
             assert mock_client.get_job.call_count == 2
 
-    @patch('scheduler.cli.jobs.load_config')
-    @patch('scheduler.cli.jobs.SchedulerClient')
+    @patch('scheduler.cli.jobs.load_config', autospec=True)
+    @patch('scheduler.cli.jobs.SchedulerClient', autospec=True)
     def test_list_jobs_json_format(self, mock_client_class, mock_load_config):
         """Test listing jobs in JSON format"""
-        mock_job = Mock()
+        mock_job = Mock(spec_set=Job)
         mock_job.to_dict.return_value = {"job_id": "job_123"}
         
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_jobs.return_value = [mock_job]
         mock_client_class.return_value = mock_client
 
-        with patch('scheduler.cli.jobs.click.echo'):
+        with patch('scheduler.cli.jobs.click.echo', autospec=True):
             result = jobs_command(format="json")
             assert result == 0
 
-    @patch('scheduler.cli.jobs.load_config')
-    @patch('scheduler.cli.jobs.SchedulerClient')
+    @patch('scheduler.cli.jobs.load_config', autospec=True)
+    @patch('scheduler.cli.jobs.SchedulerClient', autospec=True)
     def test_list_jobs_connection_exception(self, mock_client_class, mock_load_config):
         """Test handling ConnectionException"""
         from scheduler.core.exceptions import ConnectionException
         
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_jobs.side_effect = ConnectionException("Cannot connect")
         mock_client_class.return_value = mock_client
 
-        with patch('scheduler.cli.jobs.click.echo'):
+        with patch('scheduler.cli.jobs.click.echo', autospec=True):
             result = jobs_command()
             assert result == 3
 
-    @patch('scheduler.cli.jobs.load_config')
-    @patch('scheduler.cli.jobs.SchedulerClient')
+    @patch('scheduler.cli.jobs.load_config', autospec=True)
+    @patch('scheduler.cli.jobs.SchedulerClient', autospec=True)
     def test_list_jobs_generic_exception(self, mock_client_class, mock_load_config):
         """Test handling generic exception"""
-        mock_client = Mock()
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_jobs.side_effect = Exception("Generic error")
         mock_client_class.return_value = mock_client
 
-        with patch('scheduler.cli.jobs.click.echo'):
+        with patch('scheduler.cli.jobs.click.echo', autospec=True):
             result = jobs_command()
             assert result == 1
 
@@ -125,7 +128,7 @@ class TestPrintJobTable:
 
     def test_print_job_table_empty(self):
         """Test printing empty job list"""
-        with patch('scheduler.cli.jobs.click.echo') as mock_echo:
+        with patch('scheduler.cli.jobs.click.echo', autospec=True) as mock_echo:
             _print_job_table([])
             mock_echo.assert_called_once_with("No jobs found")
 
@@ -144,7 +147,7 @@ class TestPrintJobTable:
             )
         ]
         
-        with patch('scheduler.cli.jobs.click.echo') as mock_echo:
+        with patch('scheduler.cli.jobs.click.echo', autospec=True) as mock_echo:
             _print_job_table(jobs)
             # Should print header and job row
             assert mock_echo.call_count == 3  # header line, separator line, job row
@@ -167,7 +170,7 @@ class TestPrintJobDetails:
             error_message="Error occurred"
         )
         
-        with patch('scheduler.cli.jobs.click.echo') as mock_echo:
+        with patch('scheduler.cli.jobs.click.echo', autospec=True) as mock_echo:
             _print_job_details(job)
             # Should print multiple lines
             assert mock_echo.call_count > 5
@@ -182,7 +185,7 @@ class TestPrintJobDetails:
             status=JobStatus.PENDING
         )
         
-        with patch('scheduler.cli.jobs.click.echo') as mock_echo:
+        with patch('scheduler.cli.jobs.click.echo', autospec=True) as mock_echo:
             _print_job_details(job)
             # Should still print multiple lines
             assert mock_echo.call_count >= 4

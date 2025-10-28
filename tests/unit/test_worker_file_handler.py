@@ -106,7 +106,7 @@ if __name__ == "__main__":
         assert os.path.exists(versioned1)
         assert os.path.exists(versioned2)
 
-    @patch('shutil.copy2')
+    @patch('shutil.copy2', autospec=True)
     def test_create_versioned_copy_permission_error(self, mock_copy, test_config, temp_dir):
         """Test handling of permission errors during copy"""
         script_path = os.path.join(temp_dir, "script.py")
@@ -265,7 +265,7 @@ if __name__ == "__main__":
         os.utime(test_file, (old_time, old_time))
 
         # Mock os.remove to raise error
-        with patch('os.remove', side_effect=OSError("Cannot delete")):
+        with patch('os.remove', side_effect=OSError("Cannot delete"), autospec=True):
             # Should not raise, just log warning
             handler.cleanup_versioned_files(max_age_hours=24)
 
@@ -276,7 +276,7 @@ if __name__ == "__main__":
         # Should not raise any errors
         handler.cleanup_versioned_files(max_age_hours=24)
 
-    @patch('os.listdir')
+    @patch('os.listdir', autospec=True)
     def test_cleanup_directory_error(self, mock_listdir, test_config):
         """Test cleanup handles directory listing errors"""
         mock_listdir.side_effect = OSError("Cannot list directory")

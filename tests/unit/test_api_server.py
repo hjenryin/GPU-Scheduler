@@ -7,6 +7,7 @@ import uvicorn
 
 from scheduler.core import Config, PermissionDeniedException
 from scheduler.head.api_server import APIServer
+from textual.app import App
 
 
 class TestAPIServer:
@@ -14,10 +15,10 @@ class TestAPIServer:
 
     def test_api_server_initialization(self, test_config):
         """Test API server initialization"""
-        with patch('scheduler.head.api_server.create_app') as mock_create_app:
+        with patch('scheduler.head.api_server.create_app', autospec=True) as mock_create_app:
             mock_job_manager = Mock()
             mock_node_manager = Mock()
-            mock_app = Mock()
+            mock_app = Mock(spec_set=App)
             mock_create_app.return_value = mock_app
             
             api_server = APIServer(mock_job_manager, mock_node_manager, test_config)
@@ -34,19 +35,19 @@ class TestAPIServer:
 
     def test_start_success(self, test_config):
         """Test successful API server start"""
-        with patch('scheduler.head.api_server.create_app') as mock_create_app, \
-             patch('scheduler.head.api_server.uvicorn.Server') as mock_server_class, \
-             patch('scheduler.head.api_server.threading.Thread') as mock_thread_class:
+        with patch('scheduler.head.api_server.create_app', autospec=True) as mock_create_app, \
+             patch('scheduler.head.api_server.uvicorn.Server', autospec=True) as mock_server_class, \
+             patch('scheduler.head.api_server.threading.Thread', autospec=True) as mock_thread_class:
             
             mock_job_manager = Mock()
             mock_node_manager = Mock()
-            mock_app = Mock()
+            mock_app = Mock(spec_set=App)
             mock_create_app.return_value = mock_app
             
             mock_server = Mock()
             mock_server_class.return_value = mock_server
-            mock_thread = Mock()
-            mock_thread_class.return_value = mock_thread
+            
+            mock_thread_instance = mock_thread_class.return_value
             
             api_server = APIServer(mock_job_manager, mock_node_manager, test_config)
             
@@ -64,31 +65,31 @@ class TestAPIServer:
             
             # Verify server was started in a thread
             mock_thread_class.assert_called_once_with(target=mock_server.run, daemon=True)
-            mock_thread.start.assert_called_once()
+            mock_thread_instance.start.assert_called_once()
             
             assert api_server.server == mock_server
-            assert api_server.server_thread == mock_thread
+            assert api_server.server_thread == mock_thread_instance
 
     def test_start_already_running(self, test_config):
         """Test starting API server when already running"""
-        with patch('scheduler.head.api_server.create_app') as mock_create_app, \
-             patch('scheduler.head.api_server.uvicorn.Server') as mock_server_class, \
-             patch('scheduler.head.api_server.threading.Thread') as mock_thread_class:
+        with patch('scheduler.head.api_server.create_app', autospec=True) as mock_create_app, \
+             patch('scheduler.head.api_server.uvicorn.Server', autospec=True) as mock_server_class, \
+             patch('scheduler.head.api_server.threading.Thread', autospec=True) as mock_thread_class:
             
             mock_job_manager = Mock()
             mock_node_manager = Mock()
-            mock_app = Mock()
+            mock_app = Mock(spec_set=App)
             mock_create_app.return_value = mock_app
             
             mock_server = Mock()
             mock_server_class.return_value = mock_server
-            mock_thread = Mock()
-            mock_thread.is_alive.return_value = True
-            mock_thread_class.return_value = mock_thread
+            
+            mock_thread_instance = mock_thread_class.return_value
+            mock_thread_instance.is_alive.return_value = True
             
             api_server = APIServer(mock_job_manager, mock_node_manager, test_config)
             api_server.server = mock_server
-            api_server.server_thread = mock_thread
+            api_server.server_thread = mock_thread_instance
             
             # Test start when already running
             api_server.start()
@@ -99,12 +100,12 @@ class TestAPIServer:
 
     def test_start_permission_denied_exception(self, test_config):
         """Test start failure with PermissionDeniedException"""
-        with patch('scheduler.head.api_server.create_app') as mock_create_app, \
-             patch('scheduler.head.api_server.uvicorn.Server') as mock_server_class:
+        with patch('scheduler.head.api_server.create_app', autospec=True) as mock_create_app, \
+             patch('scheduler.head.api_server.uvicorn.Server', autospec=True) as mock_server_class:
             
             mock_job_manager = Mock()
             mock_node_manager = Mock()
-            mock_app = Mock()
+            mock_app = Mock(spec_set=App)
             mock_create_app.return_value = mock_app
             
             # Make server creation raise OSError with "Address already in use"
@@ -121,12 +122,12 @@ class TestAPIServer:
 
     def test_start_permission_denied_exception_alt_message(self, test_config):
         """Test start failure with PermissionDeniedException (alternative message)"""
-        with patch('scheduler.head.api_server.create_app') as mock_create_app, \
-             patch('scheduler.head.api_server.uvicorn.Server') as mock_server_class:
+        with patch('scheduler.head.api_server.create_app', autospec=True) as mock_create_app, \
+             patch('scheduler.head.api_server.uvicorn.Server', autospec=True) as mock_server_class:
             
             mock_job_manager = Mock()
             mock_node_manager = Mock()
-            mock_app = Mock()
+            mock_app = Mock(spec_set=App)
             mock_create_app.return_value = mock_app
             
             # Make server creation raise OSError with "Permission denied"
@@ -143,12 +144,12 @@ class TestAPIServer:
 
     def test_start_other_os_error(self, test_config):
         """Test start failure with other OSError"""
-        with patch('scheduler.head.api_server.create_app') as mock_create_app, \
-             patch('scheduler.head.api_server.uvicorn.Server') as mock_server_class:
+        with patch('scheduler.head.api_server.create_app', autospec=True) as mock_create_app, \
+             patch('scheduler.head.api_server.uvicorn.Server', autospec=True) as mock_server_class:
             
             mock_job_manager = Mock()
             mock_node_manager = Mock()
-            mock_app = Mock()
+            mock_app = Mock(spec_set=App)
             mock_create_app.return_value = mock_app
             
             # Make server creation raise OSError with different message
@@ -164,17 +165,17 @@ class TestAPIServer:
 
     def test_stop_success(self, test_config):
         """Test successful API server stop"""
-        with patch('scheduler.head.api_server.create_app') as mock_create_app:
+        with patch('scheduler.head.api_server.create_app', autospec=True) as mock_create_app:
             mock_job_manager = Mock()
             mock_node_manager = Mock()
-            mock_app = Mock()
+            mock_app = Mock(spec_set=App)
             mock_create_app.return_value = mock_app
             
             api_server = APIServer(mock_job_manager, mock_node_manager, test_config)
             
             # Setup server and thread
             mock_server = Mock()
-            mock_thread = Mock()
+            mock_thread = Mock(spec_set=threading.Thread)
             mock_thread.is_alive.return_value = True
             api_server.server = mock_server
             api_server.server_thread = mock_thread
@@ -190,17 +191,17 @@ class TestAPIServer:
 
     def test_stop_thread_not_alive(self, test_config):
         """Test stop when thread is not alive"""
-        with patch('scheduler.head.api_server.create_app') as mock_create_app:
+        with patch('scheduler.head.api_server.create_app', autospec=True) as mock_create_app:
             mock_job_manager = Mock()
             mock_node_manager = Mock()
-            mock_app = Mock()
+            mock_app = Mock(spec_set=App)
             mock_create_app.return_value = mock_app
             
             api_server = APIServer(mock_job_manager, mock_node_manager, test_config)
             
             # Setup server and thread
             mock_server = Mock()
-            mock_thread = Mock()
+            mock_thread = Mock(spec_set=threading.Thread)
             mock_thread.is_alive.return_value = False
             api_server.server = mock_server
             api_server.server_thread = mock_thread
@@ -216,10 +217,10 @@ class TestAPIServer:
 
     def test_stop_no_server(self, test_config):
         """Test stop when no server is running"""
-        with patch('scheduler.head.api_server.create_app') as mock_create_app:
+        with patch('scheduler.head.api_server.create_app', autospec=True) as mock_create_app:
             mock_job_manager = Mock()
             mock_node_manager = Mock()
-            mock_app = Mock()
+            mock_app = Mock(spec_set=App)
             mock_create_app.return_value = mock_app
             
             api_server = APIServer(mock_job_manager, mock_node_manager, test_config)
@@ -233,10 +234,10 @@ class TestAPIServer:
 
     def test_get_app(self, test_config):
         """Test get_app method"""
-        with patch('scheduler.head.api_server.create_app') as mock_create_app:
+        with patch('scheduler.head.api_server.create_app', autospec=True) as mock_create_app:
             mock_job_manager = Mock()
             mock_node_manager = Mock()
-            mock_app = Mock()
+            mock_app = Mock(spec_set=App)
             mock_create_app.return_value = mock_app
             
             api_server = APIServer(mock_job_manager, mock_node_manager, test_config)
@@ -248,26 +249,26 @@ class TestAPIServer:
 
     def test_server_lifecycle(self, test_config):
         """Test complete server lifecycle"""
-        with patch('scheduler.head.api_server.create_app') as mock_create_app, \
-             patch('scheduler.head.api_server.uvicorn.Server') as mock_server_class, \
-             patch('scheduler.head.api_server.threading.Thread') as mock_thread_class:
+        with patch('scheduler.head.api_server.create_app', autospec=True) as mock_create_app, \
+             patch('scheduler.head.api_server.uvicorn.Server', autospec=True) as mock_server_class, \
+             patch('scheduler.head.api_server.threading.Thread', autospec=True) as mock_thread_class:
             
             mock_job_manager = Mock()
             mock_node_manager = Mock()
-            mock_app = Mock()
+            mock_app = Mock(spec_set=App)
             mock_create_app.return_value = mock_app
             
             mock_server = Mock()
             mock_server_class.return_value = mock_server
-            mock_thread = Mock()
-            mock_thread_class.return_value = mock_thread
+            
+            mock_thread_instance = mock_thread_class.return_value
             
             api_server = APIServer(mock_job_manager, mock_node_manager, test_config)
             
             # Test start
             api_server.start()
             assert api_server.server == mock_server
-            assert api_server.server_thread == mock_thread
+            assert api_server.server_thread == mock_thread_instance
             
             # Test stop
             api_server.stop()
@@ -276,19 +277,19 @@ class TestAPIServer:
 
     def test_multiple_start_stop_cycles(self, test_config):
         """Test multiple start/stop cycles"""
-        with patch('scheduler.head.api_server.create_app') as mock_create_app, \
-             patch('scheduler.head.api_server.uvicorn.Server') as mock_server_class, \
-             patch('scheduler.head.api_server.threading.Thread') as mock_thread_class:
+        with patch('scheduler.head.api_server.create_app', autospec=True) as mock_create_app, \
+             patch('scheduler.head.api_server.uvicorn.Server', autospec=True) as mock_server_class, \
+             patch('scheduler.head.api_server.threading.Thread', autospec=True) as mock_thread_class:
             
             mock_job_manager = Mock()
             mock_node_manager = Mock()
-            mock_app = Mock()
+            mock_app = Mock(spec_set=App)
             mock_create_app.return_value = mock_app
             
             mock_server = Mock()
             mock_server_class.return_value = mock_server
-            mock_thread = Mock()
-            mock_thread_class.return_value = mock_thread
+            
+            mock_thread_instance = mock_thread_class.return_value
             
             api_server = APIServer(mock_job_manager, mock_node_manager, test_config)
             
@@ -306,19 +307,19 @@ class TestAPIServer:
 
     def test_server_configuration(self, test_config):
         """Test server configuration parameters"""
-        with patch('scheduler.head.api_server.create_app') as mock_create_app, \
-             patch('scheduler.head.api_server.uvicorn.Server') as mock_server_class, \
-             patch('scheduler.head.api_server.threading.Thread') as mock_thread_class:
+        with patch('scheduler.head.api_server.create_app', autospec=True) as mock_create_app, \
+             patch('scheduler.head.api_server.uvicorn.Server', autospec=True) as mock_server_class, \
+             patch('scheduler.head.api_server.threading.Thread', autospec=True) as mock_thread_class:
             
             mock_job_manager = Mock()
             mock_node_manager = Mock()
-            mock_app = Mock()
+            mock_app = Mock(spec_set=App)
             mock_create_app.return_value = mock_app
             
             mock_server = Mock()
             mock_server_class.return_value = mock_server
-            mock_thread = Mock()
-            mock_thread_class.return_value = mock_thread
+            
+            mock_thread_instance = mock_thread_class.return_value
             
             api_server = APIServer(mock_job_manager, mock_node_manager, test_config)
             api_server.start()

@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch, MagicMock, mock_open
 from scheduler.worker.job_executor import JobExecutor
 from scheduler.core.models import Job, JobRequirement, JobStatus
 from scheduler.core.exceptions import JobNotFoundException
+import subprocess
 
 
 class TestJobExecutor:
@@ -20,14 +21,14 @@ class TestJobExecutor:
         assert executor.file_handler is not None
         assert executor.processes == {}
 
-    @patch('scheduler.worker.job_executor.subprocess.Popen')
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_execute_job_success(self, mock_file, mock_popen, test_config, sample_job):
         """Test successful job execution"""
         # Setup mock process
-        mock_process = Mock()
+        mock_process = mock_popen.return_value
         mock_process.pid = 12345
-        mock_popen.return_value = mock_process
+
 
         executor = JobExecutor(test_config)
 
@@ -57,13 +58,13 @@ class TestJobExecutor:
         # Check working directory
         assert call_args[1]['cwd'] == sample_job.working_dir
 
-    @patch('scheduler.worker.job_executor.subprocess.Popen')
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_execute_job_no_script_args(self, mock_file, mock_popen, test_config):
         """Test job execution without script arguments"""
-        mock_process = Mock()
+        mock_process = mock_popen.return_value
         mock_process.pid = 12345
-        mock_popen.return_value = mock_process
+
 
         executor = JobExecutor(test_config)
 
@@ -83,13 +84,13 @@ class TestJobExecutor:
         expected_cmd = [sys.executable, job.script]
         assert call_args[0][0] == expected_cmd
 
-    @patch('scheduler.worker.job_executor.subprocess.Popen')
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_execute_job_no_env_vars(self, mock_file, mock_popen, test_config):
         """Test job execution without custom environment variables"""
-        mock_process = Mock()
+        mock_process = mock_popen.return_value
         mock_process.pid = 12345
-        mock_popen.return_value = mock_process
+
 
         executor = JobExecutor(test_config)
 
@@ -108,13 +109,13 @@ class TestJobExecutor:
         env = call_args[1]['env']
         assert env['CUDA_VISIBLE_DEVICES'] == '2'
 
-    @patch('scheduler.worker.job_executor.subprocess.Popen')
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_execute_job_multiple_gpus(self, mock_file, mock_popen, test_config, sample_job):
         """Test job execution with multiple GPUs"""
-        mock_process = Mock()
+        mock_process = mock_popen.return_value
         mock_process.pid = 12345
-        mock_popen.return_value = mock_process
+
 
         executor = JobExecutor(test_config)
 
@@ -126,14 +127,14 @@ class TestJobExecutor:
         env = call_args[1]['env']
         assert env['CUDA_VISIBLE_DEVICES'] == '0,1,2,3'
 
-    @patch('scheduler.worker.job_executor.subprocess.Popen')
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_execute_job_no_working_dir(self, mock_file, mock_popen, test_config):
         """Test job execution without specified working directory"""
         import os
-        mock_process = Mock()
+        mock_process = mock_popen.return_value
         mock_process.pid = 12345
-        mock_popen.return_value = mock_process
+
 
         executor = JobExecutor(test_config)
 
@@ -153,7 +154,7 @@ class TestJobExecutor:
         expected_cwd = os.path.dirname(os.path.abspath("/path/to/script.py"))
         assert call_args[1]['cwd'] == expected_cwd
 
-    @patch('scheduler.worker.job_executor.subprocess.Popen')
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_execute_job_script_not_found(self, mock_file, mock_popen, test_config, sample_job):
         """Test job execution when script file not found"""
@@ -164,7 +165,7 @@ class TestJobExecutor:
         with pytest.raises(RuntimeError, match="Script not found"):
             executor.execute_job(sample_job, [0])
 
-    @patch('scheduler.worker.job_executor.subprocess.Popen')
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_execute_job_generic_error(self, mock_file, mock_popen, test_config, sample_job):
         """Test job execution with generic error"""
@@ -175,14 +176,14 @@ class TestJobExecutor:
         with pytest.raises(RuntimeError, match="Failed to execute job"):
             executor.execute_job(sample_job, [0])
 
-    @patch('scheduler.worker.job_executor.subprocess.Popen')
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_get_job_status_running(self, mock_file, mock_popen, test_config, sample_job):
         """Test getting status of running job"""
-        mock_process = Mock()
+        mock_process = mock_popen.return_value
         mock_process.pid = 12345
         mock_process.poll.return_value = None  # Still running
-        mock_popen.return_value = mock_process
+
 
         executor = JobExecutor(test_config)
         pid = executor.execute_job(sample_job, [0])
@@ -193,14 +194,14 @@ class TestJobExecutor:
         assert exit_code is None
         assert pid in executor.processes  # Still tracked
 
-    @patch('scheduler.worker.job_executor.subprocess.Popen')
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_get_job_status_completed_success(self, mock_file, mock_popen, test_config, sample_job):
         """Test getting status of completed job (success)"""
-        mock_process = Mock()
+        mock_process = mock_popen.return_value
         mock_process.pid = 12345
         mock_process.poll.return_value = 0  # Completed successfully
-        mock_popen.return_value = mock_process
+
 
         executor = JobExecutor(test_config)
         pid = executor.execute_job(sample_job, [0])
@@ -211,14 +212,14 @@ class TestJobExecutor:
         assert exit_code == 0
         assert pid not in executor.processes  # Cleaned up
 
-    @patch('scheduler.worker.job_executor.subprocess.Popen')
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_get_job_status_completed_failure(self, mock_file, mock_popen, test_config, sample_job):
         """Test getting status of completed job (failure)"""
-        mock_process = Mock()
+        mock_process = mock_popen.return_value
         mock_process.pid = 12345
         mock_process.poll.return_value = 1  # Failed
-        mock_popen.return_value = mock_process
+
 
         executor = JobExecutor(test_config)
         pid = executor.execute_job(sample_job, [0])
@@ -229,7 +230,7 @@ class TestJobExecutor:
         assert exit_code == 1
         assert pid not in executor.processes  # Cleaned up
 
-    @patch('os.kill')
+    @patch('os.kill', autospec=True)
     def test_get_job_status_untracked_process_exists(self, mock_kill, test_config):
         """Test getting status of untracked process that exists"""
         executor = JobExecutor(test_config)
@@ -243,7 +244,7 @@ class TestJobExecutor:
         assert exit_code is None
         mock_kill.assert_called_once_with(99999, 0)
 
-    @patch('os.kill')
+    @patch('os.kill', autospec=True)
     def test_get_job_status_untracked_process_not_exists(self, mock_kill, test_config):
         """Test getting status of untracked process that doesn't exist"""
         executor = JobExecutor(test_config)
@@ -256,13 +257,13 @@ class TestJobExecutor:
         assert is_running is False
         assert exit_code == -1
 
-    @patch('scheduler.worker.job_executor.subprocess.Popen')
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_terminate_job_tracked(self, mock_file, mock_popen, test_config, sample_job):
         """Test terminating tracked job"""
-        mock_process = Mock()
+        mock_process = mock_popen.return_value
         mock_process.pid = 12345
-        mock_popen.return_value = mock_process
+
 
         executor = JobExecutor(test_config)
         pid = executor.execute_job(sample_job, [0])
@@ -273,7 +274,7 @@ class TestJobExecutor:
         mock_process.terminate.assert_called_once()
         assert pid not in executor.processes
 
-    @patch('os.kill')
+    @patch('os.kill', autospec=True)
     def test_terminate_job_untracked(self, mock_kill, test_config):
         """Test terminating untracked job"""
         import signal
@@ -283,7 +284,7 @@ class TestJobExecutor:
 
         mock_kill.assert_called_once_with(99999, signal.SIGTERM)
 
-    @patch('os.kill')
+    @patch('os.kill', autospec=True)
     def test_terminate_job_error(self, mock_kill, test_config):
         """Test job termination error handling"""
         mock_kill.side_effect = OSError("Permission denied")
@@ -293,7 +294,7 @@ class TestJobExecutor:
         # Should not raise, just log warning
         executor.terminate_job(99999)
 
-    @patch('os.path.exists')
+    @patch('os.path.exists', autospec=True)
     @patch('builtins.open', new_callable=mock_open, read_data="Line 1\nLine 2\nLine 3\n")
     def test_get_job_logs_all_lines(self, mock_file, mock_exists, test_config):
         """Test getting all job logs"""
@@ -304,7 +305,7 @@ class TestJobExecutor:
 
         assert logs == "Line 1\nLine 2\nLine 3\n"
 
-    @patch('os.path.exists')
+    @patch('os.path.exists', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_get_job_logs_last_n_lines(self, mock_file, mock_exists, test_config):
         """Test getting last N lines of job logs"""
@@ -322,7 +323,7 @@ class TestJobExecutor:
 
         assert logs == "Line 4\nLine 5\n"
 
-    @patch('os.path.exists')
+    @patch('os.path.exists', autospec=True)
     def test_get_job_logs_stderr(self, mock_exists, test_config):
         """Test getting stderr logs"""
         mock_exists.return_value = True
@@ -334,7 +335,7 @@ class TestJobExecutor:
 
         assert logs == "Error message\n"
 
-    @patch('os.path.exists')
+    @patch('os.path.exists', autospec=True)
     def test_get_job_logs_not_found(self, mock_exists, test_config):
         """Test getting logs for non-existent job"""
         mock_exists.return_value = False
@@ -344,7 +345,7 @@ class TestJobExecutor:
         with pytest.raises(JobNotFoundException, match="Log file not found"):
             executor.get_job_logs("job-999")
 
-    @patch('os.path.exists')
+    @patch('os.path.exists', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_get_job_logs_read_error(self, mock_file, mock_exists, test_config):
         """Test log reading error handling"""
@@ -356,13 +357,13 @@ class TestJobExecutor:
         with pytest.raises(JobNotFoundException, match="Failed to read logs"):
             executor.get_job_logs("job-001")
 
-    @patch('scheduler.worker.job_executor.subprocess.Popen')
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_log_files_created(self, mock_file, mock_popen, test_config, sample_job):
         """Test that stdout and stderr log files are created"""
-        mock_process = Mock()
+        mock_process = mock_popen.return_value
         mock_process.pid = 12345
-        mock_popen.return_value = mock_process
+
 
         executor = JobExecutor(test_config)
         executor.execute_job(sample_job, [0])
@@ -380,13 +381,13 @@ class TestJobExecutor:
         assert 'stdout' in stdout_path
         assert 'stderr' in stderr_path
 
-    @patch('scheduler.worker.job_executor.subprocess.Popen')
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_process_group_created(self, mock_file, mock_popen, test_config, sample_job):
         """Test that process is started in new session (new process group)"""
-        mock_process = Mock()
+        mock_process = mock_popen.return_value
         mock_process.pid = 12345
-        mock_popen.return_value = mock_process
+
 
         executor = JobExecutor(test_config)
         executor.execute_job(sample_job, [0])

@@ -30,7 +30,7 @@ class TestSchedulerTUI:
         
         assert app.refresh_interval == 5.0
 
-    @patch('scheduler.tui.app.SchedulerTUI.set_interval')
+    @patch('scheduler.tui.app.SchedulerTUI.set_interval', autospec=True)
     def test_on_mount(self, mock_set_interval, mock_scheduler_client):
         """Test app mounting behavior."""
         app = SchedulerTUI(mock_scheduler_client)
@@ -38,8 +38,8 @@ class TestSchedulerTUI:
         with patch.object(app, 'refresh_data') as mock_refresh:
             app.on_mount()
             
-            # Should set up periodic refresh
-            mock_set_interval.assert_called_once_with(app.refresh_interval, app.refresh_data)
+            # Should set up periodic refresh (with autospec, self is included)
+            mock_set_interval.assert_called_once_with(app, app.refresh_interval, app.refresh_data)
             # Should do initial data fetch
             mock_refresh.assert_called_once()
 
@@ -269,10 +269,10 @@ class TestSchedulerTUI:
 class TestRunTUI:
     """Test run_tui function."""
 
-    @patch('scheduler.tui.app.SchedulerTUI')
+    @patch('scheduler.tui.app.SchedulerTUI', autospec=True)
     def test_run_tui_with_client(self, mock_tui_class, mock_scheduler_client):
         """Test run_tui with provided client."""
-        mock_app = Mock()
+        mock_app = Mock(spec_set=App)
         mock_tui_class.return_value = mock_app
         
         run_tui(client=mock_scheduler_client)
@@ -280,12 +280,12 @@ class TestRunTUI:
         mock_tui_class.assert_called_once_with(mock_scheduler_client)
         mock_app.run.assert_called_once()
 
-    @patch('scheduler.tui.app.SchedulerClient')
-    @patch('scheduler.tui.app.SchedulerTUI')
+    @patch('scheduler.tui.app.SchedulerClient', autospec=True)
+    @patch('scheduler.tui.app.SchedulerTUI', autospec=True)
     def test_run_tui_with_address(self, mock_tui_class, mock_client_class, mock_scheduler_client):
         """Test run_tui with address parameter."""
         mock_client_class.return_value = mock_scheduler_client
-        mock_app = Mock()
+        mock_app = Mock(spec_set=App)
         mock_tui_class.return_value = mock_app
         
         run_tui(address="localhost:8265")
@@ -294,12 +294,12 @@ class TestRunTUI:
         mock_tui_class.assert_called_once_with(mock_scheduler_client)
         mock_app.run.assert_called_once()
 
-    @patch('scheduler.tui.app.SchedulerClient')
-    @patch('scheduler.tui.app.SchedulerTUI')
+    @patch('scheduler.tui.app.SchedulerClient', autospec=True)
+    @patch('scheduler.tui.app.SchedulerTUI', autospec=True)
     def test_run_tui_without_parameters(self, mock_tui_class, mock_client_class, mock_scheduler_client):
         """Test run_tui without parameters."""
         mock_client_class.return_value = mock_scheduler_client
-        mock_app = Mock()
+        mock_app = Mock(spec_set=App)
         mock_tui_class.return_value = mock_app
         
         run_tui()

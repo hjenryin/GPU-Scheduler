@@ -210,7 +210,7 @@ class TestWrapInAPIClient:
         def test_func():
             raise RuntimeError("Test runtime error")
 
-        with patch('scheduler.tui.utils.logger') as mock_logger:
+        with patch('scheduler.tui.utils.logger', autospec=True) as mock_logger:
             result = test_func()
             assert result is None
             mock_logger.error.assert_called_once()

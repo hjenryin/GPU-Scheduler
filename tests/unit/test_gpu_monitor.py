@@ -81,7 +81,7 @@ class TestGPUMonitorDetectGPUs:
         mock_result.returncode = 0
         mock_result.stdout = "GPU 0: NVIDIA A100\nGPU 1: NVIDIA A100\n"
         
-        with patch('subprocess.run', return_value=mock_result) as mock_run:
+        with patch('subprocess.run', return_value=mock_result, autospec=True) as mock_run:
             config = Config(worker=WorkerConfig())
             monitor = GPUMonitor(config)
             monitor.use_pynvml = False
@@ -91,7 +91,7 @@ class TestGPUMonitorDetectGPUs:
 
     def test_detect_gpus_nvidia_smi_not_found(self):
         """Test detecting GPUs when nvidia-smi not found"""
-        with patch('subprocess.run', side_effect=FileNotFoundError):
+        with patch('subprocess.run', side_effect=FileNotFoundError, autospec=True):
             config = Config(worker=WorkerConfig())
             monitor = GPUMonitor(config)
             monitor.use_pynvml = False
@@ -101,7 +101,7 @@ class TestGPUMonitorDetectGPUs:
 
     def test_detect_gpus_nvidia_smi_timeout(self):
         """Test detecting GPUs when nvidia-smi times out"""
-        with patch('subprocess.run', side_effect=subprocess.TimeoutExpired('cmd', 10)):
+        with patch('subprocess.run', side_effect=subprocess.TimeoutExpired('cmd', 10), autospec=True):
             config = Config(worker=WorkerConfig())
             monitor = GPUMonitor(config)
             monitor.use_pynvml = False
@@ -115,7 +115,7 @@ class TestGPUMonitorDetectGPUs:
         mock_result.returncode = 1
         mock_result.stderr = "Test error"
         
-        with patch('subprocess.run', return_value=mock_result):
+        with patch('subprocess.run', return_value=mock_result, autospec=True):
             config = Config(worker=WorkerConfig())
             monitor = GPUMonitor(config)
             monitor.use_pynvml = False
@@ -179,7 +179,7 @@ class TestGPUMonitorPollGPUStats:
         mock_result.returncode = 0
         mock_result.stdout = "0, 50, 1024, 8192, 60, 150, 200"
         
-        with patch('subprocess.run', return_value=mock_result):
+        with patch('subprocess.run', return_value=mock_result, autospec=True):
             stats = monitor_pynvml.poll_gpu_stats()
             assert len(stats) == 1
 
@@ -189,7 +189,7 @@ class TestGPUMonitorPollGPUStats:
         mock_result.returncode = 0
         mock_result.stdout = "0, 50, 1024, 8192, 60, 150, 200\n"
         
-        with patch('subprocess.run', return_value=mock_result):
+        with patch('subprocess.run', return_value=mock_result, autospec=True):
             config = Config(worker=WorkerConfig())
             monitor = GPUMonitor(config)
             monitor.use_pynvml = False
@@ -206,7 +206,7 @@ class TestGPUMonitorPollGPUStats:
         mock_result.returncode = 0
         mock_result.stdout = "0, 50, 1024, 8192, 60, [N/A], [N/A]\n"
         
-        with patch('subprocess.run', return_value=mock_result):
+        with patch('subprocess.run', return_value=mock_result, autospec=True):
             config = Config(worker=WorkerConfig())
             monitor = GPUMonitor(config)
             monitor.use_pynvml = False

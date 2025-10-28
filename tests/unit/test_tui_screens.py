@@ -1,9 +1,10 @@
 """Unit tests for TUI screen components."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock, create_autospec, PropertyMock
 from datetime import datetime, timedelta
-from textual.widgets import Input
+from textual.widgets import Input, DataTable, Static
+from scheduler.core import Config
 
 from scheduler.tui.screens.cluster import ClusterScreen
 from scheduler.tui.screens.nodes import NodesScreen
@@ -12,6 +13,7 @@ from scheduler.tui.screens.gpus import GPUsScreen
 from scheduler.tui.screens.job_detail import JobDetailScreen
 from scheduler.core import JobStatus, NodeStatus
 from tests.unit.test_tui_fixtures import *
+from scheduler.tui.app import SchedulerTUI
 
 
 class TestClusterScreen:
@@ -31,18 +33,18 @@ class TestClusterScreen:
         for key in expected_keys:
             assert key in binding_keys
 
-    @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one')
+    @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one', autospec=True)
     def test_update_data_summary_calculation(self, mock_query_one, mock_nodes, mock_jobs):
         """Test cluster summary calculation."""
         screen = ClusterScreen()
         
-        # Mock the static widgets
-        mock_summary = Mock()
-        mock_node_table = Mock()
+        # Mock the static widgets (use spec_set for Textual widgets)
+        mock_summary = create_autospec(Static, instance=True, spec_set=True)
+        mock_node_table = create_autospec(DataTable, instance=True, spec_set=True)
         mock_gpu_bars = Mock()
-        mock_job_table = Mock()
+        mock_job_table = create_autospec(DataTable, instance=True, spec_set=True)
         
-        mock_query_one.side_effect = lambda selector, widget_type: {
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#cluster-summary": mock_summary,
             "#node-table": mock_node_table,
             "#gpu-bars": mock_gpu_bars,
@@ -59,13 +61,13 @@ class TestClusterScreen:
         assert "GPUs:" in summary_text
         assert "Jobs:" in summary_text
 
-    @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one')
+    @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one', autospec=True)
     def test_update_data_node_table(self, mock_query_one, mock_nodes, mock_jobs):
         """Test node table update."""
         screen = ClusterScreen()
         
-        mock_node_table = Mock()
-        mock_query_one.side_effect = lambda selector, widget_type: {
+        mock_node_table = create_autospec(DataTable, instance=True, spec_set=True)
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#node-table": mock_node_table
         }.get(selector, Mock())
 
@@ -75,13 +77,13 @@ class TestClusterScreen:
         mock_node_table.clear.assert_called_once()
         assert mock_node_table.add_row.call_count == len(mock_nodes)
 
-    @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one')
+    @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one', autospec=True)
     def test_update_data_gpu_bars(self, mock_query_one, mock_nodes, mock_jobs):
         """Test GPU bars update."""
         screen = ClusterScreen()
         
         mock_gpu_bars = Mock()
-        mock_query_one.side_effect = lambda selector, widget_type: {
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#gpu-bars": mock_gpu_bars
         }.get(selector, Mock())
 
@@ -92,13 +94,13 @@ class TestClusterScreen:
         gpu_text = mock_gpu_bars.update.call_args[0][0]
         assert len(gpu_text) > 0
 
-    @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one')
+    @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one', autospec=True)
     def test_update_data_job_table(self, mock_query_one, mock_nodes, mock_jobs):
         """Test job table update."""
         screen = ClusterScreen()
         
-        mock_job_table = Mock()
-        mock_query_one.side_effect = lambda selector, widget_type: {
+        mock_job_table = create_autospec(DataTable, instance=True, spec_set=True)
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#job-table": mock_job_table
         }.get(selector, Mock())
 
@@ -128,13 +130,13 @@ class TestNodesScreen:
         for key in expected_keys:
             assert key in binding_keys
 
-    @patch('scheduler.tui.screens.nodes.NodesScreen.query_one')
+    @patch('scheduler.tui.screens.nodes.NodesScreen.query_one', autospec=True)
     def test_update_data_nodes_list(self, mock_query_one, mock_nodes, mock_jobs):
         """Test nodes list update."""
         screen = NodesScreen()
         
-        mock_nodes_list = Mock()
-        mock_query_one.side_effect = lambda selector, widget_type: {
+        mock_nodes_list = create_autospec(DataTable, instance=True, spec_set=True)
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#nodes-list": mock_nodes_list
         }.get(selector, Mock())
 
@@ -144,13 +146,13 @@ class TestNodesScreen:
         mock_nodes_list.clear.assert_called_once()
         assert mock_nodes_list.add_row.call_count == len(mock_nodes)
 
-    @patch('scheduler.tui.screens.nodes.NodesScreen.query_one')
+    @patch('scheduler.tui.screens.nodes.NodesScreen.query_one', autospec=True)
     def test_update_data_auto_select_first_node(self, mock_query_one, mock_nodes, mock_jobs):
         """Test auto-selection of first node when none selected."""
         screen = NodesScreen()
         screen.selected_node = None
         
-        mock_query_one.side_effect = lambda selector, widget_type: {
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#nodes-list": Mock(),
             "#node-detail-header": Mock(),
             "#node-detail-info": Mock(),
@@ -163,14 +165,14 @@ class TestNodesScreen:
         # Should auto-select first node
         assert screen.selected_node == mock_nodes[0].node_name
 
-    @patch('scheduler.tui.screens.nodes.NodesScreen.query_one')
+    @patch('scheduler.tui.screens.nodes.NodesScreen.query_one', autospec=True)
     def test_on_node_selected(self, mock_query_one, mock_nodes, mock_jobs):
         """Test node selection handling."""
         screen = NodesScreen()
         screen.nodes_data = mock_nodes
         screen.jobs_data = mock_jobs
         
-        mock_query_one.side_effect = lambda selector, widget_type: {
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#node-detail-header": Mock(),
             "#node-detail-info": Mock(),
             "#gpu-detail-table": Mock(),
@@ -182,7 +184,7 @@ class TestNodesScreen:
 
         assert screen.selected_node == selected_node
 
-    @patch('scheduler.tui.screens.nodes.NodesScreen.query_one')
+    @patch('scheduler.tui.screens.nodes.NodesScreen.query_one', autospec=True)
     def test_update_node_details(self, mock_query_one, mock_nodes, mock_jobs):
         """Test node details update."""
         screen = NodesScreen()
@@ -192,9 +194,9 @@ class TestNodesScreen:
         mock_header = Mock()
         mock_info = Mock()
         mock_gpu_table = Mock()
-        mock_jobs_list = Mock()
+        mock_jobs_list = create_autospec(Static, instance=True, spec_set=True)
         
-        mock_query_one.side_effect = lambda selector, widget_type: {
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#node-detail-header": mock_header,
             "#node-detail-info": mock_info,
             "#gpu-detail-table": mock_gpu_table,
@@ -229,13 +231,13 @@ class TestJobsScreen:
         for key in expected_keys:
             assert key in binding_keys
 
-    @patch('scheduler.tui.screens.jobs.JobsScreen.query_one')
+    @patch('scheduler.tui.screens.jobs.JobsScreen.query_one', autospec=True)
     def test_update_data(self, mock_query_one, mock_jobs):
         """Test jobs data update."""
         screen = JobsScreen()
         
-        mock_jobs_table = Mock()
-        mock_query_one.side_effect = lambda selector, widget_type: {
+        mock_jobs_table = create_autospec(DataTable, instance=True, spec_set=True)
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#jobs-table": mock_jobs_table
         }.get(selector, Mock())
 
@@ -244,15 +246,15 @@ class TestJobsScreen:
         assert screen.jobs_data == mock_jobs
         mock_jobs_table.clear.assert_called_once()
 
-    @patch('scheduler.tui.screens.jobs.JobsScreen.query_one')
+    @patch('scheduler.tui.screens.jobs.JobsScreen.query_one', autospec=True)
     def test_refresh_table_with_filter(self, mock_query_one, mock_jobs):
         """Test table refresh with status filter."""
         screen = JobsScreen()
         screen.jobs_data = mock_jobs
         screen.current_filter = "running"
         
-        mock_jobs_table = Mock()
-        mock_query_one.side_effect = lambda selector, widget_type: {
+        mock_jobs_table = create_autospec(DataTable, instance=True, spec_set=True)
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#jobs-table": mock_jobs_table
         }.get(selector, Mock())
 
@@ -262,15 +264,15 @@ class TestJobsScreen:
         running_jobs = [j for j in mock_jobs if j.status.value == "running"]
         assert mock_jobs_table.add_row.call_count == len(running_jobs)
 
-    @patch('scheduler.tui.screens.jobs.JobsScreen.query_one')
+    @patch('scheduler.tui.screens.jobs.JobsScreen.query_one', autospec=True)
     def test_refresh_table_with_search(self, mock_query_one, mock_jobs):
         """Test table refresh with search filter."""
         screen = JobsScreen()
         screen.jobs_data = mock_jobs
         screen.search_text = "test"
         
-        mock_jobs_table = Mock()
-        mock_query_one.side_effect = lambda selector, widget_type: {
+        mock_jobs_table = create_autospec(DataTable, instance=True, spec_set=True)
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#jobs-table": mock_jobs_table
         }.get(selector, Mock())
 
@@ -343,8 +345,10 @@ class TestJobsScreen:
         assert hasattr(screen, 'on_job_selected')
         assert callable(screen.on_job_selected)
         
-        # Mock the app property to avoid Textual context issues
-        with patch.object(screen.__class__, 'app', new_callable=lambda: Mock()):
+        # Mock the app property (it's a property on Screen that returns the parent App)
+        mock_app_instance = create_autospec(SchedulerTUI, instance=True, spec_set=True)
+        with patch.object(screen.__class__, 'app', new_callable=PropertyMock) as mock_app_property:
+            mock_app_property.return_value = mock_app_instance
             try:
                 screen.on_job_selected("job_123")
             except (AttributeError, LookupError):
@@ -367,13 +371,13 @@ class TestGPUsScreen:
         for key in expected_keys:
             assert key in binding_keys
 
-    @patch('scheduler.tui.screens.gpus.GPUsScreen.query_one')
+    @patch('scheduler.tui.screens.gpus.GPUsScreen.query_one', autospec=True)
     def test_update_data(self, mock_query_one, mock_nodes):
         """Test GPUs data update."""
         screen = GPUsScreen()
         
         mock_gpu_table = Mock()
-        mock_query_one.side_effect = lambda selector, widget_type: {
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#gpus-table": mock_gpu_table,
             "#gpu-summary": Mock()
         }.get(selector, Mock())
@@ -404,7 +408,7 @@ class TestJobDetailScreen:
         for key in expected_keys:
             assert key in binding_keys
 
-    @patch('scheduler.tui.screens.job_detail.JobDetailScreen.query_one')
+    @patch('scheduler.tui.screens.job_detail.JobDetailScreen.query_one', autospec=True)
     def test_update_job_data(self, mock_query_one, mock_job_running):
         """Test job data update."""
         screen = JobDetailScreen("job_123")
@@ -422,11 +426,11 @@ class TestJobDetailScreen:
         mock_job_running.env_vars = {"VAR1": "value1"}
         mock_job_running.dependencies = []
         
-        mock_metadata = Mock()
-        mock_config = Mock()
-        mock_logs = Mock()
+        mock_metadata = create_autospec(Static, instance=True, spec_set=True)
+        mock_config = create_autospec(Static, instance=True, spec_set=True)
+        mock_logs = create_autospec(Static, instance=True, spec_set=True)
         
-        mock_query_one.side_effect = lambda selector, widget_type: {
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#job-metadata": mock_metadata,
             "#job-config": mock_config,
             "#logs-preview": mock_logs
@@ -451,8 +455,10 @@ class TestJobDetailScreen:
         screen.job_data = Mock()
         screen.job_data.status = JobStatus.RUNNING
         
-        # Mock the app property to avoid Textual context issues
-        with patch.object(screen.__class__, 'app', new_callable=lambda: Mock()):
+        # Mock the app property (it's a property on Screen that returns the parent App)
+        mock_app_instance = create_autospec(SchedulerTUI, instance=True, spec_set=True)
+        with patch.object(screen.__class__, 'app', new_callable=PropertyMock) as mock_app_property:
+            mock_app_property.return_value = mock_app_instance
             try:
                 screen.action_cancel_job()
             except (AttributeError, LookupError):
@@ -466,12 +472,12 @@ class TestJobDetailScreen:
         assert hasattr(screen, 'action_view_logs')
         assert callable(screen.action_view_logs)
         
-        # Mock the app property to avoid Textual context issues
-        mock_app = Mock()
-        mock_app.client = Mock()
-        mock_app.client.get_job_logs.return_value = "test logs"
+        # Mock the app property (it's a property on Screen that returns the parent App)
+        mock_app_instance = create_autospec(SchedulerTUI, instance=True, spec_set=True)
+        mock_app_instance.client.get_job_logs.return_value = "test logs"
         
-        with patch.object(screen.__class__, 'app', new_callable=lambda: mock_app):
+        with patch.object(screen.__class__, 'app', new_callable=PropertyMock) as mock_app_property:
+            mock_app_property.return_value = mock_app_instance
             with patch.object(screen, 'query_one') as mock_query:
                 mock_logs = Mock()
                 mock_header = Mock()
@@ -482,7 +488,7 @@ class TestJobDetailScreen:
                 
                 screen.action_view_logs()
                 
-                # Should call get_job_logs method on app
-                mock_app.client.get_job_logs.assert_called()
+                # Should call get_job_logs method on app.client
+                mock_app_instance.client.get_job_logs.assert_called()
                 mock_logs.update.assert_called_once()
                 mock_header.update.assert_called_once_with("Full Logs")

@@ -1,12 +1,14 @@
 """Pytest fixtures for TUI testing."""
 
 import pytest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock, MagicMock, create_autospec
 from datetime import datetime, timedelta
 from typing import List
 
 from scheduler.core import Node, Job, GPU, GPUStats, JobStatus, NodeStatus, JobRequirement
 from scheduler.api import SchedulerClient
+from textual.app import App
+from scheduler.api.client import SchedulerClient
 
 
 @pytest.fixture
@@ -106,16 +108,19 @@ def mock_nodes(mock_node, mock_node_disconnected):
 @pytest.fixture
 def mock_job_requirement():
     """Create mock job requirement."""
-    req = Mock(spec=JobRequirement)
-    req.num_gpus = 2
-    req.alternatives = [{"node": "gpu-server-01", "num_gpus": 2}]
+    req = create_autospec(JobRequirement, instance=True, spec_set=True)
+    # JobRequirement has 'alternatives' property
+    # alternatives returns List[Tuple[Optional[str], int]]
+    req.alternatives = [("gpu-server-01", 2)]
+    # Configure __str__ to return human-readable format
+    req.__str__.return_value = "2 GPUs on gpu-server-01"
     return req
 
 
 @pytest.fixture
 def mock_job_pending(mock_job_requirement):
     """Create mock pending job."""
-    job = Mock(spec=Job)
+    job = create_autospec(Job, instance=True, spec_set=True)
     job.job_id = "job_123"
     job.name = "test-training"
     job.status = JobStatus.PENDING
@@ -123,14 +128,14 @@ def mock_job_pending(mock_job_requirement):
     job.assigned_gpus = []
     job.requirements = mock_job_requirement
     job.submitted_at = datetime.now() - timedelta(minutes=5)
-    job.runtime = None
+    job.get_runtime.return_value = None
     return job
 
 
 @pytest.fixture
 def mock_job_completed(mock_job_requirement):
     """Create mock completed job."""
-    job = Mock(spec=Job)
+    job = create_autospec(Job, instance=True, spec_set=True)
     job.job_id = "job_789"
     job.name = "inference-job"
     job.status = JobStatus.COMPLETED
@@ -138,14 +143,14 @@ def mock_job_completed(mock_job_requirement):
     job.assigned_gpus = [0]
     job.requirements = mock_job_requirement
     job.submitted_at = datetime.now() - timedelta(hours=2)
-    job.runtime = timedelta(minutes=30)
+    job.get_runtime.return_value = timedelta(minutes=30)
     return job
 
 
 @pytest.fixture
 def mock_job_failed(mock_job_requirement):
     """Create mock failed job."""
-    job = Mock(spec=Job)
+    job = create_autospec(Job, instance=True, spec_set=True)
     job.job_id = "job_fail"
     job.name = "failed-experiment"
     job.status = JobStatus.FAILED
@@ -153,14 +158,14 @@ def mock_job_failed(mock_job_requirement):
     job.assigned_gpus = []
     job.requirements = mock_job_requirement
     job.submitted_at = datetime.now() - timedelta(hours=3)
-    job.runtime = timedelta(minutes=5)
+    job.get_runtime.return_value = timedelta(minutes=5)
     return job
 
 
 @pytest.fixture
 def mock_job_running(mock_job_requirement):
     """Create mock running job."""
-    job = Mock(spec=Job)
+    job = create_autospec(Job, instance=True, spec_set=True)
     job.job_id = "job_456"
     job.name = "bert-training"
     job.status = JobStatus.RUNNING
@@ -168,7 +173,7 @@ def mock_job_running(mock_job_requirement):
     job.assigned_gpus = [0, 1]
     job.requirements = mock_job_requirement
     job.submitted_at = datetime.now() - timedelta(hours=1)
-    job.runtime = timedelta(hours=1)
+    job.get_runtime.return_value = timedelta(hours=1)
     return job
 
 
@@ -181,7 +186,7 @@ def mock_jobs(mock_job_pending, mock_job_running, mock_job_completed, mock_job_f
 @pytest.fixture
 def mock_scheduler_client(mock_nodes, mock_jobs):
     """Create mock SchedulerClient."""
-    client = Mock(spec=SchedulerClient)
+    client = Mock(spec_set=SchedulerClient)
     client.list_nodes.return_value = mock_nodes
     client.list_jobs.return_value = mock_jobs
     client.get_job.return_value = mock_jobs[0]
@@ -192,7 +197,7 @@ def mock_scheduler_client(mock_nodes, mock_jobs):
 @pytest.fixture
 def mock_scheduler_client_error():
     """Create mock SchedulerClient that raises errors."""
-    client = Mock(spec=SchedulerClient)
+    client = Mock(spec_set=SchedulerClient)
     client.list_nodes.side_effect = Exception("Connection failed")
     client.list_jobs.side_effect = Exception("Connection failed")
     client.get_job.side_effect = Exception("Job not found")
@@ -203,7 +208,7 @@ def mock_scheduler_client_error():
 @pytest.fixture
 def mock_textual_app():
     """Create mock Textual App for testing."""
-    app = Mock()
+    app = Mock(spec_set=App)
     app.screen = Mock()
     app.screen.name = "cluster"
     app.switch_screen = Mock()
@@ -216,7 +221,7 @@ def mock_textual_app():
 @pytest.fixture
 def mock_textual_screen():
     """Create mock Textual Screen for testing."""
-    screen = Mock()
+    screen = Mock(spec_set=Screen)
     screen.query_one = Mock()
     screen.update_data = Mock()
     screen.on_mount = Mock()
@@ -226,7 +231,7 @@ def mock_textual_screen():
 @pytest.fixture
 def mock_data_table():
     """Create mock DataTable widget."""
-    table = Mock()
+    table = Mock(spec_set=DataTable)
     table.add_columns = Mock()
     table.clear = Mock()
     table.add_row = Mock()

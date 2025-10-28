@@ -5,6 +5,7 @@ from textual.widgets import DataTable
 from scheduler.tui.app import SchedulerTUI
 from scheduler.api import SchedulerClient
 from tests.unit.test_tui_fixtures import *
+from scheduler.api.client import SchedulerClient
 
 
 class TestSchedulerTUIWithAppRunTest:
@@ -170,7 +171,7 @@ class TestSchedulerTUIWithAppRunTest:
     @pytest.mark.asyncio
     async def test_data_refresh_with_updated_gpu_stats(self, mock_nodes, mock_jobs):
         """Test that data refresh properly updates GPU statistics"""
-        mock_client = Mock(spec=SchedulerClient)
+        mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_nodes.return_value = mock_nodes
         mock_client.list_jobs.return_value = mock_jobs
         

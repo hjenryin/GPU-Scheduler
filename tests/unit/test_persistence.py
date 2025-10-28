@@ -2,6 +2,7 @@
 import pytest
 from unittest.mock import Mock, patch
 from datetime import datetime
+from scheduler.storage import StorageBackend
 
 from scheduler.core import Config
 from scheduler.core.models import Job, Node, JobStatus, NodeStatus, JobRequirement
@@ -13,7 +14,7 @@ class TestPersistenceManager:
 
     def test_persistence_manager_initialization(self, test_config):
         """Test persistence manager initialization"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         
         persistence = PersistenceManager(mock_backend, test_config)
         
@@ -22,7 +23,7 @@ class TestPersistenceManager:
 
     def test_save_job_success(self, test_config, sample_job):
         """Test successful job save"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test save job
@@ -32,7 +33,7 @@ class TestPersistenceManager:
 
     def test_save_job_failure(self, test_config, sample_job):
         """Test job save failure"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.save_job.side_effect = Exception("Database error")
         persistence = PersistenceManager(mock_backend, test_config)
         
@@ -45,7 +46,7 @@ class TestPersistenceManager:
 
     def test_load_job_success(self, test_config, sample_job):
         """Test successful job load"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.load_job.return_value = sample_job
         persistence = PersistenceManager(mock_backend, test_config)
         
@@ -57,7 +58,7 @@ class TestPersistenceManager:
 
     def test_load_job_not_found(self, test_config):
         """Test job load when not found"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.load_job.return_value = None
         persistence = PersistenceManager(mock_backend, test_config)
         
@@ -69,7 +70,7 @@ class TestPersistenceManager:
 
     def test_load_job_failure(self, test_config):
         """Test job load failure"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.load_job.side_effect = Exception("Database error")
         persistence = PersistenceManager(mock_backend, test_config)
         
@@ -81,7 +82,7 @@ class TestPersistenceManager:
 
     def test_load_all_jobs_success(self, test_config, sample_job):
         """Test successful load all jobs"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.load_all_jobs.return_value = [sample_job]
         persistence = PersistenceManager(mock_backend, test_config)
         
@@ -93,7 +94,7 @@ class TestPersistenceManager:
 
     def test_load_all_jobs_empty(self, test_config):
         """Test load all jobs when empty"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.load_all_jobs.return_value = []
         persistence = PersistenceManager(mock_backend, test_config)
         
@@ -105,7 +106,7 @@ class TestPersistenceManager:
 
     def test_load_all_jobs_failure(self, test_config):
         """Test load all jobs failure"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.load_all_jobs.side_effect = Exception("Database error")
         persistence = PersistenceManager(mock_backend, test_config)
         
@@ -117,7 +118,7 @@ class TestPersistenceManager:
 
     def test_delete_job_success(self, test_config):
         """Test successful job deletion"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test delete job
@@ -127,7 +128,7 @@ class TestPersistenceManager:
 
     def test_delete_job_failure(self, test_config):
         """Test job deletion failure"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.delete_job.side_effect = Exception("Database error")
         persistence = PersistenceManager(mock_backend, test_config)
         
@@ -140,7 +141,7 @@ class TestPersistenceManager:
 
     def test_save_node_success(self, test_config, sample_node):
         """Test successful node save"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test save node
@@ -150,7 +151,7 @@ class TestPersistenceManager:
 
     def test_save_node_failure(self, test_config, sample_node):
         """Test node save failure"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.save_node.side_effect = Exception("Database error")
         persistence = PersistenceManager(mock_backend, test_config)
         
@@ -163,7 +164,7 @@ class TestPersistenceManager:
 
     def test_load_node_success(self, test_config, sample_node):
         """Test successful node load"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.load_node.return_value = sample_node
         persistence = PersistenceManager(mock_backend, test_config)
         
@@ -175,7 +176,7 @@ class TestPersistenceManager:
 
     def test_load_node_not_found(self, test_config):
         """Test node load when not found"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.load_node.return_value = None
         persistence = PersistenceManager(mock_backend, test_config)
         
@@ -187,7 +188,7 @@ class TestPersistenceManager:
 
     def test_load_node_failure(self, test_config):
         """Test node load failure"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.load_node.side_effect = Exception("Database error")
         persistence = PersistenceManager(mock_backend, test_config)
         
@@ -199,7 +200,7 @@ class TestPersistenceManager:
 
     def test_load_all_nodes_success(self, test_config, sample_node):
         """Test successful load all nodes"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.load_all_nodes.return_value = [sample_node]
         persistence = PersistenceManager(mock_backend, test_config)
         
@@ -211,7 +212,7 @@ class TestPersistenceManager:
 
     def test_load_all_nodes_empty(self, test_config):
         """Test load all nodes when empty"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.load_all_nodes.return_value = []
         persistence = PersistenceManager(mock_backend, test_config)
         
@@ -223,7 +224,7 @@ class TestPersistenceManager:
 
     def test_load_all_nodes_failure(self, test_config):
         """Test load all nodes failure"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.load_all_nodes.side_effect = Exception("Database error")
         persistence = PersistenceManager(mock_backend, test_config)
         
@@ -235,7 +236,7 @@ class TestPersistenceManager:
 
     def test_checkpoint(self, test_config):
         """Test checkpoint method"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test checkpoint
@@ -247,7 +248,7 @@ class TestPersistenceManager:
 
     def test_multiple_operations(self, test_config, sample_job, sample_node):
         """Test multiple persistence operations"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test multiple operations
@@ -274,12 +275,12 @@ class TestPersistenceManager:
 
     def test_error_logging(self, test_config, sample_job):
         """Test error logging in persistence operations"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.save_job.side_effect = Exception("Test error")
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test that errors are logged
-        with patch('scheduler.head.persistence.logger') as mock_logger:
+        with patch('scheduler.head.persistence.logger', autospec=True) as mock_logger:
             with pytest.raises(Exception):
                 persistence.save_job(sample_job)
             
@@ -292,12 +293,12 @@ class TestPersistenceManager:
 
     def test_load_job_error_logging(self, test_config):
         """Test error logging in load_job"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.load_job.side_effect = Exception("Test error")
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test that errors are logged
-        with patch('scheduler.head.persistence.logger') as mock_logger:
+        with patch('scheduler.head.persistence.logger', autospec=True) as mock_logger:
             result = persistence.load_job("job-001")
             
             assert result is None
@@ -310,12 +311,12 @@ class TestPersistenceManager:
 
     def test_load_all_jobs_error_logging(self, test_config):
         """Test error logging in load_all_jobs"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.load_all_jobs.side_effect = Exception("Test error")
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test that errors are logged
-        with patch('scheduler.head.persistence.logger') as mock_logger:
+        with patch('scheduler.head.persistence.logger', autospec=True) as mock_logger:
             result = persistence.load_all_jobs()
             
             assert result == []
@@ -327,12 +328,12 @@ class TestPersistenceManager:
 
     def test_delete_job_error_logging(self, test_config):
         """Test error logging in delete_job"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.delete_job.side_effect = Exception("Test error")
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test that errors are logged
-        with patch('scheduler.head.persistence.logger') as mock_logger:
+        with patch('scheduler.head.persistence.logger', autospec=True) as mock_logger:
             with pytest.raises(Exception):
                 persistence.delete_job("job-001")
             
@@ -345,12 +346,12 @@ class TestPersistenceManager:
 
     def test_save_node_error_logging(self, test_config, sample_node):
         """Test error logging in save_node"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.save_node.side_effect = Exception("Test error")
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test that errors are logged
-        with patch('scheduler.head.persistence.logger') as mock_logger:
+        with patch('scheduler.head.persistence.logger', autospec=True) as mock_logger:
             with pytest.raises(Exception):
                 persistence.save_node(sample_node)
             
@@ -363,12 +364,12 @@ class TestPersistenceManager:
 
     def test_load_node_error_logging(self, test_config):
         """Test error logging in load_node"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.load_node.side_effect = Exception("Test error")
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test that errors are logged
-        with patch('scheduler.head.persistence.logger') as mock_logger:
+        with patch('scheduler.head.persistence.logger', autospec=True) as mock_logger:
             result = persistence.load_node("gpu1")
             
             assert result is None
@@ -381,12 +382,12 @@ class TestPersistenceManager:
 
     def test_load_all_nodes_error_logging(self, test_config):
         """Test error logging in load_all_nodes"""
-        mock_backend = Mock()
+        mock_backend = Mock(spec_set=StorageBackend)
         mock_backend.load_all_nodes.side_effect = Exception("Test error")
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test that errors are logged
-        with patch('scheduler.head.persistence.logger') as mock_logger:
+        with patch('scheduler.head.persistence.logger', autospec=True) as mock_logger:
             result = persistence.load_all_nodes()
             
             assert result == []

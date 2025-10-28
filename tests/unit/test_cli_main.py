@@ -13,7 +13,7 @@ from click.testing import CliRunner
 class TestCLIMainRouting:
     """Test main CLI routing logic."""
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
     def test_no_command_shows_help(self, mock_tui):
         """Test that main() shows help when no command provided."""
         from scheduler.cli.main import cli
@@ -24,8 +24,8 @@ class TestCLIMainRouting:
         assert "GPU Scheduler" in result.output
         assert "Commands:" in result.output
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
-    @patch('scheduler.cli.main.start_command')  # Mock at the main level
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.start_command', autospec=True)  # Mock at the main level
     def test_routes_to_start_command(self, mock_start, mock_tui):
         """Test main() routes to start_command."""
         from scheduler.cli.main import cli
@@ -40,8 +40,8 @@ class TestCLIMainRouting:
         call_kwargs = mock_start.call_args[1]
         assert call_kwargs['head'] is True
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
-    @patch('scheduler.cli.main.stop_command')  # Mock at the main level
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.stop_command', autospec=True)  # Mock at the main level
     def test_routes_to_stop_command(self, mock_stop, mock_tui):
         """Test main() routes to stop_command."""
         from scheduler.cli.main import cli
@@ -54,8 +54,8 @@ class TestCLIMainRouting:
         assert result.exit_code == 0
         assert mock_stop.called
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
-    @patch('scheduler.cli.main.submit_command')
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.submit_command', autospec=True)
     def test_routes_to_submit_command(self, mock_submit, mock_tui):
         """Test main() routes to submit_command."""
         from scheduler.cli.main import cli
@@ -67,8 +67,8 @@ class TestCLIMainRouting:
         assert result.exit_code == 0
         assert mock_submit.called
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
-    @patch('scheduler.cli.main.jobs_command')
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.jobs_command', autospec=True)
     def test_routes_to_jobs_command(self, mock_jobs, mock_tui):
         """Test main() routes to jobs_command."""
         from scheduler.cli.main import cli
@@ -80,8 +80,8 @@ class TestCLIMainRouting:
         assert result.exit_code == 0
         assert mock_jobs.called
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
-    @patch('scheduler.cli.main.logs_command')
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.logs_command', autospec=True)
     def test_routes_to_logs_command(self, mock_logs, mock_tui):
         """Test main() routes to logs_command."""
         from scheduler.cli.main import cli
@@ -93,8 +93,8 @@ class TestCLIMainRouting:
         assert result.exit_code == 0
         assert mock_logs.called
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
-    @patch('scheduler.cli.main.cancel_command')
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.cancel_command', autospec=True)
     def test_routes_to_cancel_command(self, mock_cancel, mock_tui):
         """Test main() routes to cancel_command."""
         from scheduler.cli.main import cli
@@ -106,8 +106,8 @@ class TestCLIMainRouting:
         assert result.exit_code == 0
         assert mock_cancel.called
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
-    @patch('scheduler.cli.main.config_command')
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.config_command', autospec=True)
     def test_routes_to_config_command(self, mock_config, mock_tui):
         """Test main() routes to config_command."""
         from scheduler.cli.main import cli
@@ -119,8 +119,8 @@ class TestCLIMainRouting:
         assert result.exit_code == 0
         assert mock_config.called
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
-    @patch('scheduler.cli.main.status_command')
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.status_command', autospec=True)
     def test_routes_to_status_command(self, mock_status, mock_tui):
         """Test main() routes to status_command."""
         from scheduler.cli.main import cli
@@ -136,8 +136,8 @@ class TestCLIMainRouting:
 class TestCLIMainExceptionHandling:
     """Test exception handling in main()."""
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
-    @patch('scheduler.cli.main.start_command')
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.start_command', autospec=True)
     def test_handles_keyboard_interrupt(self, mock_start, mock_tui):
         """Test main() handles KeyboardInterrupt."""
         from scheduler.cli.main import cli
@@ -148,8 +148,8 @@ class TestCLIMainExceptionHandling:
         
         assert result.exit_code == 130
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
-    @patch('scheduler.cli.main.submit_command')
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.submit_command', autospec=True)
     def test_handles_generic_exception(self, mock_submit, mock_tui):
         """Test main() handles generic exceptions."""
         from scheduler.cli.main import cli
@@ -164,8 +164,8 @@ class TestCLIMainExceptionHandling:
 class TestCLIMainArgumentParsing:
     """Test argument parsing in main()."""
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
-    @patch('scheduler.cli.main.start_command')
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.start_command', autospec=True)
     def test_start_command_arguments(self, mock_start, mock_tui):
         """Test start command argument parsing."""
         from scheduler.cli.main import cli
@@ -190,8 +190,8 @@ class TestCLIMainArgumentParsing:
         assert call_kwargs['num_gpus'] == 2
         assert call_kwargs['log_level'] == 'DEBUG'
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
-    @patch('scheduler.cli.main.submit_command')
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.submit_command', autospec=True)
     def test_submit_command_arguments(self, mock_submit, mock_tui):
         """Test submit command argument parsing."""
         from scheduler.cli.main import cli
@@ -225,8 +225,8 @@ class TestCLIMainArgumentParsing:
         assert call_kwargs['async_submit'] is True
         assert call_kwargs['log_to_driver'] is True
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
-    @patch('scheduler.cli.main.jobs_command')
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.jobs_command', autospec=True)
     def test_jobs_command_arguments(self, mock_jobs, mock_tui):
         """Test jobs command argument parsing."""
         from scheduler.cli.main import cli
@@ -249,8 +249,8 @@ class TestCLIMainArgumentParsing:
         assert call_kwargs['filter'] == 'running'
         assert call_kwargs['limit'] == 10
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
-    @patch('scheduler.cli.main.logs_command')
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.logs_command', autospec=True)
     def test_logs_command_arguments(self, mock_logs, mock_tui):
         """Test logs command argument parsing."""
         from scheduler.cli.main import cli
@@ -275,8 +275,8 @@ class TestCLIMainArgumentParsing:
         assert call_kwargs['timestamps'] is True
         assert call_kwargs['stderr'] is True
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
-    @patch('scheduler.cli.main.config_command')
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.config_command', autospec=True)
     def test_config_command_arguments(self, mock_config, mock_tui):
         """Test config command argument parsing."""
         from scheduler.cli.main import cli
@@ -299,7 +299,7 @@ class TestCLIMainArgumentParsing:
         assert call_kwargs['value'] == '9000'
         assert call_kwargs['config_file'] == '/tmp/config.yaml'
 
-    @patch('scheduler.tui.run_tui')  # Mock the problematic textual import
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
     def test_version_option(self, mock_tui):
         """Test --version option."""
         from scheduler.cli.main import cli
