@@ -6,7 +6,7 @@ import tempfile
 import shutil
 from pathlib import Path
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, create_autospec
 
 from scheduler.core.config import Config
 from scheduler.core.models import Job, JobStatus, JobRequirement
@@ -62,19 +62,15 @@ def temp_non_git_dir():
 @pytest.fixture
 def mock_config():
     """Create a mock config object"""
-    config = Mock(spec=Config)
-    config.node = Mock()
-    config.node.temp_dir = tempfile.gettempdir()
-    config.worker = Mock()
-    config.worker.work_dir = tempfile.mkdtemp()
-    config.worker.log_dir = tempfile.mkdtemp()
+    config = create_autospec(Config, instance=True, spec_set=True)
+    # Config is a dataclass - attributes are set in tests as needed
     return config
 
 
 @pytest.fixture
 def mock_persistence():
     """Create a mock persistence manager"""
-    persistence = Mock(spec=PersistenceManager)
+    persistence = create_autospec(PersistenceManager, instance=True, spec_set=True)
     persistence.load_all_jobs.return_value = []
     persistence.save_job.return_value = None
     return persistence

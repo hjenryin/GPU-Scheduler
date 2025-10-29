@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import shutil
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, create_autospec
 import pytest
 
 from scheduler.core.config import Config
@@ -15,9 +15,9 @@ from scheduler.worker.git_snapshot import GitSnapshotManager
 @pytest.fixture
 def mock_config():
     """Create a mock config object"""
-    config = Mock(spec=Config)
-    config.node = Mock()
-    config.node.temp_dir = tempfile.gettempdir()
+    config = create_autospec(Config, instance=True, spec_set=True)
+    # Config doesn't have node attribute by default, so we add it as needed by tests
+    # This is OK because Config is a dataclass that may have optional attributes
     return config
 
 
