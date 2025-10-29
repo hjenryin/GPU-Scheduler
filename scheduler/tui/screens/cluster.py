@@ -5,7 +5,11 @@ from textual.containers import Container, VerticalScroll
 from typing import List
 import logging
 from scheduler.core import Node, Job, NodeStatus
-from scheduler.tui.utils import create_gpu_utilization_bar, format_runtime
+from scheduler.tui.utils import (
+    create_gpu_utilization_bar,
+    format_runtime,
+    format_time_ago,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +132,7 @@ class ClusterScreen(Screen):
                 str(node.num_gpus),
                 str(free_gpu_count),
                 f"{running_job_count} jobs",
-                "N/A",  # TODO: Calculate time since last heartbeat
+                format_time_ago(node.last_heartbeat),
             )
 
         # Update GPU bars - show active nodes (exclude disconnected)
