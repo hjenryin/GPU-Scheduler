@@ -79,6 +79,36 @@ class TestClusterScreen:
         assert mock_node_table.add_row.call_count == len(connected_nodes)
 
     @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one', autospec=True)
+    def test_update_data_filters_disconnected_nodes(self, mock_query_one, mock_nodes, mock_jobs):
+        """Test that disconnected nodes are filtered from display and counts."""
+        screen = ClusterScreen()
+        
+        mock_summary = create_autospec(Static, instance=True, spec_set=True)
+        mock_node_table = create_autospec(DataTable, instance=True, spec_set=True)
+        mock_gpu_bars = Mock()
+        mock_job_table = create_autospec(DataTable, instance=True, spec_set=True)
+        
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
+            "#cluster-summary": mock_summary,
+            "#node-table": mock_node_table,
+            "#gpu-bars": mock_gpu_bars,
+            "#job-table": mock_job_table
+        }.get(selector, Mock())
+
+        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
+
+        # Verify summary only counts connected nodes
+        summary_text = mock_summary.update.call_args[0][0]
+        connected_count = len([n for n in mock_nodes if n.status == NodeStatus.CONNECTED])
+        assert f"Nodes: {connected_count} connected" in summary_text
+        # Should NOT mention disconnected nodes
+        assert "disconnected" not in summary_text
+        
+        # Verify only connected nodes are in the table
+        assert mock_node_table.add_row.call_count == connected_count
+
+
+    @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one', autospec=True)
     def test_update_data_gpu_bars(self, mock_query_one, mock_nodes, mock_jobs):
         """Test GPU bars update."""
         screen = ClusterScreen()
@@ -354,6 +384,53 @@ class TestJobsScreen:
                 screen.on_job_selected("job_123")
             except (AttributeError, LookupError):
                 pass  # Expected when app is not available
+
+    def test_escape_key_with_focused_input(self):
+        """Test escape key blurs input when focused, then goes back when pressed again."""
+        screen = JobsScreen()
+        
+        with patch.object(screen, 'query_one') as mock_query:
+            # Create mock input widget
+            mock_input = Mock(spec=Input)
+            mock_input.has_focus = True
+            mock_query.return_value = mock_input
+            
+            # Create mock key event
+            from textual import events
+            event = Mock(spec=events.Key)
+            event.key = "escape"
+            
+            # Call on_key handler
+            screen.on_key(event)
+            
+            # Verify input was blurred and event was stopped
+            mock_input.blur.assert_called_once()
+            event.prevent_default.assert_called_once()
+            event.stop.assert_called_once()
+
+    def test_escape_key_without_focused_input(self):
+        """Test escape key goes back when input is not focused."""
+        screen = JobsScreen()
+        
+        with patch.object(screen, 'query_one') as mock_query:
+            # Create mock input widget that is not focused
+            mock_input = Mock(spec=Input)
+            mock_input.has_focus = False
+            mock_query.return_value = mock_input
+            
+            # Create mock key event
+            from textual import events
+            event = Mock(spec=events.Key)
+            event.key = "escape"
+            
+            # Call on_key handler
+            screen.on_key(event)
+            
+            # Verify input was NOT blurred and event was NOT stopped
+            mock_input.blur.assert_not_called()
+            # prevent_default and stop should not be called
+            assert not event.prevent_default.called
+            assert not event.stop.called
 
 
 class TestGPUsScreen:
