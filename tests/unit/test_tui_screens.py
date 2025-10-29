@@ -63,7 +63,7 @@ class TestClusterScreen:
 
     @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one', autospec=True)
     def test_update_data_node_table(self, mock_query_one, mock_nodes, mock_jobs):
-        """Test node table update - only connected nodes are shown."""
+        """Test node table update - active nodes (not disconnected) are shown."""
         screen = ClusterScreen()
         
         mock_node_table = create_autospec(DataTable, instance=True, spec_set=True)
@@ -73,10 +73,10 @@ class TestClusterScreen:
 
         screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
-        # Verify table operations - only connected nodes should be added
-        connected_nodes = [n for n in mock_nodes if n.status == NodeStatus.CONNECTED]
+        # Verify table operations - active nodes (not disconnected) should be added
+        active_nodes = [n for n in mock_nodes if n.status != NodeStatus.DISCONNECTED]
         mock_node_table.clear.assert_called_once()
-        assert mock_node_table.add_row.call_count == len(connected_nodes)
+        assert mock_node_table.add_row.call_count == len(active_nodes)
 
     @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one', autospec=True)
     def test_update_data_filters_disconnected_nodes(self, mock_query_one, mock_nodes, mock_jobs):
@@ -97,15 +97,15 @@ class TestClusterScreen:
 
         screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
-        # Verify summary only counts connected nodes
+        # Verify summary counts active nodes (not disconnected)
         summary_text = mock_summary.update.call_args[0][0]
-        connected_count = len([n for n in mock_nodes if n.status == NodeStatus.CONNECTED])
-        assert f"Nodes: {connected_count} connected" in summary_text
+        active_count = len([n for n in mock_nodes if n.status != NodeStatus.DISCONNECTED])
+        assert f"Nodes: {active_count} active" in summary_text
         # Should NOT mention disconnected nodes
         assert "disconnected" not in summary_text
         
-        # Verify only connected nodes are in the table
-        assert mock_node_table.add_row.call_count == connected_count
+        # Verify only active nodes (not disconnected) are in the table
+        assert mock_node_table.add_row.call_count == active_count
 
 
     @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one', autospec=True)

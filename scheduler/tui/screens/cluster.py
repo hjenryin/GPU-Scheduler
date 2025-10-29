@@ -79,15 +79,17 @@ class ClusterScreen(Screen):
             f"and {len(jobs)} jobs"
         )
 
-        # Update summary - filter to only show connected nodes
-        connected_nodes_list = [n for n in nodes if n.status == NodeStatus.CONNECTED]
-        connected_nodes = len(connected_nodes_list)
+        # Update summary - filter out disconnected nodes (show connected + initializing)
+        active_nodes_list = [
+            n for n in nodes if n.status != NodeStatus.DISCONNECTED
+        ]
+        active_nodes = len(active_nodes_list)
 
-        total_gpus = sum(node.num_gpus for node in connected_nodes_list)
+        total_gpus = sum(node.num_gpus for node in active_nodes_list)
         # Use the proper get_free_gpus method like the scheduler does
         free_gpus = sum(
             len(node.get_free_gpus(util_threshold, mem_threshold, stable_time))
-            for node in connected_nodes_list
+            for node in active_nodes_list
         )
         in_use_gpus = total_gpus - free_gpus
 
@@ -97,7 +99,7 @@ class ClusterScreen(Screen):
         failed_jobs = len([j for j in jobs if j.status.value == "failed"])
 
         summary = (
-            f"Nodes: {connected_nodes} connected | "
+            f"Nodes: {active_nodes} active | "
             f"GPUs: {total_gpus} total, {free_gpus} free, "
             f"{in_use_gpus} in use\n"
             f"Jobs: {pending_jobs} pending, {running_jobs} running, "
@@ -106,10 +108,10 @@ class ClusterScreen(Screen):
         logger.info(f"Summary: {summary}")
         self.query_one("#cluster-summary", Static).update(summary)
 
-        # Update node table - only show connected nodes
+        # Update node table - show active nodes (exclude disconnected)
         node_table = self.query_one("#node-table", DataTable)
         node_table.clear()
-        for node in connected_nodes_list:
+        for node in active_nodes_list:
             free_gpu_count = len(
                 node.get_free_gpus(util_threshold, mem_threshold, stable_time)
             )
@@ -129,9 +131,9 @@ class ClusterScreen(Screen):
                 "N/A",  # TODO: Calculate time since last heartbeat
             )
 
-        # Update GPU bars - only show connected nodes
+        # Update GPU bars - show active nodes (exclude disconnected)
         gpu_bars_text = ""
-        for node in connected_nodes_list:
+        for node in active_nodes_list:
             logger.info(f"Node {node.node_name}: {len(node.gpus)} GPUs")
             gpu_line = f"{node.node_name}: "
             for gpu in node.gpus[:4]:  # Show first 4 GPUs
