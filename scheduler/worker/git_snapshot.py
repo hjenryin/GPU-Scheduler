@@ -229,9 +229,9 @@ class GitSnapshotManager:
         
         This creates a snapshot by:
         1. Ensuring shadow repo exists in working_dir/.scheduler-git
-        2. Creating a new branch in the shadow repo for this job
-        3. Using git --git-dir and --work-tree to add files directly from working_dir
-        4. Committing the selected files to the shadow repo
+        2. Using git --git-dir and --work-tree to add files directly from working_dir
+        3. Creating a commit without checking out (using git write-tree and commit-tree)
+        4. Creating a branch pointing to the commit
         5. Returning the commit SHA as the snapshot reference
         
         Args:
@@ -249,46 +249,14 @@ class GitSnapshotManager:
             
             branch_name = f"job-{job_id}"
             
-            # Get current branch to return to
-            result = subprocess.run(
-                ['git', f'--git-dir={git_dir}', 'rev-parse', '--abbrev-ref', 'HEAD'],
-                cwd=working_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=5,
-                check=True
-            )
-            original_branch = result.stdout.strip()
-            
-            # Create and checkout new branch
-            subprocess.run(
-                ['git', f'--git-dir={git_dir}', 'checkout', '-b', branch_name],
-                cwd=working_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=10,
-                check=True
-            )
-            
             # Collect files to snapshot
             files_to_snapshot = self._collect_files_to_snapshot(working_dir)
             
             if not files_to_snapshot:
                 logger.warning(f"No files to snapshot for job {job_id}")
-                # Return to original branch
-                subprocess.run(
-                    ['git', f'--git-dir={git_dir}', 'checkout', original_branch],
-                    cwd=working_dir,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=10
-                )
                 return None
             
-            # Add files directly from working directory using --git-dir and --work-tree
-            # First, reset the index to clear any previous state
+            # Reset index to clear any previous state
             subprocess.run(
                 ['git', f'--git-dir={git_dir}', f'--work-tree={working_dir}', 'reset'],
                 cwd=working_dir,
@@ -314,33 +282,48 @@ class GitSnapshotManager:
                 except subprocess.CalledProcessError as e:
                     logger.warning(f"Failed to add file {rel_path}: {e.stderr}")
             
-            # Commit with job info
-            commit_message = f"Snapshot for job {job_id}\n\nSource: {working_dir}\nFiles: {len(files_to_snapshot)}"
-            subprocess.run(
-                ['git', f'--git-dir={git_dir}', f'--work-tree={working_dir}', 'commit', '-m', commit_message],
+            # Write tree (creates tree object from index)
+            result = subprocess.run(
+                ['git', f'--git-dir={git_dir}', 'write-tree'],
                 cwd=working_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                timeout=30,
+                timeout=10,
                 check=True
             )
+            tree_sha = result.stdout.strip()
             
-            # Get the commit SHA
+            # Get parent commit (if any)
+            parent_args = []
             result = subprocess.run(
                 ['git', f'--git-dir={git_dir}', 'rev-parse', 'HEAD'],
                 cwd=working_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                timeout=5,
+                timeout=5
+            )
+            if result.returncode == 0:
+                parent_sha = result.stdout.strip()
+                parent_args = ['-p', parent_sha]
+            
+            # Create commit object
+            commit_message = f"Snapshot for job {job_id}\n\nSource: {working_dir}\nFiles: {len(files_to_snapshot)}"
+            result = subprocess.run(
+                ['git', f'--git-dir={git_dir}', 'commit-tree', tree_sha] + parent_args + ['-m', commit_message],
+                cwd=working_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=10,
                 check=True
             )
             commit_sha = result.stdout.strip()
             
-            # Return to original branch
+            # Create/update branch to point to this commit
             subprocess.run(
-                ['git', f'--git-dir={git_dir}', 'checkout', original_branch],
+                ['git', f'--git-dir={git_dir}', 'branch', '-f', branch_name, commit_sha],
                 cwd=working_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
