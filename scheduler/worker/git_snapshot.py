@@ -3,11 +3,10 @@
 import os
 import subprocess
 import logging
-import shutil
-from typing import Optional, List, Set
+from typing import Optional, List, Set, Dict
 from pathlib import Path
 
-from scheduler.core.config import Config
+from scheduler.core import Config
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +24,18 @@ class GitSnapshotManager:
     being disk-efficient through git's delta compression.
     """
     
-    # Default file size thresholds (in bytes)
-    DEFAULT_MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
+    # Default file size thresholds (in bytes) - configurable via Config
+    DEFAULT_MAX_FILE_SIZE = 1 * 1024 * 1024  # 1 MB (changed from 20MB)
+    DEFAULT_MAX_FILES_PER_FOLDER = 1000  # Maximum files in a single folder
+    
+    # Data type-specific size limits (in bytes) - override DEFAULT_MAX_FILE_SIZE
+    DATA_TYPE_SIZE_LIMITS: Dict[str, int] = {
+        '.npy': 10 * 1024 * 1024,  # NumPy arrays: 10 MB
+        '.npz': 10 * 1024 * 1024,  # Compressed NumPy: 10 MB
+        '.pkl': 5 * 1024 * 1024,   # Pickle files: 5 MB
+        '.json': 2 * 1024 * 1024,  # JSON files: 2 MB
+        '.csv': 5 * 1024 * 1024,   # CSV files: 5 MB
+    }
     
     # Extensions that should always be included
     ALWAYS_INCLUDE_EXTENSIONS = {
@@ -50,43 +59,61 @@ class GitSnapshotManager:
             config: Configuration instance
         """
         self.config = config
-        logger.debug("GitSnapshotManager initialized")
+        
+        # Load configuration values with defaults
+        self.max_file_size = getattr(config, 'snapshot_max_file_size', self.DEFAULT_MAX_FILE_SIZE)
+        self.max_files_per_folder = getattr(config, 'snapshot_max_files_per_folder', self.DEFAULT_MAX_FILES_PER_FOLDER)
+        
+        # Load data type size limits (can be overridden by config)
+        self.data_type_size_limits = getattr(config, 'snapshot_data_type_limits', self.DATA_TYPE_SIZE_LIMITS.copy())
+        
+        logger.debug(f"GitSnapshotManager initialized (max_file_size={self.max_file_size}, "
+                    f"max_files_per_folder={self.max_files_per_folder})")
     
     def _get_shadow_repo_path(self, working_dir: str) -> str:
         """Get the shadow repository path for a given working directory
+        
+        Note: The shadow repo IS a .git directory at the working directory root.
+        We use .scheduler-git as the git directory name (not a folder containing .git).
+        This .scheduler-git directory directly contains branches/, objects/, refs/, etc.
         
         Args:
             working_dir: The working directory path
             
         Returns:
-            Path to the shadow git repository for this workspace
+            Path to the shadow git directory (which IS the git dir, not a parent folder)
         """
-        # Use .scheduler-git in the working directory
+        # .scheduler-git IS the git directory (contains branches, objects, etc.)
         return os.path.join(working_dir, '.scheduler-git')
     
     def _ensure_shadow_repo(self, working_dir: str):
         """Ensure the shadow git repository exists and is initialized
         
+        This initializes a git repository where .scheduler-git IS the git directory.
+        Unlike normal git repos, we don't have .git - instead .scheduler-git serves
+        as the git directory directly.
+        
         Args:
             working_dir: The working directory that needs a shadow repo
         """
-        shadow_repo_path = self._get_shadow_repo_path(working_dir)
+        shadow_git_dir = self._get_shadow_repo_path(working_dir)
         
-        # Check if it's already a git repo
-        git_dir = os.path.join(shadow_repo_path, '.git')
-        if os.path.exists(git_dir):
-            logger.debug(f"Shadow repo already initialized at {shadow_repo_path}")
+        # Check if it's already initialized (check for HEAD file)
+        head_file = os.path.join(shadow_git_dir, 'HEAD')
+        if os.path.exists(head_file):
+            logger.debug(f"Shadow repo already initialized at {shadow_git_dir}")
             return
         
-        # Create directory if needed
-        if not os.path.exists(shadow_repo_path):
-            os.makedirs(shadow_repo_path, exist_ok=True)
+        # Create git directory if needed
+        if not os.path.exists(shadow_git_dir):
+            os.makedirs(shadow_git_dir, exist_ok=True)
         
         try:
-            # Initialize git repo
+            # Initialize git repo with --separate-git-dir equivalent
+            # We use git init with --git-dir to create repo structure directly in .scheduler-git
             subprocess.run(
-                ['git', 'init'],
-                cwd=shadow_repo_path,
+                ['git', 'init', '--bare'],
+                cwd=shadow_git_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -96,46 +123,33 @@ class GitSnapshotManager:
             
             # Configure git
             subprocess.run(
-                ['git', 'config', 'user.email', 'scheduler@localhost'],
-                cwd=shadow_repo_path,
+                ['git', f'--git-dir={shadow_git_dir}', 'config', 'user.email', 'scheduler@localhost'],
+                cwd=working_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 timeout=5,
                 check=True
             )
             subprocess.run(
-                ['git', 'config', 'user.name', 'GPU Scheduler'],
-                cwd=shadow_repo_path,
+                ['git', f'--git-dir={shadow_git_dir}', 'config', 'user.name', 'GPU Scheduler'],
+                cwd=working_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 timeout=5,
                 check=True
             )
             
-            # Create initial commit
-            readme_path = os.path.join(shadow_repo_path, 'README.md')
-            with open(readme_path, 'w') as f:
-                f.write('# GPU Scheduler Shadow Repository\n\n')
-                f.write('This repository contains snapshots of job submissions.\n')
-            
+            # Set bare to false so we can use it with --work-tree
             subprocess.run(
-                ['git', 'add', 'README.md'],
-                cwd=shadow_repo_path,
+                ['git', f'--git-dir={shadow_git_dir}', 'config', 'core.bare', 'false'],
+                cwd=working_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 timeout=5,
                 check=True
             )
-            subprocess.run(
-                ['git', 'commit', '-m', 'Initial commit'],
-                cwd=shadow_repo_path,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=10,
-                check=True
-            )
             
-            logger.info(f"Initialized shadow git repository at {shadow_repo_path}")
+            logger.info(f"Initialized shadow git repository at {shadow_git_dir}")
             
         except Exception as e:
             logger.error(f"Failed to initialize shadow repository: {e}")
@@ -143,6 +157,8 @@ class GitSnapshotManager:
     
     def _should_include_file(self, file_path: str, working_dir: str) -> bool:
         """Determine if a file should be included in the snapshot
+        
+        Uses configurable size limits and data type-specific overrides.
         
         Args:
             file_path: Absolute path to the file
@@ -160,17 +176,28 @@ class GitSnapshotManager:
                 if pattern in rel_path or Path(rel_path).match(pattern):
                     return False
             
-            # Check file extension - always include certain extensions
+            # Check file extension
             ext = os.path.splitext(file_path)[1].lower()
-            if ext in self.ALWAYS_INCLUDE_EXTENSIONS:
-                return True
             
-            # Check file size
+            # Check file size with data type-specific limits
             try:
                 file_size = os.path.getsize(file_path)
-                if file_size > self.DEFAULT_MAX_FILE_SIZE:
-                    logger.debug(f"Excluding large file {rel_path} ({file_size} bytes)")
+                
+                # Determine size limit for this file
+                if ext in self.data_type_size_limits:
+                    # Use data type-specific limit
+                    size_limit = self.data_type_size_limits[ext]
+                elif ext in self.ALWAYS_INCLUDE_EXTENSIONS:
+                    # Always include these extensions (they're typically small)
+                    return True
+                else:
+                    # Use default size limit
+                    size_limit = self.max_file_size
+                
+                if file_size > size_limit:
+                    logger.debug(f"Excluding file {rel_path} ({file_size} bytes > {size_limit} limit)")
                     return False
+                    
             except OSError:
                 return False
             
@@ -183,6 +210,8 @@ class GitSnapshotManager:
     def _collect_files_to_snapshot(self, working_dir: str) -> List[str]:
         """Collect list of files to include in snapshot
         
+        Applies folder file count limits to prevent snapshotting folders with too many files.
+        
         Args:
             working_dir: Working directory to scan
             
@@ -192,9 +221,28 @@ class GitSnapshotManager:
         files_to_include = []
         
         try:
+            # First pass: count files per folder
+            folder_file_counts: Dict[str, int] = {}
+            
             for root, dirs, files in os.walk(working_dir):
                 # Filter out excluded directories
                 dirs[:] = [d for d in dirs if not any(pattern in d for pattern in self.EXCLUDE_PATTERNS)]
+                
+                # Count files in this folder (not including subdirectories)
+                file_count = len([f for f in files if os.path.isfile(os.path.join(root, f))])
+                folder_file_counts[root] = file_count
+            
+            # Second pass: collect files, excluding folders with too many files
+            for root, dirs, files in os.walk(working_dir):
+                # Filter out excluded directories
+                dirs[:] = [d for d in dirs if not any(pattern in d for pattern in self.EXCLUDE_PATTERNS)]
+                
+                # Skip folders with too many files
+                if folder_file_counts.get(root, 0) > self.max_files_per_folder:
+                    logger.warning(f"Skipping folder {os.path.relpath(root, working_dir)} "
+                                 f"with {folder_file_counts[root]} files (limit: {self.max_files_per_folder})")
+                    dirs[:] = []  # Don't descend into subdirectories either
+                    continue
                 
                 for file in files:
                     file_path = os.path.join(root, file)
@@ -228,7 +276,7 @@ class GitSnapshotManager:
         """Create a git snapshot of the working directory using the shadow repository
         
         This creates a snapshot by:
-        1. Ensuring shadow repo exists in working_dir/.scheduler-git
+        1. Ensuring shadow repo exists (working_dir/.scheduler-git as git dir)
         2. Using git --git-dir and --work-tree to add files directly from working_dir
         3. Creating a commit without checking out (using git write-tree and commit-tree)
         4. Creating a branch pointing to the commit
@@ -244,8 +292,7 @@ class GitSnapshotManager:
         try:
             # Ensure shadow repo exists for this workspace
             self._ensure_shadow_repo(working_dir)
-            shadow_repo_path = self._get_shadow_repo_path(working_dir)
-            git_dir = os.path.join(shadow_repo_path, '.git')
+            git_dir = self._get_shadow_repo_path(working_dir)  # This IS the git dir
             
             branch_name = f"job-{job_id}"
             
@@ -365,11 +412,10 @@ class GitSnapshotManager:
             return False
         
         try:
-            shadow_repo_path = self._get_shadow_repo_path(working_dir)
-            git_dir = os.path.join(shadow_repo_path, '.git')
+            git_dir = self._get_shadow_repo_path(working_dir)  # This IS the git dir
             
             if not os.path.exists(git_dir):
-                logger.error(f"Shadow repo not found at {shadow_repo_path}")
+                logger.error(f"Shadow repo not found at {git_dir}")
                 return False
             
             # Create worktree from the snapshot
@@ -408,8 +454,7 @@ class GitSnapshotManager:
             worktree_dir: Path to worktree directory to remove (if any)
         """
         try:
-            shadow_repo_path = self._get_shadow_repo_path(working_dir)
-            git_dir = os.path.join(shadow_repo_path, '.git')
+            git_dir = self._get_shadow_repo_path(working_dir)  # This IS the git dir
             
             # Remove worktree if specified
             if worktree_dir and os.path.exists(worktree_dir):
