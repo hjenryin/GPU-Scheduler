@@ -1,7 +1,11 @@
-# GPU Scheduler - User API Reference
+# GPU Scheduler - Complete API Reference
+
+**Purpose:** This is the complete technical reference for all GPU Scheduler commands, APIs, and configuration options.
+
+**For a quick start guide and design overview, see [README.md](README.md)**
 
 Version: 0.1.0  
-Last Updated: 2025-10-21
+Last Updated: 2025-10-28
 
 ## Table of Contents
 
@@ -1010,7 +1014,17 @@ For direct HTTP API access:
 
 - `GET /workers/{node_name}/jobs/next` - Poll for next job assignment (worker only)
 - `POST /workers/jobs/{job_id}/complete` - Mark job complete (worker only)
+  - Query param: `exit_code` (int) - Process exit code
 - `POST /workers/jobs/{job_id}/fail` - Mark job failed (worker only)
+  - Query param: `error_message` (string) - Error description
+
+### Cluster Management Endpoints
+
+- `POST /shutdown/cluster` - Request cluster-wide shutdown
+  - Body: `{"graceful_timeout": 60, "force": false}`
+  - Response: `{"status": "shutdown_initiated", "nodes_count": 3, "graceful_timeout": 60, "force": false}`
+  - Description: Initiates shutdown of head node and all connected workers
+  - Use: Programmatic cluster teardown (equivalent to `scheduler stop --all`)
 
 ---
 
