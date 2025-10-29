@@ -21,17 +21,14 @@ def status_command() -> int:
         # Load configuration
         config = load_config()
 
-        # Get head node address from config or use default
-        address = config.address if config.address else f'localhost:{config.head.port}'
-
-        # Create client and run TUI
-        client = SchedulerClient(address=address, config=config)
+        # Create client (will auto-detect address from worker lock or config)
+        client = SchedulerClient(config=config)
 
         # Test connection before launching TUI
         try:
             client.list_nodes()
         except Exception as e:
-            click.echo(f"Error: Cannot connect to head node at {address}")
+            click.echo(f"Error: Cannot connect to head node at {client.head_address}")
             click.echo(f"Details: {e}")
             click.echo("\nMake sure the head node is running:")
             click.echo("  scheduler start --head")

@@ -9,3 +9,5 @@ pacts/
 reports/
 /*_output.txt
 analyze_test_coverage.py
+.scheduler-git/
+.scheduler/

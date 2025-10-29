@@ -109,6 +109,29 @@ class TestStatusCommand:
             with patch('scheduler.cli.status.click.echo', autospec=True):
                 result = status_command()
                 assert result == 0
-                # Should construct address from head.port
-                mock_client_class.assert_called_once()
+                # Should call SchedulerClient with config only (no address)
+                # to allow auto-detection from worker lock file
+                mock_client_class.assert_called_once_with(config=config)
+
+    @patch('scheduler.cli.status.load_config', autospec=True)
+    def test_status_uses_client_auto_detection(self, mock_load_config):
+        """Test that status command uses SchedulerClient's auto-detection"""
+        config = Config(
+            address="configured:9999",
+            head=HeadConfig(port=8265)
+        )
+        mock_load_config.return_value = config
+        
+        with patch('scheduler.cli.status.SchedulerClient', autospec=True) as mock_client_class, \
+             patch('scheduler.cli.status.run_tui', autospec=True) as mock_run_tui:
+            mock_client = Mock(spec_set=SchedulerClient)
+            mock_client.list_nodes.return_value = []
+            mock_client_class.return_value = mock_client
+
+            with patch('scheduler.cli.status.click.echo', autospec=True):
+                result = status_command()
+                assert result == 0
+                # Should call SchedulerClient with config only, allowing it to
+                # auto-detect address from worker lock file or config
+                mock_client_class.assert_called_once_with(config=config)
 

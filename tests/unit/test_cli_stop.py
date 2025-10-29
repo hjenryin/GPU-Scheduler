@@ -109,6 +109,33 @@ class TestStopAllNodes:
     @patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
     @patch('scheduler.cli.stop.load_config', autospec=True)
     @patch('scheduler.cli.stop.SchedulerClient', autospec=True)
+    @patch('scheduler.cli.stop._stop_local_worker_nodes', autospec=True)
+    def test_stop_all_uses_client_auto_detection(self, mock_stop_local, mock_client_class, mock_load, mock_is_head):
+        """Test that stop --all uses SchedulerClient's auto-detection"""
+        mock_is_head.return_value = False
+        
+        mock_config = MagicMock()
+        mock_config.address = "configured:9000"
+        mock_config.head.port = 9000
+        mock_load.return_value = mock_config
+        
+        mock_client = MagicMock()
+        mock_client.list_nodes.return_value = [Mock()]
+        mock_client.shutdown_cluster.return_value = True
+        mock_client_class.return_value = mock_client
+        
+        mock_stop_local.return_value = True
+        
+        with patch('scheduler.cli.stop.click.echo', autospec=True):
+            result = _stop_all_nodes()
+            assert result == 0
+            # Should call SchedulerClient with config only (no address)
+            # to allow auto-detection from worker lock file
+            mock_client_class.assert_called_once_with(config=mock_config)
+
+    @patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+    @patch('scheduler.cli.stop.load_config', autospec=True)
+    @patch('scheduler.cli.stop.SchedulerClient', autospec=True)
     def test_stop_all_connection_exception(self, mock_client_class, mock_load, mock_is_head):
         """Test handling connection exception when stopping all nodes"""
         mock_is_head.return_value = False
