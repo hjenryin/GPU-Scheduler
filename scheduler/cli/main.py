@@ -26,7 +26,7 @@ def cli():
 @click.option('--num-gpus', type=int, help='Number of GPUs')
 @click.option('--temp-dir', help='Temporary directory')
 @click.option('--log-dir', help='Log directory')
-@click.option('--block', type=bool, default=True, help='Block until stopped')
+@click.option('--block', is_flag=True, default=False, help='Block until stopped')
 @click.option('--log-level', default='INFO', help='Log level')
 @click.option('--heartbeat-timeout', type=int, help='Heartbeat timeout (head only)')
 @click.option('--scheduling-interval', type=int, help='Scheduling interval (head only)')

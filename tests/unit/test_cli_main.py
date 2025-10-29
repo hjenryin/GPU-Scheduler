@@ -309,3 +309,33 @@ class TestCLIMainArgumentParsing:
         
         assert result.exit_code == 0
         assert "0.1.0" in result.output
+
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.start_command', autospec=True)
+    def test_start_block_defaults_to_false(self, mock_start, mock_tui):
+        """Test that --block defaults to False when not specified."""
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        mock_start.return_value = 0
+        result = runner.invoke(cli, ['start', '--head'])
+        
+        assert result.exit_code == 0
+        assert mock_start.called
+        call_kwargs = mock_start.call_args[1]
+        assert call_kwargs['block'] is False
+
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.start_command', autospec=True)
+    def test_start_block_flag_sets_true(self, mock_start, mock_tui):
+        """Test that --block flag sets block to True."""
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        mock_start.return_value = 0
+        result = runner.invoke(cli, ['start', '--head', '--block'])
+        
+        assert result.exit_code == 0
+        assert mock_start.called
+        call_kwargs = mock_start.call_args[1]
+        assert call_kwargs['block'] is True
