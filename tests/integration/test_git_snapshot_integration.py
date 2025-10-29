@@ -110,8 +110,8 @@ class TestGitSnapshotIntegration:
         assert job.snapshot_working_dir == temp_git_repo
         assert len(job.snapshot_ref) >= 40  # At least a SHA-1 hash
     
-    def test_submit_job_in_non_git_dir_no_snapshot(self, job_manager, temp_non_git_dir):
-        """Test that submitting a job in a non-git directory doesn't create snapshot"""
+    def test_submit_job_in_non_git_dir_creates_snapshot(self, job_manager, temp_non_git_dir):
+        """Test that submitting a job in a non-git directory now creates snapshot in shadow repo"""
         script_path = os.path.join(temp_non_git_dir, 'train.py')
         
         # Submit job
@@ -126,12 +126,12 @@ class TestGitSnapshotIntegration:
         assert job.job_id is not None
         assert job.status == JobStatus.PENDING
         
-        # Verify no snapshot was created
-        assert job.snapshot_ref is None
-        assert job.snapshot_working_dir is None
+        # With shadow repo approach, we now create snapshots for all directories
+        assert job.snapshot_ref is not None
+        assert job.snapshot_working_dir == temp_non_git_dir
     
-    def test_submit_job_with_uncommitted_changes_creates_stash_snapshot(self, job_manager, temp_git_repo):
-        """Test that submitting a job with uncommitted changes creates a stash snapshot"""
+    def test_submit_job_with_uncommitted_changes_creates_snapshot(self, job_manager, temp_git_repo):
+        """Test that submitting a job with uncommitted changes creates snapshot (no stash in shadow repo)"""
         script_path = os.path.join(temp_git_repo, 'train.py')
         
         # Modify the file (create uncommitted changes)
@@ -149,13 +149,11 @@ class TestGitSnapshotIntegration:
         assert job is not None
         assert job.snapshot_ref is not None
         
-        # Verify snapshot includes stash (format: "commit_sha:stash_sha")
-        assert ':' in job.snapshot_ref
-        commit_sha, stash_sha = job.snapshot_ref.split(':', 1)
-        assert len(commit_sha) == 40
-        assert len(stash_sha) == 40
+        # With shadow repo, we just get a single commit SHA (no stash)
+        assert len(job.snapshot_ref) == 40  # SHA-1 hash length
+        assert ':' not in job.snapshot_ref  # No stash in shadow repo approach
         
-        # Verify working directory still has modifications
+        # Verify working directory still has modifications (we don't touch it)
         with open(script_path, 'r') as f:
             content = f.read()
         assert 'version 2 - modified' in content

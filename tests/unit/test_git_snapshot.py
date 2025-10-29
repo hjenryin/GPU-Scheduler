@@ -1,11 +1,11 @@
-"""Unit tests for GitSnapshotManager"""
+"""Unit tests for GitSnapshotManager with shadow repository"""
 
 import os
 import subprocess
 import tempfile
 import shutil
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import pytest
 
 from scheduler.core.config import Config
@@ -23,47 +23,41 @@ def mock_config():
 
 @pytest.fixture
 def git_manager(mock_config):
-    """Create a GitSnapshotManager instance"""
-    return GitSnapshotManager(mock_config)
-
-
-@pytest.fixture
-def temp_git_repo():
-    """Create a temporary git repository for testing"""
-    temp_dir = tempfile.mkdtemp()
+    """Create a GitSnapshotManager instance with temp shadow repo"""
+    # Create temp dir for shadow repo
+    temp_shadow = tempfile.mkdtemp()
     
-    # Initialize git repo
-    subprocess.run(['git', 'init'], cwd=temp_dir, check=True, 
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    subprocess.run(['git', 'config', 'user.email', 'test@test.com'], 
-                   cwd=temp_dir, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    subprocess.run(['git', 'config', 'user.name', 'Test User'], 
-                   cwd=temp_dir, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # Patch the shadow_repo_path before initialization
+    with patch.object(GitSnapshotManager, '__init__', lambda self, config: None):
+        manager = GitSnapshotManager(mock_config)
     
-    # Create initial commit
-    test_file = os.path.join(temp_dir, 'test.py')
-    with open(test_file, 'w') as f:
-        f.write('print("hello")\n')
-    subprocess.run(['git', 'add', '.'], cwd=temp_dir, check=True,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    subprocess.run(['git', 'commit', '-m', 'Initial commit'], cwd=temp_dir, check=True,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    manager.config = mock_config
+    manager.shadow_repo_path = temp_shadow
+    manager._ensure_shadow_repo()
     
-    yield temp_dir
+    yield manager
     
     # Cleanup
-    shutil.rmtree(temp_dir, ignore_errors=True)
+    if os.path.exists(manager.shadow_repo_path):
+        shutil.rmtree(manager.shadow_repo_path, ignore_errors=True)
 
 
 @pytest.fixture
-def temp_non_git_dir():
-    """Create a temporary non-git directory for testing"""
+def temp_work_dir():
+    """Create a temporary working directory with some files"""
     temp_dir = tempfile.mkdtemp()
     
-    # Create a test file
-    test_file = os.path.join(temp_dir, 'test.py')
-    with open(test_file, 'w') as f:
-        f.write('print("hello")\n')
+    # Create various files
+    with open(os.path.join(temp_dir, 'train.py'), 'w') as f:
+        f.write('print("training")\n')
+    
+    with open(os.path.join(temp_dir, 'config.yaml'), 'w') as f:
+        f.write('model: resnet50\n')
+    
+    # Create subdirectory
+    os.makedirs(os.path.join(temp_dir, 'src'), exist_ok=True)
+    with open(os.path.join(temp_dir, 'src', 'model.py'), 'w') as f:
+        f.write('class Model:\n    pass\n')
     
     yield temp_dir
     
@@ -78,171 +72,248 @@ class TestGitSnapshotManager:
         """Test that GitSnapshotManager initializes correctly"""
         manager = GitSnapshotManager(mock_config)
         assert manager.config == mock_config
+        assert manager.shadow_repo_path is not None
+    
+    def test_shadow_repo_is_initialized(self, git_manager):
+        """Test that shadow repo is initialized as git repo"""
+        git_dir = os.path.join(git_manager.shadow_repo_path, '.git')
+        assert os.path.exists(git_dir)
+        
+        # Check it's a valid git repo
+        result = subprocess.run(
+            ['git', 'status'],
+            cwd=git_manager.shadow_repo_path,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        assert result.returncode == 0
 
 
 class TestIsGitRepository:
     """Test is_git_repository method"""
     
-    def test_returns_true_for_git_repo(self, git_manager, temp_git_repo):
-        """Test detection of git repository"""
-        assert git_manager.is_git_repository(temp_git_repo) is True
+    def test_always_returns_true(self, git_manager, temp_work_dir):
+        """Test that we always create snapshots (shadow repo approach)"""
+        # With shadow repo, we always create snapshots
+        assert git_manager.is_git_repository(temp_work_dir) is True
     
-    def test_returns_false_for_non_git_dir(self, git_manager, temp_non_git_dir):
-        """Test detection of non-git directory"""
-        assert git_manager.is_git_repository(temp_non_git_dir) is False
+    def test_returns_true_for_nonexistent_dir(self, git_manager):
+        """Test that even non-existent dirs return True (shadow repo approach)"""
+        assert git_manager.is_git_repository('/nonexistent/path') is True
+
+
+class TestFileSelection:
+    """Test file selection logic"""
     
-    def test_returns_false_for_nonexistent_dir(self, git_manager):
-        """Test handling of nonexistent directory"""
-        assert git_manager.is_git_repository('/nonexistent/path') is False
+    def test_should_include_python_file(self, git_manager, temp_work_dir):
+        """Test that Python files are included"""
+        py_file = os.path.join(temp_work_dir, 'test.py')
+        assert git_manager._should_include_file(py_file, temp_work_dir) is True
     
-    def test_returns_false_when_git_not_available(self, git_manager, temp_non_git_dir):
-        """Test handling when git command is not available"""
-        with patch('subprocess.run', side_effect=FileNotFoundError()):
-            assert git_manager.is_git_repository(temp_non_git_dir) is False
+    def test_should_include_config_file(self, git_manager, temp_work_dir):
+        """Test that config files are included"""
+        yaml_file = os.path.join(temp_work_dir, 'config.yaml')
+        assert git_manager._should_include_file(yaml_file, temp_work_dir) is True
     
-    def test_returns_false_on_timeout(self, git_manager, temp_git_repo):
-        """Test handling of git command timeout"""
-        with patch('subprocess.run', side_effect=subprocess.TimeoutExpired('git', 5)):
-            assert git_manager.is_git_repository(temp_git_repo) is False
+    def test_should_exclude_pycache(self, git_manager, temp_work_dir):
+        """Test that __pycache__ is excluded"""
+        pycache = os.path.join(temp_work_dir, '__pycache__', 'test.pyc')
+        os.makedirs(os.path.dirname(pycache), exist_ok=True)
+        open(pycache, 'w').close()
+        assert git_manager._should_include_file(pycache, temp_work_dir) is False
+    
+    def test_should_exclude_large_files(self, git_manager, temp_work_dir):
+        """Test that large files are excluded"""
+        large_file = os.path.join(temp_work_dir, 'large.bin')
+        # Create a file larger than threshold
+        with open(large_file, 'wb') as f:
+            f.write(b'x' * (25 * 1024 * 1024))  # 25 MB
+        assert git_manager._should_include_file(large_file, temp_work_dir) is False
+    
+    def test_collect_files(self, git_manager, temp_work_dir):
+        """Test collecting files from directory"""
+        files = git_manager._collect_files_to_snapshot(temp_work_dir)
+        assert len(files) > 0
+        assert 'train.py' in files
+        assert 'config.yaml' in files
+        assert 'src/model.py' in files
 
 
 class TestCreateSnapshot:
     """Test create_snapshot method"""
     
-    def test_returns_none_for_non_git_repo(self, git_manager, temp_non_git_dir):
-        """Test snapshot creation in non-git directory returns None"""
-        snapshot_ref = git_manager.create_snapshot('job123', temp_non_git_dir)
-        assert snapshot_ref is None
-    
-    def test_returns_commit_sha_for_clean_repo(self, git_manager, temp_git_repo):
-        """Test snapshot creation in git repo with no changes"""
-        snapshot_ref = git_manager.create_snapshot('job123', temp_git_repo)
+    def test_creates_snapshot_successfully(self, git_manager, temp_work_dir):
+        """Test successful snapshot creation"""
+        snapshot_ref = git_manager.create_snapshot('job123', temp_work_dir)
+        
         assert snapshot_ref is not None
         assert len(snapshot_ref) == 40  # SHA-1 hash length
-        assert ':' not in snapshot_ref  # No stash, just commit SHA
     
-    def test_returns_commit_and_stash_for_dirty_repo(self, git_manager, temp_git_repo):
-        """Test snapshot creation in git repo with uncommitted changes"""
-        # Modify a file
-        test_file = os.path.join(temp_git_repo, 'test.py')
-        with open(test_file, 'w') as f:
-            f.write('print("modified")\n')
+    def test_creates_branch_for_job(self, git_manager, temp_work_dir):
+        """Test that a branch is created for the job"""
+        job_id = 'job456'
+        snapshot_ref = git_manager.create_snapshot(job_id, temp_work_dir)
         
-        snapshot_ref = git_manager.create_snapshot('job123', temp_git_repo)
-        assert snapshot_ref is not None
-        assert ':' in snapshot_ref  # Has stash: "commit_sha:stash_sha"
-        
-        commit_sha, stash_sha = snapshot_ref.split(':', 1)
-        assert len(commit_sha) == 40
-        assert len(stash_sha) == 40
+        # Check branch exists
+        result = subprocess.run(
+            ['git', 'branch', '--list', f'job-{job_id}'],
+            cwd=git_manager.shadow_repo_path,
+            stdout=subprocess.PIPE,
+            text=True
+        )
+        assert f'job-{job_id}' in result.stdout
     
-    def test_preserves_working_directory_state(self, git_manager, temp_git_repo):
-        """Test that create_snapshot restores working directory after stashing"""
-        # Modify a file
-        test_file = os.path.join(temp_git_repo, 'test.py')
-        with open(test_file, 'w') as f:
-            f.write('print("modified")\n')
+    def test_snapshot_contains_files(self, git_manager, temp_work_dir):
+        """Test that snapshot contains the expected files"""
+        snapshot_ref = git_manager.create_snapshot('job789', temp_work_dir)
         
-        # Create snapshot
-        snapshot_ref = git_manager.create_snapshot('job123', temp_git_repo)
-        assert snapshot_ref is not None
+        # Get files in the snapshot
+        result = subprocess.run(
+            ['git', 'ls-tree', '-r', '--name-only', snapshot_ref],
+            cwd=git_manager.shadow_repo_path,
+            stdout=subprocess.PIPE,
+            text=True,
+            check=True
+        )
         
-        # Verify working directory still has modifications
-        with open(test_file, 'r') as f:
-            content = f.read()
-        assert 'modified' in content
+        files = result.stdout.strip().split('\n')
+        assert 'train.py' in files
+        assert 'config.yaml' in files
     
-    def test_handles_git_command_timeout(self, git_manager, temp_git_repo):
-        """Test handling of git command timeout during snapshot creation"""
-        with patch('subprocess.run') as mock_run:
-            # First call succeeds (is_git_repository check)
-            # Second call times out (rev-parse HEAD)
-            mock_run.side_effect = [
-                Mock(returncode=0, stdout='', stderr=''),
-                subprocess.TimeoutExpired('git', 5)
-            ]
-            
-            snapshot_ref = git_manager.create_snapshot('job123', temp_git_repo)
+    def test_returns_none_for_empty_directory(self, git_manager):
+        """Test that empty directory returns None"""
+        empty_dir = tempfile.mkdtemp()
+        try:
+            snapshot_ref = git_manager.create_snapshot('job_empty', empty_dir)
             assert snapshot_ref is None
+        finally:
+            shutil.rmtree(empty_dir, ignore_errors=True)
     
-    def test_handles_git_command_failure(self, git_manager, temp_git_repo):
-        """Test handling of git command failure during snapshot creation"""
-        with patch('subprocess.run') as mock_run:
-            # First call succeeds (is_git_repository check)
-            # Second call fails (rev-parse HEAD)
-            mock_run.side_effect = [
-                Mock(returncode=0, stdout='', stderr=''),
-                subprocess.CalledProcessError(1, 'git', stderr='error')
-            ]
-            
-            snapshot_ref = git_manager.create_snapshot('job123', temp_git_repo)
-            assert snapshot_ref is None
+    def test_handles_subdirectories(self, git_manager, temp_work_dir):
+        """Test that subdirectories are handled correctly"""
+        # Add more nested structure
+        nested_dir = os.path.join(temp_work_dir, 'deep', 'nested', 'dir')
+        os.makedirs(nested_dir, exist_ok=True)
+        with open(os.path.join(nested_dir, 'deep.py'), 'w') as f:
+            f.write('# deep file\n')
+        
+        snapshot_ref = git_manager.create_snapshot('job_nested', temp_work_dir)
+        assert snapshot_ref is not None
+        
+        # Verify nested file is in snapshot
+        result = subprocess.run(
+            ['git', 'ls-tree', '-r', '--name-only', snapshot_ref],
+            cwd=git_manager.shadow_repo_path,
+            stdout=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        assert 'deep/nested/dir/deep.py' in result.stdout
 
 
 class TestRestoreSnapshot:
     """Test restore_snapshot method"""
     
-    def test_returns_false_for_none_snapshot_ref(self, git_manager):
-        """Test restore with None snapshot reference"""
-        result = git_manager.restore_snapshot('job123', None, '/tmp/target')
-        assert result is False
-    
-    def test_returns_false_for_empty_snapshot_ref(self, git_manager):
-        """Test restore with empty snapshot reference"""
-        result = git_manager.restore_snapshot('job123', '', '/tmp/target')
-        assert result is False
-    
-    def test_returns_false_for_non_git_target_dir(self, git_manager, temp_non_git_dir):
-        """Test restore to non-git directory"""
-        result = git_manager.restore_snapshot('job123', 'abc123', temp_non_git_dir)
-        assert result is False
-    
-    def test_parses_commit_only_snapshot_ref(self, git_manager, temp_git_repo):
-        """Test parsing of commit-only snapshot reference"""
-        # Get the current commit
-        result = subprocess.run(
-            ['git', 'rev-parse', 'HEAD'],
-            cwd=temp_git_repo,
-            stdout=subprocess.PIPE,
-            text=True,
-            check=True
-        )
-        commit_sha = result.stdout.strip()
+    def test_restore_creates_worktree(self, git_manager, temp_work_dir):
+        """Test that restore creates a git worktree"""
+        # Create snapshot
+        snapshot_ref = git_manager.create_snapshot('job_restore', temp_work_dir)
+        assert snapshot_ref is not None
         
-        # Try to restore (will fail because target isn't a git repo, but parsing should work)
-        with patch.object(git_manager, 'restore_snapshot', wraps=git_manager.restore_snapshot) as mock_restore:
-            git_manager.restore_snapshot('job123', commit_sha, temp_git_repo)
-            # Check that the method was called with correct snapshot_ref
-            assert mock_restore.call_args[0][1] == commit_sha
+        # Restore to a new location
+        restore_dir = tempfile.mkdtemp()
+        try:
+            result = git_manager.restore_snapshot('job_restore', snapshot_ref, restore_dir)
+            
+            # Should succeed
+            assert result is True
+            
+            # Check files were restored
+            assert os.path.exists(os.path.join(restore_dir, 'train.py'))
+            assert os.path.exists(os.path.join(restore_dir, 'config.yaml'))
+            
+        finally:
+            # Cleanup worktree
+            git_manager.cleanup_snapshot('job_restore', snapshot_ref, restore_dir)
     
-    def test_handles_git_command_timeout(self, git_manager, temp_git_repo):
-        """Test handling of git command timeout during restore"""
-        with patch('subprocess.run', side_effect=subprocess.TimeoutExpired('git', 30)):
-            result = git_manager.restore_snapshot('job123', 'abc123', temp_git_repo)
-            assert result is False
+    def test_restore_returns_false_for_none_ref(self, git_manager):
+        """Test that restore returns False for None snapshot_ref"""
+        result = git_manager.restore_snapshot('job_none', None, '/tmp/target')
+        assert result is False
     
-    def test_handles_git_command_failure(self, git_manager, temp_git_repo):
-        """Test handling of git command failure during restore"""
-        with patch('subprocess.run', side_effect=subprocess.CalledProcessError(1, 'git', stderr='error')):
-            result = git_manager.restore_snapshot('job123', 'abc123', temp_git_repo)
-            assert result is False
+    def test_restore_returns_false_for_empty_ref(self, git_manager):
+        """Test that restore returns False for empty snapshot_ref"""
+        result = git_manager.restore_snapshot('job_empty', '', '/tmp/target')
+        assert result is False
 
 
 class TestCleanupSnapshot:
     """Test cleanup_snapshot method"""
     
-    def test_cleanup_runs_without_error(self, git_manager):
-        """Test that cleanup completes without error"""
-        # This is a no-op currently, but should not raise exceptions
-        git_manager.cleanup_snapshot('job123', 'abc123:def456')
-        # If we get here without exception, test passes
+    def test_cleanup_removes_worktree(self, git_manager, temp_work_dir):
+        """Test that cleanup removes the worktree"""
+        # Create and restore snapshot
+        snapshot_ref = git_manager.create_snapshot('job_cleanup', temp_work_dir)
+        restore_dir = tempfile.mkdtemp()
+        
+        git_manager.restore_snapshot('job_cleanup', snapshot_ref, restore_dir)
+        
+        # Verify worktree exists
+        assert os.path.exists(restore_dir)
+        
+        # Cleanup
+        git_manager.cleanup_snapshot('job_cleanup', snapshot_ref, restore_dir)
+        
+        # Worktree should be removed
+        result = subprocess.run(
+            ['git', 'worktree', 'list'],
+            cwd=git_manager.shadow_repo_path,
+            stdout=subprocess.PIPE,
+            text=True
+        )
+        assert restore_dir not in result.stdout
     
-    def test_cleanup_with_none_snapshot_ref(self, git_manager):
-        """Test cleanup with None snapshot reference"""
-        git_manager.cleanup_snapshot('job123', None)
-        # Should handle gracefully
+    def test_cleanup_handles_none_worktree(self, git_manager):
+        """Test that cleanup handles None worktree gracefully"""
+        # Should not raise exception
+        git_manager.cleanup_snapshot('job_test', 'abc123', None)
     
-    def test_cleanup_with_commit_only_ref(self, git_manager):
-        """Test cleanup with commit-only snapshot reference"""
-        git_manager.cleanup_snapshot('job123', 'abc123')
-        # Should handle gracefully
+    def test_cleanup_handles_nonexistent_worktree(self, git_manager):
+        """Test that cleanup handles nonexistent worktree gracefully"""
+        # Should not raise exception
+        git_manager.cleanup_snapshot('job_test', 'abc123', '/nonexistent/path')
+
+
+class TestIntegration:
+    """Integration tests for complete workflow"""
+    
+    def test_complete_workflow(self, git_manager, temp_work_dir):
+        """Test complete create -> restore -> cleanup workflow"""
+        job_id = 'job_workflow'
+        
+        # 1. Create snapshot
+        snapshot_ref = git_manager.create_snapshot(job_id, temp_work_dir)
+        assert snapshot_ref is not None
+        
+        # 2. Restore snapshot
+        restore_dir = tempfile.mkdtemp()
+        success = git_manager.restore_snapshot(job_id, snapshot_ref, restore_dir)
+        assert success is True
+        
+        # 3. Verify restored files
+        assert os.path.exists(os.path.join(restore_dir, 'train.py'))
+        with open(os.path.join(restore_dir, 'train.py'), 'r') as f:
+            content = f.read()
+        assert 'training' in content
+        
+        # 4. Cleanup
+        git_manager.cleanup_snapshot(job_id, snapshot_ref, restore_dir)
+        
+        # Verify cleanup
+        result = subprocess.run(
+            ['git', 'worktree', 'list'],
+            cwd=git_manager.shadow_repo_path,
+            stdout=subprocess.PIPE,
+            text=True
+        )
+        assert restore_dir not in result.stdout
