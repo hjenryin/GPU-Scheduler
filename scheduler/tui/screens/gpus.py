@@ -88,9 +88,21 @@ class GPUsScreen(Screen):
 
         for node in nodes:
             for gpu in node.gpus:
-                # Check if GPU is free using stats
-                status = "Free" if gpu.stats.running_job_id is None else "In Use"
-                job_id = "-" if gpu.stats.running_job_id is None else (gpu.stats.running_job_id or "in use")
+                # Check if GPU is free using the same logic as get_free_gpus
+                # A GPU is only truly "Free" if it meets utilization/memory thresholds AND is stable
+                is_free = gpu.stats.is_free(util_threshold, mem_threshold)
+                is_stable = gpu.is_stable(stable_time)
+                
+                if is_free and is_stable:
+                    status = "Free"
+                    job_id = "-"
+                elif gpu.stats.running_job_id is not None:
+                    status = "In Use"
+                    job_id = gpu.stats.running_job_id
+                else:
+                    # GPU has no job but is not yet stable or above thresholds
+                    status = "Waiting"
+                    job_id = "-"
 
                 gpu_table.add_row(
                     node.node_name,

@@ -131,7 +131,9 @@ class NodesScreen(Screen):
         self.query_one("#node-detail-header", Static).update(f"Node: {node_name}")
 
         # Update node info
-        free_gpu_count = len([gpu for gpu in node.gpus if gpu.stats.running_job_id is None])
+        # Use proper free GPU calculation based on thresholds and stability
+        free_gpu_ids = node.get_free_gpus(self.util_threshold, self.mem_threshold, self.stable_time)
+        free_gpu_count = len(free_gpu_ids)
         info_text = (
             f"Status: {node.status}\n"
             f"Address: {node.address if hasattr(node, 'address') else 'N/A'}\n"
@@ -143,7 +145,18 @@ class NodesScreen(Screen):
         gpu_table = self.query_one("#gpu-detail-table", DataTable)
         gpu_table.clear()
         for gpu in node.gpus:
-            job_id = "free" if gpu.stats.running_job_id is None else (gpu.stats.running_job_id or "in use")
+            # Use same logic as GPU screen for consistency
+            is_free = gpu.stats.is_free(self.util_threshold, self.mem_threshold)
+            is_stable = gpu.is_stable(self.stable_time)
+            
+            if is_free and is_stable:
+                job_id = "free"
+            elif gpu.stats.running_job_id is not None:
+                job_id = gpu.stats.running_job_id
+            else:
+                # GPU has no job but is not yet stable or above thresholds
+                job_id = "waiting"
+            
             gpu_table.add_row(
                 str(gpu.gpu_id),
                 create_gpu_utilization_bar(gpu.stats.utilization, width=10),
