@@ -95,7 +95,9 @@ class NodesScreen(Screen):
         nodes_list = self.query_one("#nodes-list", DataTable)
         nodes_list.clear()
         for node in nodes:
-            nodes_list.add_row(node.node_name, node.status, f"{node.num_gpus} GPUs")
+            nodes_list.add_row(
+                node.node_name, node.status.value.capitalize(), f"{node.num_gpus} GPUs"
+            )
 
         # If a node was selected, update its details
         if self.selected_node:
@@ -140,7 +142,7 @@ class NodesScreen(Screen):
         )
         free_gpu_count = len(free_gpu_ids)
         info_text = (
-            f"Status: {node.status}\n"
+            f"Status: {node.status.value.capitalize()}\n"
             f"Address: {node.address if hasattr(node, 'address') else 'N/A'}\n"
             f"GPUs: {node.num_gpus} total, {free_gpu_count} free, "
             f"{node.num_gpus - free_gpu_count} in use"

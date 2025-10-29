@@ -21,6 +21,7 @@ class ClusterScreen(Screen):
         ("n", "switch_to_nodes", "Nodes"),
         ("j", "switch_to_jobs", "Jobs"),
         ("g", "switch_to_gpus", "GPUs"),
+        ("escape", "switch_to_cluster", "Overview"),
         ("q", "quit", "Quit"),
         ("h", "help", "Help"),
         ("r", "refresh", "Refresh"),
@@ -128,7 +129,7 @@ class ClusterScreen(Screen):
             )
             node_table.add_row(
                 node.node_name,
-                node.status.value,
+                node.status.value.capitalize(),
                 str(node.num_gpus),
                 str(free_gpu_count),
                 f"{running_job_count} jobs",
