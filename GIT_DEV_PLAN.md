@@ -29,14 +29,20 @@ The system uses git's `--git-dir` and `--work-tree` flags to track files in-plac
 - **Efficient**: No copying or moving of files
 - **Clean**: Shadow repo only contains git metadata and one README.md
 
-### Smart File Selection
+### Smart File Selection (Configurable)
 
 The system only snapshots files that are likely needed for reproducibility:
 
-- **Size-based filtering**: Exclude files over 20MB by default
+- **Default size limit**: 1MB (configurable via `snapshot_max_file_size`)
+- **Data type-specific limits**: Override default for specific file types
+  - `.npy` / `.npz`: 10 MB
+  - `.pkl`: 5 MB  
+  - `.json`: 2 MB
+  - `.csv`: 5 MB
+- **Folder file count limit**: Folders with >1000 files excluded (configurable via `snapshot_max_files_per_folder`)
 - **Pattern-based filtering**: Always exclude `__pycache__`, `.git`, `.scheduler-git`, build artifacts
 - **Extension-based inclusion**: Always include source code, configs, scripts
-- **Configurable**: Thresholds and patterns can be adjusted
+- **Configurable**: All thresholds and patterns can be adjusted via Config object
 
 ## User Experience
 
@@ -51,14 +57,20 @@ When a user submits a job, the scheduler:
 5. Returns the commit SHA as the snapshot reference
 6. User continues working normally (no changes to their files)
 
-### Job Execution
+### Job Execution  
 
 When the job runs, the scheduler:
 
 1. Creates a git worktree from the snapshot commit
 2. Executes the job in the isolated worktree
 3. Job sees only the files that were captured at submission time
-4. Cleans up the worktree after completion
+4. After job completes, captures any changes (creates completion commit)
+5. Documents large files produced (content not preserved if over size limit)
+6. Cleans up the worktree
+
+**What is a worktree?** A git worktree is a separate working directory linked to the same repository. It allows multiple checkouts of different branches simultaneously without conflicts. For job execution, this provides complete isolation - each job runs in its own worktree with the exact files from its snapshot commit.
+
+**Why `--work-tree` at submission?** The `--work-tree` flag tells git to track files from the user's working directory while storing git metadata in the shadow repository (.scheduler-git). This allows us to commit files without moving or copying them.
 
 ## Technical Implementation
 
