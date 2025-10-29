@@ -50,9 +50,9 @@ class NodesScreen(Screen):
                     Static("Running Jobs", id="jobs-detail-header"),
                     Static("", id="jobs-detail-list"),
                 ),
-                id="nodes-horizontal"
+                id="nodes-horizontal",
             ),
-            id="nodes-container"
+            id="nodes-container",
         )
         yield Footer()
 
@@ -67,7 +67,14 @@ class NodesScreen(Screen):
         gpu_table = self.query_one("#gpu-detail-table", DataTable)
         gpu_table.add_columns("GPU", "Util", "Memory", "Temp", "Power", "Status", "Job")
 
-    def update_data(self, nodes: List[Node], jobs: List[Job], util_threshold: float = 10.0, mem_threshold: float = 10.0, stable_time: int = 30):
+    def update_data(
+        self,
+        nodes: List[Node],
+        jobs: List[Job],
+        util_threshold: float = 10.0,
+        mem_threshold: float = 10.0,
+        stable_time: int = 30,
+    ):
         """
         Update screen with new data.
 
@@ -88,11 +95,7 @@ class NodesScreen(Screen):
         nodes_list = self.query_one("#nodes-list", DataTable)
         nodes_list.clear()
         for node in nodes:
-            nodes_list.add_row(
-                node.node_name,
-                node.status,
-                f"{node.num_gpus} GPUs"
-            )
+            nodes_list.add_row(node.node_name, node.status, f"{node.num_gpus} GPUs")
 
         # If a node was selected, update its details
         if self.selected_node:
@@ -132,12 +135,15 @@ class NodesScreen(Screen):
 
         # Update node info
         # Use proper free GPU calculation based on thresholds and stability
-        free_gpu_ids = node.get_free_gpus(self.util_threshold, self.mem_threshold, self.stable_time)
+        free_gpu_ids = node.get_free_gpus(
+            self.util_threshold, self.mem_threshold, self.stable_time
+        )
         free_gpu_count = len(free_gpu_ids)
         info_text = (
             f"Status: {node.status}\n"
             f"Address: {node.address if hasattr(node, 'address') else 'N/A'}\n"
-            f"GPUs: {node.num_gpus} total, {free_gpu_count} free, {node.num_gpus - free_gpu_count} in use"
+            f"GPUs: {node.num_gpus} total, {free_gpu_count} free, "
+            f"{node.num_gpus - free_gpu_count} in use"
         )
         self.query_one("#node-detail-info", Static).update(info_text)
 
@@ -148,7 +154,7 @@ class NodesScreen(Screen):
             # Use same logic as GPU screen for consistency
             is_free = gpu.stats.is_free(self.util_threshold, self.mem_threshold)
             is_stable = gpu.is_stable(self.stable_time)
-            
+
             if is_free and is_stable:
                 status = "Free"
                 job_id = "-"
@@ -159,7 +165,7 @@ class NodesScreen(Screen):
                 # GPU has no job but is not yet stable or above thresholds
                 status = "Waiting"
                 job_id = "-"
-            
+
             gpu_table.add_row(
                 str(gpu.gpu_id),
                 create_gpu_utilization_bar(gpu.stats.utilization, width=10),
@@ -167,14 +173,18 @@ class NodesScreen(Screen):
                 f"{gpu.stats.temperature}°C" if gpu.stats.temperature else "N/A",
                 f"{gpu.stats.power_draw}W" if gpu.stats.power_draw else "N/A",
                 status,
-                job_id
+                job_id,
             )
 
         # Update running jobs
-        running_jobs = [j for j in self.jobs_data if j.assigned_node == node_name and j.status.value == "running"]
+        running_jobs = [
+            j
+            for j in self.jobs_data
+            if j.assigned_node == node_name and j.status.value == "running"
+        ]
         jobs_text = ""
         for job in running_jobs:
-            gpu_ids = job.assigned_gpus if hasattr(job, 'assigned_gpus') else []
+            gpu_ids = job.assigned_gpus if hasattr(job, "assigned_gpus") else []
             gpu_str = ",".join(map(str, gpu_ids)) if gpu_ids else "?"
             jobs_text += f"  • {job.job_id}: {job.name or 'N/A'} (GPUs: {gpu_str})\n"
         if not jobs_text:

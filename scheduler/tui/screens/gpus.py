@@ -30,21 +30,26 @@ class GPUsScreen(Screen):
             Static("GPU OVERVIEW", id="gpu-overview-header"),
             Static("", id="gpu-summary"),
             Static("ALL GPUs", id="all-gpus-header"),
-            VerticalScroll(
-                DataTable(id="gpus-table"),
-                id="gpus-scroll"
-            ),
-            id="gpus-container"
+            VerticalScroll(DataTable(id="gpus-table"), id="gpus-scroll"),
+            id="gpus-container",
         )
         yield Footer()
 
     def on_mount(self):
         """Set up table when screen is mounted."""
         gpu_table = self.query_one("#gpus-table", DataTable)
-        gpu_table.add_columns("Node", "GPU", "Utilization", "Memory", "Temp", "Power", "Status", "Job")
+        gpu_table.add_columns(
+            "Node", "GPU", "Utilization", "Memory", "Temp", "Power", "Status", "Job"
+        )
         gpu_table.cursor_type = "row"
 
-    def update_data(self, nodes: List[Node], util_threshold: float = 10.0, mem_threshold: float = 10.0, stable_time: int = 30):
+    def update_data(
+        self,
+        nodes: List[Node],
+        util_threshold: float = 10.0,
+        mem_threshold: float = 10.0,
+        stable_time: int = 30,
+    ):
         """
         Update screen with new data.
 
@@ -56,7 +61,10 @@ class GPUsScreen(Screen):
         """
         # Calculate summary statistics
         total_gpus = sum(node.num_gpus for node in nodes)
-        free_gpus = sum(len(node.get_free_gpus(util_threshold, mem_threshold, stable_time)) for node in nodes)
+        free_gpus = sum(
+            len(node.get_free_gpus(util_threshold, mem_threshold, stable_time))
+            for node in nodes
+        )
         in_use_gpus = total_gpus - free_gpus
 
         # Calculate average utilization
@@ -75,9 +83,11 @@ class GPUsScreen(Screen):
                 used_memory += gpu.stats.memory_used
 
         summary = (
-            f"Total GPUs: {total_gpus} | Free: {free_gpus} | In Use: {in_use_gpus} | "
+            f"Total GPUs: {total_gpus} | Free: {free_gpus} | "
+            f"In Use: {in_use_gpus} | "
             f"Avg Utilization: {avg_util:.1f}%\n"
-            f"Memory: {format_gpu_memory(used_memory)} / {format_gpu_memory(total_memory)} "
+            f"Memory: {format_gpu_memory(used_memory)} / "
+            f"{format_gpu_memory(total_memory)} "
             f"({100 * used_memory / total_memory if total_memory > 0 else 0:.1f}%)"
         )
         self.query_one("#gpu-summary", Static).update(summary)
@@ -89,10 +99,11 @@ class GPUsScreen(Screen):
         for node in nodes:
             for gpu in node.gpus:
                 # Check if GPU is free using the same logic as get_free_gpus
-                # A GPU is only truly "Free" if it meets utilization/memory thresholds AND is stable
+                # A GPU is only truly "Free" if it meets utilization/memory
+                # thresholds AND is stable
                 is_free = gpu.stats.is_free(util_threshold, mem_threshold)
                 is_stable = gpu.is_stable(stable_time)
-                
+
                 if is_free and is_stable:
                     status = "Free"
                     job_id = "-"
@@ -112,5 +123,5 @@ class GPUsScreen(Screen):
                     f"{gpu.stats.temperature}°C" if gpu.stats.temperature else "N/A",
                     f"{gpu.stats.power_draw}W" if gpu.stats.power_draw else "N/A",
                     status,
-                    job_id
+                    job_id,
                 )

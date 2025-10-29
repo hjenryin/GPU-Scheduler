@@ -42,35 +42,42 @@ class JobDetailScreen(Screen):
             Static("", id="job-config"),
             Static("Logs Preview (last 20 lines)", id="logs-header"),
             VerticalScroll(
-                Static("Loading logs...", id="logs-preview"),
-                id="logs-scroll"
+                Static("Loading logs...", id="logs-preview"), id="logs-scroll"
             ),
             Horizontal(
                 Button("View Full Logs (l)", id="logs-button", variant="primary"),
                 Button("Cancel Job (c)", id="cancel-button", variant="error"),
                 Button("Back (esc)", id="back-button"),
-                id="action-buttons"
+                id="action-buttons",
             ),
-            id="job-detail-container"
+            id="job-detail-container",
         )
         yield Footer()
 
     def on_mount(self):
         """Fetch job data when screen is mounted."""
         # Get the client from the app
-        if hasattr(self.app, 'client'):
+        if hasattr(self.app, "client"):
             try:
                 job = self.app.client.get_job(self.job_id)
                 self.update_data(job)
 
                 # Try to fetch logs
                 try:
-                    logs = self.app.client.get_job_logs(self.job_id, lines=20, stderr=False)
-                    self.query_one("#logs-preview", Static).update(logs if logs else "No logs available yet.")
+                    logs = self.app.client.get_job_logs(
+                        self.job_id, lines=20, stderr=False
+                    )
+                    self.query_one("#logs-preview", Static).update(
+                        logs if logs else "No logs available yet."
+                    )
                 except Exception as e:
-                    self.query_one("#logs-preview", Static).update(f"Could not fetch logs: {e}")
+                    self.query_one("#logs-preview", Static).update(
+                        f"Could not fetch logs: {e}"
+                    )
             except Exception as e:
-                self.query_one("#job-metadata", Static).update(f"Error loading job: {e}")
+                self.query_one("#job-metadata", Static).update(
+                    f"Error loading job: {e}"
+                )
 
     def update_data(self, job: Job):
         """
@@ -82,9 +89,40 @@ class JobDetailScreen(Screen):
         self.job_data = job
 
         # Update metadata
-        submitted_time = job.submitted_at.strftime("%Y-%m-%d %H:%M:%S") if hasattr(job, 'submitted_at') and job.submitted_at else "N/A"
-        started_time = job.started_at.strftime("%Y-%m-%d %H:%M:%S") if hasattr(job, 'started_at') and job.started_at else "N/A"
-        completed_time = job.completed_at.strftime("%Y-%m-%d %H:%M:%S") if hasattr(job, 'completed_at') and job.completed_at else "N/A"
+        submitted_time = (
+            job.submitted_at.strftime("%Y-%m-%d %H:%M:%S")
+            if hasattr(job, "submitted_at") and job.submitted_at
+            else "N/A"
+        )
+        started_time = (
+            job.started_at.strftime("%Y-%m-%d %H:%M:%S")
+            if hasattr(job, "started_at") and job.started_at
+            else "N/A"
+        )
+        completed_time = (
+            job.completed_at.strftime("%Y-%m-%d %H:%M:%S")
+            if hasattr(job, "completed_at") and job.completed_at
+            else "N/A"
+        )
+
+        # Format GPU list
+        gpu_list = (
+            ", ".join(map(str, job.assigned_gpus))
+            if hasattr(job, "assigned_gpus") and job.assigned_gpus
+            else "Not assigned"
+        )
+        # Format runtime
+        runtime_str = (
+            format_runtime(job.runtime)
+            if hasattr(job, "runtime")
+            else "N/A"
+        )
+        # Format exit code
+        exit_code_str = (
+            str(job.exit_code)
+            if hasattr(job, "exit_code") and job.exit_code is not None
+            else "N/A"
+        )
 
         metadata = (
             f"Job ID:      {job.job_id}\n"
@@ -92,12 +130,12 @@ class JobDetailScreen(Screen):
             f"Status:      {job.status.value}\n"
             f"Priority:    {job.priority}\n"
             f"Node:        {job.assigned_node or 'Not assigned'}\n"
-            f"GPUs:        {', '.join(map(str, job.assigned_gpus)) if hasattr(job, 'assigned_gpus') and job.assigned_gpus else 'Not assigned'}\n"
+            f"GPUs:        {gpu_list}\n"
             f"Submitted:   {submitted_time}\n"
             f"Started:     {started_time}\n"
             f"Completed:   {completed_time}\n"
-            f"Runtime:     {format_runtime(job.runtime) if hasattr(job, 'runtime') else 'N/A'}\n"
-            f"Exit Code:   {job.exit_code if hasattr(job, 'exit_code') and job.exit_code is not None else 'N/A'}"
+            f"Runtime:     {runtime_str}\n"
+            f"Exit Code:   {exit_code_str}"
         )
         self.query_one("#job-metadata", Static).update(metadata)
 
@@ -110,7 +148,12 @@ class JobDetailScreen(Screen):
             f"Requirements: {str(job.requirements) if job.requirements else '?'}"
         )
         if job.requirements and job.requirements.alternatives:
-            alt_str = ", ".join([f"{node or 'any'}:{ngpus}" for node, ngpus in job.requirements.alternatives])
+            alt_str = ", ".join(
+                [
+                    f"{node or 'any'}:{ngpus}"
+                    for node, ngpus in job.requirements.alternatives
+                ]
+            )
             config += f" ({alt_str})"
 
         if job.dependencies:
@@ -124,19 +167,27 @@ class JobDetailScreen(Screen):
 
         Bound to 'l' key.
         """
-        if hasattr(self.app, 'client'):
+        if hasattr(self.app, "client"):
             try:
                 # Fetch full logs
-                logs = self.app.client.get_job_logs(self.job_id, lines=None, stderr=False)
-                stderr_logs = self.app.client.get_job_logs(self.job_id, lines=None, stderr=True)
+                logs = self.app.client.get_job_logs(
+                    self.job_id, lines=None, stderr=False
+                )
+                stderr_logs = self.app.client.get_job_logs(
+                    self.job_id, lines=None, stderr=True
+                )
 
                 full_logs = "=== STDOUT ===\n" + (logs if logs else "No stdout logs")
-                full_logs += "\n\n=== STDERR ===\n" + (stderr_logs if stderr_logs else "No stderr logs")
+                full_logs += "\n\n=== STDERR ===\n" + (
+                    stderr_logs if stderr_logs else "No stderr logs"
+                )
 
                 self.query_one("#logs-preview", Static).update(full_logs)
                 self.query_one("#logs-header", Static).update("Full Logs")
             except Exception as e:
-                self.query_one("#logs-preview", Static).update(f"Error fetching logs: {e}")
+                self.query_one("#logs-preview", Static).update(
+                    f"Error fetching logs: {e}"
+                )
 
     def action_cancel_job(self):
         """
@@ -146,7 +197,7 @@ class JobDetailScreen(Screen):
         Shows confirmation dialog.
         """
         if self.job_data and self.job_data.status.value in ["pending", "running"]:
-            if hasattr(self.app, 'client'):
+            if hasattr(self.app, "client"):
                 try:
                     self.app.client.cancel_job(self.job_id)
                     # Refresh job data
@@ -156,7 +207,9 @@ class JobDetailScreen(Screen):
                 except Exception as e:
                     self.app.notify(f"Error cancelling job: {e}", severity="error")
         else:
-            self.app.notify("Job cannot be cancelled (not pending or running)", severity="warning")
+            self.app.notify(
+                "Job cannot be cancelled (not pending or running)", severity="warning"
+            )
 
     def on_button_pressed(self, event):
         """Handle button presses."""
@@ -166,4 +219,3 @@ class JobDetailScreen(Screen):
             self.action_cancel_job()
         elif event.button.id == "back-button":
             self.app.pop_screen()
-
