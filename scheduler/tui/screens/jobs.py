@@ -201,5 +201,4 @@ class JobsScreen(Screen):
                 search_input.blur()
                 event.prevent_default()
                 event.stop()
-                # When input is not focused, don't interfere - let the
-                # default escape binding handle navigation
+            # Otherwise, let the default escape binding handle navigation
