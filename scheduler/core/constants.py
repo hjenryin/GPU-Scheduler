@@ -42,6 +42,20 @@ LOG_DIR_PATH = "~/.scheduler/logs"
 
 JOB_POLL_TIMEOUT = 30  # Long-polling timeout in seconds
 
+# Git snapshot defaults
+
+DEFAULT_SNAPSHOT_MAX_FILE_SIZE = 1 * 1024 * 1024  # 1 MB
+DEFAULT_SNAPSHOT_MAX_FILES_PER_FOLDER = 1000  # Maximum files in a single folder
+
+# Data type-specific size limits (in bytes) - override DEFAULT_SNAPSHOT_MAX_FILE_SIZE
+DEFAULT_SNAPSHOT_DATA_TYPE_LIMITS = {
+    '.npy': 10 * 1024 * 1024,  # NumPy arrays: 10 MB
+    '.npz': 10 * 1024 * 1024,  # Compressed NumPy: 10 MB
+    '.pkl': 5 * 1024 * 1024,   # Pickle files: 5 MB
+    '.json': 2 * 1024 * 1024,  # JSON files: 2 MB
+    '.csv': 5 * 1024 * 1024,   # CSV files: 5 MB
+}
+
 # Exit codes
 
 EXIT_SUCCESS = 0
