@@ -7,6 +7,11 @@ from typing import Optional, List, Set, Dict
 from pathlib import Path
 
 from scheduler.core import Config
+from scheduler.core.constants import (
+    DEFAULT_SNAPSHOT_MAX_FILE_SIZE,
+    DEFAULT_SNAPSHOT_MAX_FILES_PER_FOLDER,
+    DEFAULT_SNAPSHOT_DATA_TYPE_LIMITS
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,19 +28,6 @@ class GitSnapshotManager:
     This approach provides complete isolation from the user's workflow while
     being disk-efficient through git's delta compression.
     """
-    
-    # Default file size thresholds (in bytes) - configurable via Config
-    DEFAULT_MAX_FILE_SIZE = 1 * 1024 * 1024  # 1 MB (changed from 20MB)
-    DEFAULT_MAX_FILES_PER_FOLDER = 1000  # Maximum files in a single folder
-    
-    # Data type-specific size limits (in bytes) - override DEFAULT_MAX_FILE_SIZE
-    DATA_TYPE_SIZE_LIMITS: Dict[str, int] = {
-        '.npy': 10 * 1024 * 1024,  # NumPy arrays: 10 MB
-        '.npz': 10 * 1024 * 1024,  # Compressed NumPy: 10 MB
-        '.pkl': 5 * 1024 * 1024,   # Pickle files: 5 MB
-        '.json': 2 * 1024 * 1024,  # JSON files: 2 MB
-        '.csv': 5 * 1024 * 1024,   # CSV files: 5 MB
-    }
     
     # Extensions that should always be included
     ALWAYS_INCLUDE_EXTENSIONS = {
@@ -60,12 +52,12 @@ class GitSnapshotManager:
         """
         self.config = config
         
-        # Load configuration values with defaults
-        self.max_file_size = getattr(config, 'snapshot_max_file_size', self.DEFAULT_MAX_FILE_SIZE)
-        self.max_files_per_folder = getattr(config, 'snapshot_max_files_per_folder', self.DEFAULT_MAX_FILES_PER_FOLDER)
+        # Load configuration values with defaults from constants
+        self.max_file_size = getattr(config, 'snapshot_max_file_size', DEFAULT_SNAPSHOT_MAX_FILE_SIZE)
+        self.max_files_per_folder = getattr(config, 'snapshot_max_files_per_folder', DEFAULT_SNAPSHOT_MAX_FILES_PER_FOLDER)
         
         # Load data type size limits (can be overridden by config)
-        self.data_type_size_limits = getattr(config, 'snapshot_data_type_limits', self.DATA_TYPE_SIZE_LIMITS.copy())
+        self.data_type_size_limits = getattr(config, 'snapshot_data_type_limits', DEFAULT_SNAPSHOT_DATA_TYPE_LIMITS.copy())
         
         logger.debug(f"GitSnapshotManager initialized (max_file_size={self.max_file_size}, "
                     f"max_files_per_folder={self.max_files_per_folder})")
