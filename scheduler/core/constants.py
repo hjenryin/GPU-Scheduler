@@ -43,6 +43,23 @@ LOG_DIR_PATH = "~/.scheduler/logs"
 JOB_POLL_TIMEOUT = 30  # Long-polling timeout in seconds
 
 # Git snapshot defaults
+#
+# These can be overridden by setting attributes on the Config object:
+#
+# Example usage in code:
+#   config.snapshot_max_file_size = 2 * 1024 * 1024  # 2 MB
+#   config.snapshot_max_files_per_folder = 500
+#   config.snapshot_data_type_limits = {'.npy': 20 * 1024 * 1024}
+#   config.snapshot_always_include_extensions = {'.py', '.yaml', '.txt'}
+#   config.snapshot_exclude_patterns = {'__pycache__', '*.pyc'}
+#
+# Or via configuration file (~/.scheduler/config.yaml):
+#   snapshot_max_file_size: 2097152  # 2 MB in bytes
+#   snapshot_max_files_per_folder: 500
+#   snapshot_data_type_limits:
+#     .npy: 20971520  # 20 MB in bytes
+#   snapshot_always_include_extensions: ['.py', '.yaml', '.txt']
+#   snapshot_exclude_patterns: ['__pycache__', '*.pyc']
 
 DEFAULT_SNAPSHOT_MAX_FILE_SIZE = 1 * 1024 * 1024  # 1 MB
 DEFAULT_SNAPSHOT_MAX_FILES_PER_FOLDER = 1000  # Maximum files in a single folder
@@ -54,6 +71,21 @@ DEFAULT_SNAPSHOT_DATA_TYPE_LIMITS = {
     '.pkl': 5 * 1024 * 1024,   # Pickle files: 5 MB
     '.json': 2 * 1024 * 1024,  # JSON files: 2 MB
     '.csv': 5 * 1024 * 1024,   # CSV files: 5 MB
+}
+
+# File extensions that should always be included in snapshots
+DEFAULT_SNAPSHOT_ALWAYS_INCLUDE_EXTENSIONS = {
+    '.py', '.sh', '.yaml', '.yml', '.json', '.txt', '.md',
+    '.toml', '.ini', '.cfg', '.conf', '.env'
+}
+
+# Patterns to always exclude from snapshots
+DEFAULT_SNAPSHOT_EXCLUDE_PATTERNS = {
+    '__pycache__', '.pytest_cache', '.mypy_cache', '.tox',
+    '.egg-info', '.eggs', 'build', 'dist', '.git', '.scheduler-git',
+    '*.pyc', '*.pyo', '*.pyd', '.so', '*.dylib',
+    '.coverage', 'htmlcov', '.DS_Store', '*.swp', '*.swo',
+    '.vscode', '.idea', '*.log'
 }
 
 # Exit codes

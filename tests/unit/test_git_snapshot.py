@@ -83,11 +83,17 @@ class TestFileSelection:
     def test_should_include_python_file(self, git_manager, temp_work_dir):
         """Test that Python files are included"""
         py_file = os.path.join(temp_work_dir, 'test.py')
+        # Create the file
+        with open(py_file, 'w') as f:
+            f.write('# test\n')
         assert git_manager._should_include_file(py_file, temp_work_dir) is True
     
     def test_should_include_config_file(self, git_manager, temp_work_dir):
         """Test that config files are included"""
         yaml_file = os.path.join(temp_work_dir, 'config.yaml')
+        # Create the file
+        with open(yaml_file, 'w') as f:
+            f.write('test: value\n')
         assert git_manager._should_include_file(yaml_file, temp_work_dir) is True
     
     def test_should_exclude_pycache(self, git_manager, temp_work_dir):
@@ -131,7 +137,8 @@ class TestCreateSnapshot:
         
         # Check branch exists in the workspace's shadow repo
         shadow_repo_path = git_manager._get_shadow_repo_path(temp_work_dir)
-        git_dir = os.path.join(shadow_repo_path, '.git')
+        # .scheduler-git IS the git directory (no .git subfolder)
+        git_dir = shadow_repo_path
         
         result = subprocess.run(
             ['git', f'--git-dir={git_dir}', 'branch', '--list', f'job-{job_id}'],
@@ -147,7 +154,7 @@ class TestCreateSnapshot:
         
         # Get files in the snapshot from workspace's shadow repo
         shadow_repo_path = git_manager._get_shadow_repo_path(temp_work_dir)
-        git_dir = os.path.join(shadow_repo_path, '.git')
+        git_dir = shadow_repo_path  # .scheduler-git IS the git directory
         
         result = subprocess.run(
             ['git', f'--git-dir={git_dir}', 'ls-tree', '-r', '--name-only', snapshot_ref],
@@ -189,7 +196,7 @@ class TestCreateSnapshot:
         
         # Verify nested file is in snapshot
         shadow_repo_path = git_manager._get_shadow_repo_path(temp_work_dir)
-        git_dir = os.path.join(shadow_repo_path, '.git')
+        git_dir = shadow_repo_path  # .scheduler-git IS the git directory
         
         result = subprocess.run(
             ['git', f'--git-dir={git_dir}', 'ls-tree', '-r', '--name-only', snapshot_ref],
@@ -256,7 +263,7 @@ class TestCleanupSnapshot:
         
         # Worktree should be removed
         shadow_repo_path = git_manager._get_shadow_repo_path(temp_work_dir)
-        git_dir = os.path.join(shadow_repo_path, '.git')
+        git_dir = shadow_repo_path  # .scheduler-git IS the git directory
         
         result = subprocess.run(
             ['git', f'--git-dir={git_dir}', 'worktree', 'list'],
@@ -304,7 +311,7 @@ class TestIntegration:
         
         # Verify cleanup
         shadow_repo_path = git_manager._get_shadow_repo_path(temp_work_dir)
-        git_dir = os.path.join(shadow_repo_path, '.git')
+        git_dir = shadow_repo_path  # .scheduler-git IS the git directory
         
         result = subprocess.run(
             ['git', f'--git-dir={git_dir}', 'worktree', 'list'],

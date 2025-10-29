@@ -10,7 +10,9 @@ from scheduler.core import Config
 from scheduler.core.constants import (
     DEFAULT_SNAPSHOT_MAX_FILE_SIZE,
     DEFAULT_SNAPSHOT_MAX_FILES_PER_FOLDER,
-    DEFAULT_SNAPSHOT_DATA_TYPE_LIMITS
+    DEFAULT_SNAPSHOT_DATA_TYPE_LIMITS,
+    DEFAULT_SNAPSHOT_ALWAYS_INCLUDE_EXTENSIONS,
+    DEFAULT_SNAPSHOT_EXCLUDE_PATTERNS
 )
 
 logger = logging.getLogger(__name__)
@@ -29,21 +31,6 @@ class GitSnapshotManager:
     being disk-efficient through git's delta compression.
     """
     
-    # Extensions that should always be included
-    ALWAYS_INCLUDE_EXTENSIONS = {
-        '.py', '.sh', '.yaml', '.yml', '.json', '.txt', '.md',
-        '.toml', '.ini', '.cfg', '.conf', '.env'
-    }
-    
-    # Patterns to always exclude
-    EXCLUDE_PATTERNS = {
-        '__pycache__', '.pytest_cache', '.mypy_cache', '.tox',
-        '.egg-info', '.eggs', 'build', 'dist', '.git', '.scheduler-git',
-        '*.pyc', '*.pyo', '*.pyd', '.so', '*.dylib',
-        '.coverage', 'htmlcov', '.DS_Store', '*.swp', '*.swo',
-        '.vscode', '.idea', '*.log'
-    }
-    
     def __init__(self, config: Config):
         """Initialize git snapshot manager
         
@@ -58,6 +45,10 @@ class GitSnapshotManager:
         
         # Load data type size limits (can be overridden by config)
         self.data_type_size_limits = getattr(config, 'snapshot_data_type_limits', DEFAULT_SNAPSHOT_DATA_TYPE_LIMITS.copy())
+        
+        # Load file extension and exclusion patterns (can be overridden by config)
+        self.always_include_extensions = getattr(config, 'snapshot_always_include_extensions', DEFAULT_SNAPSHOT_ALWAYS_INCLUDE_EXTENSIONS.copy())
+        self.exclude_patterns = getattr(config, 'snapshot_exclude_patterns', DEFAULT_SNAPSHOT_EXCLUDE_PATTERNS.copy())
         
         logger.debug(f"GitSnapshotManager initialized (max_file_size={self.max_file_size}, "
                     f"max_files_per_folder={self.max_files_per_folder})")
@@ -164,7 +155,7 @@ class GitSnapshotManager:
             rel_path = os.path.relpath(file_path, working_dir)
             
             # Check exclude patterns
-            for pattern in self.EXCLUDE_PATTERNS:
+            for pattern in self.exclude_patterns:
                 if pattern in rel_path or Path(rel_path).match(pattern):
                     return False
             
@@ -179,7 +170,7 @@ class GitSnapshotManager:
                 if ext in self.data_type_size_limits:
                     # Use data type-specific limit
                     size_limit = self.data_type_size_limits[ext]
-                elif ext in self.ALWAYS_INCLUDE_EXTENSIONS:
+                elif ext in self.always_include_extensions:
                     # Always include these extensions (they're typically small)
                     return True
                 else:
@@ -218,7 +209,7 @@ class GitSnapshotManager:
             
             for root, dirs, files in os.walk(working_dir):
                 # Filter out excluded directories
-                dirs[:] = [d for d in dirs if not any(pattern in d for pattern in self.EXCLUDE_PATTERNS)]
+                dirs[:] = [d for d in dirs if not any(pattern in d for pattern in self.exclude_patterns)]
                 
                 # Count files in this folder (not including subdirectories)
                 file_count = len([f for f in files if os.path.isfile(os.path.join(root, f))])
@@ -227,7 +218,7 @@ class GitSnapshotManager:
             # Second pass: collect files, excluding folders with too many files
             for root, dirs, files in os.walk(working_dir):
                 # Filter out excluded directories
-                dirs[:] = [d for d in dirs if not any(pattern in d for pattern in self.EXCLUDE_PATTERNS)]
+                dirs[:] = [d for d in dirs if not any(pattern in d for pattern in self.exclude_patterns)]
                 
                 # Skip folders with too many files
                 if folder_file_counts.get(root, 0) > self.max_files_per_folder:
