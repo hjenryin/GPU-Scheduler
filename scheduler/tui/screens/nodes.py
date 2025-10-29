@@ -11,7 +11,7 @@ class NodesScreen(Screen):
     """Detailed node information screen"""
 
     BINDINGS = [
-        ("n", "switch_to_cluster", "Cluster"),
+        ("n", "switch_to_cluster", "Overview"),
         ("j", "switch_to_jobs", "Jobs"),
         ("g", "switch_to_gpus", "GPUs"),
         ("q", "quit", "Quit"),
@@ -85,7 +85,11 @@ class NodesScreen(Screen):
             mem_threshold: GPU memory threshold
             stable_time: Required stable time in seconds
         """
-        self.nodes_data = nodes
+        # Filter to only active nodes (exclude disconnected)
+        from scheduler.core import NodeStatus
+        active_nodes = [n for n in nodes if n.status != NodeStatus.DISCONNECTED]
+
+        self.nodes_data = active_nodes
         self.jobs_data = jobs
         self.util_threshold = util_threshold
         self.mem_threshold = mem_threshold
@@ -94,7 +98,7 @@ class NodesScreen(Screen):
         # Update nodes list
         nodes_list = self.query_one("#nodes-list", DataTable)
         nodes_list.clear()
-        for node in nodes:
+        for node in active_nodes:
             nodes_list.add_row(
                 node.node_name, node.status.value.capitalize(), f"{node.num_gpus} GPUs"
             )

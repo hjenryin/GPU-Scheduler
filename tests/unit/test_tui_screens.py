@@ -163,7 +163,7 @@ class TestNodesScreen:
 
     @patch('scheduler.tui.screens.nodes.NodesScreen.query_one', autospec=True)
     def test_update_data_nodes_list(self, mock_query_one, mock_nodes, mock_jobs):
-        """Test nodes list update."""
+        """Test nodes list update - only active nodes shown."""
         screen = NodesScreen()
         
         mock_nodes_list = create_autospec(DataTable, instance=True, spec_set=True)
@@ -173,9 +173,10 @@ class TestNodesScreen:
 
         screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
-        # Verify nodes list operations
+        # Verify nodes list operations - only active nodes (not disconnected) shown
+        active_nodes = [n for n in mock_nodes if n.status != NodeStatus.DISCONNECTED]
         mock_nodes_list.clear.assert_called_once()
-        assert mock_nodes_list.add_row.call_count == len(mock_nodes)
+        assert mock_nodes_list.add_row.call_count == len(active_nodes)
 
     @patch('scheduler.tui.screens.nodes.NodesScreen.query_one', autospec=True)
     def test_update_data_auto_select_first_node(self, mock_query_one, mock_nodes, mock_jobs):
@@ -464,8 +465,9 @@ class TestGPUsScreen:
 
         # Verify GPU table operations
         mock_gpu_table.clear.assert_called_once()
-        # Should add all GPUs from all nodes
-        total_gpus = sum(len(node.gpus) for node in mock_nodes)
+        # Should add all GPUs from active nodes only (not disconnected)
+        active_nodes = [n for n in mock_nodes if n.status != NodeStatus.DISCONNECTED]
+        total_gpus = sum(len(node.gpus) for node in active_nodes)
         assert mock_gpu_table.add_row.call_count == total_gpus
 
 

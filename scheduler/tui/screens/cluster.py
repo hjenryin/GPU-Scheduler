@@ -6,7 +6,6 @@ from typing import List
 import logging
 from scheduler.core import Node, Job, NodeStatus
 from scheduler.tui.utils import (
-    create_gpu_utilization_bar,
     format_runtime,
     format_time_ago,
 )
@@ -21,7 +20,7 @@ class ClusterScreen(Screen):
         ("n", "switch_to_nodes", "Nodes"),
         ("j", "switch_to_jobs", "Jobs"),
         ("g", "switch_to_gpus", "GPUs"),
-        ("escape", "switch_to_cluster", "Overview"),
+        ("escape", "switch_to_cluster", "Cluster"),
         ("q", "quit", "Quit"),
         ("h", "help", "Help"),
         ("r", "refresh", "Refresh"),
@@ -136,20 +135,44 @@ class ClusterScreen(Screen):
                 format_time_ago(node.last_heartbeat),
             )
 
-        # Update GPU bars - show active nodes (exclude disconnected)
-        gpu_bars_text = ""
+        # Update GPU status - show active nodes (exclude disconnected)
+        gpu_status_text = ""
         for node in active_nodes_list:
             logger.info(f"Node {node.node_name}: {len(node.gpus)} GPUs")
             gpu_line = f"{node.node_name}: "
-            for gpu in node.gpus[:4]:  # Show first 4 GPUs
-                bar = create_gpu_utilization_bar(gpu.stats.utilization, width=10)
-                gpu_line += f"GPU{gpu.gpu_id} {bar}  "
-                logger.debug(f"  GPU{gpu.gpu_id}: util={gpu.stats.utilization}%")
-            if len(node.gpus) > 4:
-                gpu_line += "..."
-            gpu_bars_text += gpu_line + "\n"
-        logger.info(f"GPU bars text length: {len(gpu_bars_text)}")
-        self.query_one("#gpu-bars", Static).update(gpu_bars_text)
+
+            # Separate GPUs into used and free
+            used_gpus = []
+            free_gpus = []
+            for gpu in node.gpus:
+                is_free = gpu.stats.is_free(util_threshold, mem_threshold)
+                is_stable = gpu.is_stable(stable_time)
+                if is_free and is_stable:
+                    free_gpus.append(gpu.gpu_id)
+                else:
+                    used_gpus.append((gpu.gpu_id, gpu.stats.utilization))
+
+            # Display used GPUs with utilization
+            if used_gpus:
+                gpu_line += ", ".join([
+                    f"GPU{gid} {util:.0f}%" for gid, util in used_gpus
+                ])
+
+            # Display free GPUs grouped
+            if free_gpus:
+                if used_gpus:
+                    gpu_line += "; "
+                if len(free_gpus) == 1:
+                    gpu_line += f"GPU{free_gpus[0]} free"
+                elif len(free_gpus) <= 3:
+                    gpu_line += ", ".join([f"GPU{gid}" for gid in free_gpus]) + " free"
+                else:
+                    # For many free GPUs, show range or count
+                    gpu_line += f"{len(free_gpus)} GPUs free"
+
+            gpu_status_text += gpu_line + "\n"
+        logger.info(f"GPU status text length: {len(gpu_status_text)}")
+        self.query_one("#gpu-bars", Static).update(gpu_status_text)
 
         # Update job table (show active jobs)
         job_table = self.query_one("#job-table", DataTable)

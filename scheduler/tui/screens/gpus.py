@@ -11,7 +11,7 @@ class GPUsScreen(Screen):
     """GPU details screen showing all GPUs across all nodes"""
 
     BINDINGS = [
-        ("n", "switch_to_cluster", "Cluster"),
+        ("n", "switch_to_cluster", "Overview"),
         ("j", "switch_to_jobs", "Jobs"),
         ("q", "quit", "Quit"),
         ("h", "help", "Help"),
@@ -59,25 +59,29 @@ class GPUsScreen(Screen):
             mem_threshold: GPU memory threshold
             stable_time: Required stable time in seconds
         """
-        # Calculate summary statistics
-        total_gpus = sum(node.num_gpus for node in nodes)
+        # Filter to only active nodes (exclude disconnected)
+        from scheduler.core import NodeStatus
+        active_nodes = [n for n in nodes if n.status != NodeStatus.DISCONNECTED]
+
+        # Calculate summary statistics (only for active nodes)
+        total_gpus = sum(node.num_gpus for node in active_nodes)
         free_gpus = sum(
             len(node.get_free_gpus(util_threshold, mem_threshold, stable_time))
-            for node in nodes
+            for node in active_nodes
         )
         in_use_gpus = total_gpus - free_gpus
 
-        # Calculate average utilization
+        # Calculate average utilization (only for active nodes)
         all_utils = []
-        for node in nodes:
+        for node in active_nodes:
             for gpu in node.gpus:
                 all_utils.append(gpu.stats.utilization)
         avg_util = sum(all_utils) / len(all_utils) if all_utils else 0
 
-        # Calculate total memory
+        # Calculate total memory (only for active nodes)
         total_memory = 0
         used_memory = 0
-        for node in nodes:
+        for node in active_nodes:
             for gpu in node.gpus:
                 total_memory += gpu.stats.memory_total
                 used_memory += gpu.stats.memory_used
@@ -92,11 +96,11 @@ class GPUsScreen(Screen):
         )
         self.query_one("#gpu-summary", Static).update(summary)
 
-        # Update GPU table
+        # Update GPU table (only for active nodes)
         gpu_table = self.query_one("#gpus-table", DataTable)
         gpu_table.clear()
 
-        for node in nodes:
+        for node in active_nodes:
             for gpu in node.gpus:
                 # Check if GPU is free using the same logic as get_free_gpus
                 # A GPU is only truly "Free" if it meets utilization/memory

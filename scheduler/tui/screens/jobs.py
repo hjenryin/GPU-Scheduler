@@ -12,7 +12,7 @@ class JobsScreen(Screen):
     """Jobs list screen with filtering and sorting"""
 
     BINDINGS = [
-        ("n", "switch_to_cluster", "Cluster"),
+        ("n", "switch_to_cluster", "Overview"),
         ("g", "switch_to_gpus", "GPUs"),
         ("q", "quit", "Quit"),
         ("h", "help", "Help"),
