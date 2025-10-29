@@ -95,7 +95,7 @@ scheduler start [OPTIONS]
 | `--num-gpus` | int | auto-detect | Number of GPUs on this node (auto-detected from nvidia-smi) |
 | `--temp-dir` | path | `~/.scheduler/tmp` | Temporary directory for this node |
 | `--log-dir` | path | `~/.scheduler/logs` | Directory for logs |
-| `--block` | flag | true | Block until scheduler is stopped (false to run in background) |
+| `--block` | flag | false | Block until scheduler is stopped (use --block to run in foreground) |
 | `--log-level` | choice | `INFO` | Logging level: DEBUG, INFO, WARNING, ERROR |
 
 **Head Node Specific Options:**
@@ -149,8 +149,8 @@ scheduler start --address=head.local:8265 \
 # Start head node with custom graceful shutdown timeout
 scheduler start --head --graceful-shutdown-timeout=120
 
-# Start in background (non-blocking)
-scheduler start --head --block=false
+# Start in foreground (blocking)
+scheduler start --head --block
 ```
 
 **Important Notes on GPU Scheduling:**

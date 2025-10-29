@@ -306,8 +306,7 @@ class TestCLIStart:
             ["conda", "run", "-n", "scheduler", "scheduler", "start",
              "--address", running_cluster['head_address'],
              "--node-name", worker_name,
-             "--temp-dir", temp_test_dir,
-             "--block=false"],
+             "--temp-dir", temp_test_dir],
             capture_output=True,
             text=True,
             timeout=15
@@ -654,8 +653,7 @@ class TestCLIStop:
             ["conda", "run", "-n", "scheduler", "scheduler", "start", 
              "--address", running_cluster['head_address'],
              "--node-name", "test-stop-worker",
-             "--temp-dir", temp_test_dir,
-             "--block=false"],
+             "--temp-dir", temp_test_dir],
             capture_output=True,
             text=True,
             timeout=10
