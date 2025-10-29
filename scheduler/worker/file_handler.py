@@ -125,3 +125,17 @@ class FileHandler:
         suffix = 'stderr' if stderr else 'stdout'
         log_filename = f"{job_id}.{suffix}.log"
         return os.path.join(self.log_dir, log_filename)
+
+    def get_job_snapshot_dir(self, job_id: str) -> str:
+        """
+        Get directory path for job snapshot restoration.
+
+        Args:
+            job_id: Job ID
+
+        Returns:
+            Path to snapshot directory
+        """
+        snapshot_dir = os.path.join(self.work_dir, "snapshots", job_id)
+        os.makedirs(snapshot_dir, exist_ok=True)
+        return snapshot_dir

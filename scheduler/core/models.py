@@ -340,6 +340,8 @@ class Job:
     exit_code: Optional[int] = None
     error_message: Optional[str] = None
     versioned_script_path: Optional[str] = None
+    snapshot_ref: Optional[str] = None
+    snapshot_working_dir: Optional[str] = None
 
     def __init__(
         self,
@@ -360,7 +362,9 @@ class Job:
         assigned_gpus: Optional[List[int]] = None,
         exit_code: Optional[int] = None,
         error_message: Optional[str] = None,
-        versioned_script_path: Optional[str] = None
+        versioned_script_path: Optional[str] = None,
+        snapshot_ref: Optional[str] = None,
+        snapshot_working_dir: Optional[str] = None
     ):
         """
         Initialize job.
@@ -384,6 +388,8 @@ class Job:
             exit_code: Process exit code
             error_message: Error message if failed
             versioned_script_path: Path to versioned script copy
+            snapshot_ref: Git snapshot reference (commit SHA or commit:stash)
+            snapshot_working_dir: Original working directory for snapshot
         """
         self.job_id = job_id
         self.name = name
@@ -403,6 +409,8 @@ class Job:
         self.exit_code = exit_code
         self.error_message = error_message
         self.versioned_script_path = versioned_script_path
+        self.snapshot_ref = snapshot_ref
+        self.snapshot_working_dir = snapshot_working_dir
 
     @property
     def start_time(self) -> Optional[datetime]:
@@ -464,7 +472,9 @@ class Job:
             'assigned_gpus': self.assigned_gpus,
             'exit_code': self.exit_code,
             'error_message': self.error_message,
-            'versioned_script_path': self.versioned_script_path
+            'versioned_script_path': self.versioned_script_path,
+            'snapshot_ref': self.snapshot_ref,
+            'snapshot_working_dir': self.snapshot_working_dir
         }
 
     @classmethod
@@ -506,7 +516,9 @@ class Job:
             assigned_gpus=data.get('assigned_gpus'),
             exit_code=data.get('exit_code'),
             error_message=data.get('error_message'),
-            versioned_script_path=data.get('versioned_script_path')
+            versioned_script_path=data.get('versioned_script_path'),
+            snapshot_ref=data.get('snapshot_ref'),
+            snapshot_working_dir=data.get('snapshot_working_dir')
         )
 
 
