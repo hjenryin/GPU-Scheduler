@@ -1,8 +1,8 @@
-# Shadow Git Repository Implementation Plan
+# Per-Workspace Shadow Git Repository Implementation
 
 ## Overview
 
-This document describes the implementation of a shadow git repository system for job configuration snapshots. Unlike the previous stash-based approach, this system maintains a separate git repository completely under the scheduler's control.
+This document describes the implementation of per-workspace shadow git repositories for job configuration snapshots. Each workspace gets its own shadow repository that tracks files in-place using git's `--git-dir` and `--work-tree` capabilities.
 
 ## Design Philosophy
 
@@ -10,21 +10,31 @@ This document describes the implementation of a shadow git repository system for
 
 The scheduler operates independently of the user's workflow. Users never interact with the shadow repository directly - it's purely an internal mechanism for the scheduler.
 
-### Shadow Repository Approach
+### Per-Workspace Shadow Repositories
 
-Instead of using the user's git repository (if they have one), the scheduler maintains its own separate git repository:
+Instead of a unified shadow repository, each workspace maintains its own:
 
-- **Location**: `~/.scheduler/shadow_repo/`
-- **Independence**: Completely separate from user's git (if any)
-- **Control**: Scheduler has full control over this repository
+- **Location**: `{workspace}/.scheduler-git/`
+- **Independence**: One shadow repo per workspace for better isolation
+- **Control**: Scheduler has full control over these repositories
 - **No User Impact**: Never modifies user's working directory or their git state
+- **Colocated**: Shadow repos live alongside the workspaces they track
+
+### Direct Git Operations (No File Copying)
+
+The system uses git's `--git-dir` and `--work-tree` flags to track files in-place:
+
+- **No Duplication**: Files remain in user's working directory
+- **Direct Tracking**: Git commits files from their original location
+- **Efficient**: No copying or moving of files
+- **Clean**: Shadow repo only contains git metadata and one README.md
 
 ### Smart File Selection
 
 The system only snapshots files that are likely needed for reproducibility:
 
 - **Size-based filtering**: Exclude files over 20MB by default
-- **Pattern-based filtering**: Always exclude `__pycache__`, `.git`, build artifacts
+- **Pattern-based filtering**: Always exclude `__pycache__`, `.git`, `.scheduler-git`, build artifacts
 - **Extension-based inclusion**: Always include source code, configs, scripts
 - **Configurable**: Thresholds and patterns can be adjusted
 
@@ -34,11 +44,12 @@ The system only snapshots files that are likely needed for reproducibility:
 
 When a user submits a job, the scheduler:
 
-1. Collects relevant files from the working directory based on filters
-2. Copies selected files to the shadow repository
-3. Creates a commit in a job-specific branch
-4. Returns the commit SHA as the snapshot reference
-5. User continues working normally (no changes to their files)
+1. Ensures shadow repo exists at `{workspace}/.scheduler-git/`
+2. Collects relevant files from the working directory based on filters
+3. Uses `git --git-dir` and `--work-tree` to add/commit files directly from workspace
+4. Creates a commit in a job-specific branch
+5. Returns the commit SHA as the snapshot reference
+6. User continues working normally (no changes to their files)
 
 ### Job Execution
 
@@ -53,11 +64,15 @@ When the job runs, the scheduler:
 
 ### Shadow Repository Structure
 
+Per workspace:
 ```
-~/.scheduler/shadow_repo/
-├── .git/                    # Git metadata
-├── README.md               # Initial commit marker
-└── (branches for each job)
+/path/to/workspace/
+├── .scheduler-git/          # Shadow repo (auto-created)
+│   ├── .git/                # Git metadata
+│   └── README.md            # Initial marker
+├── your_code.py             # User's files (tracked in-place)
+├── config.yaml              # User's files (tracked in-place)
+└── ...                      # User's files (tracked in-place)
 ```
 
 Each job gets its own branch:
@@ -70,33 +85,40 @@ Each job gets its own branch:
 **Inclusion Rules:**
 1. **Always include** if extension in: `.py`, `.sh`, `.yaml`, `.yml`, `.json`, `.txt`, `.md`, `.toml`, `.ini`, `.cfg`, `.conf`, `.env`
 2. **Include if small** (< 20MB) and not in exclusion list
-3. **Exclude** if in patterns: `__pycache__`, `.pytest_cache`, `.git`, `*.pyc`, `*.log`, `.coverage`, etc.
+3. **Exclude** if in patterns: `__pycache__`, `.pytest_cache`, `.git`, `.scheduler-git`, `*.pyc`, `*.log`, `.coverage`, etc.
 
 **Example:**
 ```python
 # Included: train.py, config.yaml, requirements.txt
-# Excluded: large_model.pth (>20MB), __pycache__/*, .git/
+# Excluded: large_model.pth (>20MB), __pycache__/*, .git/, .scheduler-git/
 ```
 
 ### Git Operations
 
-All git operations use explicit git commands with the shadow repository path:
+All git operations use `--git-dir` and `--work-tree` to track files in-place:
 
 ```bash
-# Never touches user's git
-git --git-dir=~/.scheduler/shadow_repo/.git --work-tree=~/.scheduler/shadow_repo ...
+# Define paths
+WORKSPACE=/path/to/workspace
+SHADOW_GIT=$WORKSPACE/.scheduler-git/.git
 
-# Create snapshot (in shadow repo)
-git checkout -b job-abc123
-git add selected_files...
-git commit -m "Snapshot for job abc123"
+# Create snapshot (NO file copying - tracks in-place)
+git --git-dir=$SHADOW_GIT --work-tree=$WORKSPACE checkout -b job-abc123
+git --git-dir=$SHADOW_GIT --work-tree=$WORKSPACE add train.py config.yaml
+git --git-dir=$SHADOW_GIT --work-tree=$WORKSPACE commit -m "Snapshot for job abc123"
 
 # Restore snapshot (via worktree)
-git worktree add /tmp/job-abc123 job-abc123
+git --git-dir=$SHADOW_GIT worktree add /tmp/job-abc123 job-abc123
 
 # Cleanup
-git worktree remove /tmp/job-abc123
+git --git-dir=$SHADOW_GIT worktree remove /tmp/job-abc123
 ```
+
+**Key Points:**
+- Files never leave the workspace directory
+- Shadow repo only contains git metadata
+- `--work-tree` tells git where the actual files are
+- `--git-dir` tells git where to store metadata
 
 ### Integration Points
 
@@ -106,7 +128,7 @@ def submit_job(self, ...):
     # Existing job creation code
     job = Job(...)
     
-    # NEW: Create snapshot in shadow repo
+    # NEW: Create snapshot in per-workspace shadow repo
     git_manager = GitSnapshotManager(self.config)
     if git_manager.is_git_repository(working_dir):  # Always True now
         snapshot_ref = git_manager.create_snapshot(job_id, working_dir)
@@ -121,7 +143,9 @@ def execute_job(self, job: Job, gpu_ids: List[int]):
     # NEW: Restore snapshot to worktree if available
     if job.snapshot_ref and job.snapshot_working_dir:
         worktree_dir = self.file_handler.get_job_snapshot_dir(job.job_id)
-        if git_manager.restore_snapshot(job.job_id, job.snapshot_ref, worktree_dir):
+        if git_manager.restore_snapshot(
+            job.job_id, job.snapshot_ref, job.snapshot_working_dir, worktree_dir
+        ):
             # Execute job in worktree
             actual_working_dir = worktree_dir
         else:
