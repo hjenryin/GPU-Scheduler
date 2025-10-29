@@ -4,7 +4,7 @@ from textual.widgets import Header, Footer, Static, DataTable
 from textual.containers import Container, VerticalScroll
 from typing import List
 import logging
-from scheduler.core import Node, Job  # Import from peer submodule's public API
+from scheduler.core import Node, Job, NodeStatus  # Import from peer submodule's public API
 from scheduler.tui.utils import get_status_color, create_gpu_utilization_bar, format_runtime
 
 logger = logging.getLogger(__name__)
@@ -68,14 +68,14 @@ class ClusterScreen(Screen):
         """
         logger.info(f"ClusterScreen.update_data called with {len(nodes)} nodes and {len(jobs)} jobs")
         
-        # Update summary
-        total_gpus = sum(node.num_gpus for node in nodes)
+        # Update summary - filter to only show connected nodes
+        connected_nodes_list = [n for n in nodes if n.status == NodeStatus.CONNECTED]
+        connected_nodes = len(connected_nodes_list)
+        
+        total_gpus = sum(node.num_gpus for node in connected_nodes_list)
         # Use the proper get_free_gpus method like the scheduler does
-        free_gpus = sum(len(node.get_free_gpus(util_threshold, mem_threshold, stable_time)) for node in nodes)
+        free_gpus = sum(len(node.get_free_gpus(util_threshold, mem_threshold, stable_time)) for node in connected_nodes_list)
         in_use_gpus = total_gpus - free_gpus
-
-        connected_nodes = len([n for n in nodes if n.status == "connected"])
-        disconnected_nodes = len([n for n in nodes if n.status == "disconnected"])
 
         pending_jobs = len([j for j in jobs if j.status.value == "pending"])
         running_jobs = len([j for j in jobs if j.status.value == "running"])
@@ -83,31 +83,31 @@ class ClusterScreen(Screen):
         failed_jobs = len([j for j in jobs if j.status.value == "failed"])
 
         summary = (
-            f"Nodes: {connected_nodes} connected, {disconnected_nodes} disconnected | "
+            f"Nodes: {connected_nodes} connected | "
             f"GPUs: {total_gpus} total, {free_gpus} free, {in_use_gpus} in use\n"
             f"Jobs: {pending_jobs} pending, {running_jobs} running, {completed_jobs} completed, {failed_jobs} failed"
         )
         logger.info(f"Summary: {summary}")
         self.query_one("#cluster-summary", Static).update(summary)
 
-        # Update node table
+        # Update node table - only show connected nodes
         node_table = self.query_one("#node-table", DataTable)
         node_table.clear()
-        for node in nodes:
+        for node in connected_nodes_list:
             free_gpu_count = len(node.get_free_gpus(util_threshold, mem_threshold, stable_time))
             running_job_count = len([j for j in jobs if j.assigned_node == node.node_name and j.status.value == "running"])
             node_table.add_row(
                 node.node_name,
-                node.status,
+                node.status.value,
                 str(node.num_gpus),
                 str(free_gpu_count),
                 f"{running_job_count} jobs",
                 "N/A"  # TODO: Calculate time since last heartbeat
             )
 
-        # Update GPU bars
+        # Update GPU bars - only show connected nodes
         gpu_bars_text = ""
-        for node in nodes:
+        for node in connected_nodes_list:
             logger.info(f"Node {node.node_name}: {len(node.gpus)} GPUs")
             gpu_line = f"{node.node_name}: "
             for gpu in node.gpus[:4]:  # Show first 4 GPUs

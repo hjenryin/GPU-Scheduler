@@ -63,7 +63,7 @@ class TestClusterScreen:
 
     @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one', autospec=True)
     def test_update_data_node_table(self, mock_query_one, mock_nodes, mock_jobs):
-        """Test node table update."""
+        """Test node table update - only connected nodes are shown."""
         screen = ClusterScreen()
         
         mock_node_table = create_autospec(DataTable, instance=True, spec_set=True)
@@ -73,9 +73,10 @@ class TestClusterScreen:
 
         screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
-        # Verify table operations
+        # Verify table operations - only connected nodes should be added
+        connected_nodes = [n for n in mock_nodes if n.status == NodeStatus.CONNECTED]
         mock_node_table.clear.assert_called_once()
-        assert mock_node_table.add_row.call_count == len(mock_nodes)
+        assert mock_node_table.add_row.call_count == len(connected_nodes)
 
     @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one', autospec=True)
     def test_update_data_gpu_bars(self, mock_query_one, mock_nodes, mock_jobs):

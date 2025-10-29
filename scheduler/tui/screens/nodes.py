@@ -65,7 +65,7 @@ class NodesScreen(Screen):
 
         # Set up GPU detail table
         gpu_table = self.query_one("#gpu-detail-table", DataTable)
-        gpu_table.add_columns("GPU", "Util", "Memory", "Temp", "Power", "Job")
+        gpu_table.add_columns("GPU", "Util", "Memory", "Temp", "Power", "Status", "Job")
 
     def update_data(self, nodes: List[Node], jobs: List[Job], util_threshold: float = 10.0, mem_threshold: float = 10.0, stable_time: int = 30):
         """
@@ -150,12 +150,15 @@ class NodesScreen(Screen):
             is_stable = gpu.is_stable(self.stable_time)
             
             if is_free and is_stable:
-                job_id = "free"
+                status = "Free"
+                job_id = "-"
             elif gpu.stats.running_job_id is not None:
+                status = "In Use"
                 job_id = gpu.stats.running_job_id
             else:
                 # GPU has no job but is not yet stable or above thresholds
-                job_id = "waiting"
+                status = "Waiting"
+                job_id = "-"
             
             gpu_table.add_row(
                 str(gpu.gpu_id),
@@ -163,6 +166,7 @@ class NodesScreen(Screen):
                 f"{format_gpu_memory(gpu.stats.memory_used)}/{format_gpu_memory(gpu.stats.memory_total)}",
                 f"{gpu.stats.temperature}°C" if gpu.stats.temperature else "N/A",
                 f"{gpu.stats.power_draw}W" if gpu.stats.power_draw else "N/A",
+                status,
                 job_id
             )
 

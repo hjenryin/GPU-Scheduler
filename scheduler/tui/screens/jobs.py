@@ -3,6 +3,7 @@ from textual.screen import Screen
 from textual.app import ComposeResult
 from textual.widgets import Header, Footer, Static, DataTable, Input
 from textual.containers import Container, Horizontal, Vertical
+from textual import events
 from scheduler.core import Job  # Import from peer submodule's public API
 from scheduler.tui.utils import format_runtime
 
@@ -179,3 +180,15 @@ class JobsScreen(Screen):
             row_data = jobs_table.get_row(row_key)
             job_id = str(row_data[0])
             self.on_job_selected(job_id)
+
+    def on_key(self, event: events.Key) -> None:
+        """Handle key events, especially escape when input is focused."""
+        if event.key == "escape":
+            # Check if the search input is focused
+            search_input = self.query_one("#search-input", Input)
+            if search_input.has_focus:
+                # Blur the input instead of going back
+                search_input.blur()
+                event.prevent_default()
+                event.stop()
+            # If input is not focused, let the default escape binding handle it
