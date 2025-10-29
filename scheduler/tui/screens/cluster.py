@@ -20,7 +20,6 @@ class ClusterScreen(Screen):
         ("n", "switch_to_nodes", "Nodes"),
         ("j", "switch_to_jobs", "Jobs"),
         ("g", "switch_to_gpus", "GPUs"),
-        ("escape", "switch_to_cluster", "Cluster"),
         ("q", "quit", "Quit"),
         ("h", "help", "Help"),
         ("r", "refresh", "Refresh"),
@@ -114,6 +113,11 @@ class ClusterScreen(Screen):
 
         # Update node table - show active nodes (exclude disconnected)
         node_table = self.query_one("#node-table", DataTable)
+        # Preserve cursor position
+        try:
+            old_cursor = node_table.cursor_row if node_table.row_count > 0 else 0
+        except (TypeError, AttributeError):
+            old_cursor = 0
         node_table.clear()
         for node in active_nodes_list:
             free_gpu_count = len(
@@ -134,6 +138,12 @@ class ClusterScreen(Screen):
                 f"{running_job_count} jobs",
                 format_time_ago(node.last_heartbeat),
             )
+        # Restore cursor position if table has rows
+        try:
+            if node_table.row_count > 0:
+                node_table.move_cursor(row=min(old_cursor, node_table.row_count - 1))
+        except (TypeError, AttributeError):
+            pass
 
         # Update GPU status - show active nodes (exclude disconnected)
         gpu_status_text = ""
@@ -176,6 +186,11 @@ class ClusterScreen(Screen):
 
         # Update job table (show active jobs)
         job_table = self.query_one("#job-table", DataTable)
+        # Preserve cursor position
+        try:
+            old_cursor_job = job_table.cursor_row if job_table.row_count > 0 else 0
+        except (TypeError, AttributeError):
+            old_cursor_job = 0
         job_table.clear()
         active_jobs = [j for j in jobs if j.status.value in ["pending", "running"]][:10]
         for job in active_jobs:
@@ -187,3 +202,9 @@ class ClusterScreen(Screen):
                 str(job.requirements) if job.requirements else "?",
                 format_runtime(job.runtime) if hasattr(job, "runtime") else "-",
             )
+        # Restore cursor position if table has rows
+        try:
+            if job_table.row_count > 0:
+                job_table.move_cursor(row=min(old_cursor_job, job_table.row_count - 1))
+        except (TypeError, AttributeError):
+            pass

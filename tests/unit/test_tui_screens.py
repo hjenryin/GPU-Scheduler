@@ -157,7 +157,7 @@ class TestNodesScreen:
         """Test NodesScreen has correct key bindings."""
         screen = NodesScreen()
         binding_keys = [binding[0] for binding in screen.BINDINGS]
-        expected_keys = ["n", "j", "g", "q", "h"]
+        expected_keys = ["c", "j", "g", "q", "h"]
         for key in expected_keys:
             assert key in binding_keys
 

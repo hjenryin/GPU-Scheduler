@@ -12,7 +12,8 @@ class JobsScreen(Screen):
     """Jobs list screen with filtering and sorting"""
 
     BINDINGS = [
-        ("n", "switch_to_cluster", "Overview"),
+        ("c", "switch_to_cluster", "Cluster"),
+        ("n", "switch_to_nodes", "Nodes"),
         ("g", "switch_to_gpus", "GPUs"),
         ("q", "quit", "Quit"),
         ("h", "help", "Help"),
@@ -96,6 +97,11 @@ class JobsScreen(Screen):
 
         # Update table
         jobs_table = self.query_one("#jobs-table", DataTable)
+        # Preserve cursor position
+        try:
+            old_cursor = jobs_table.cursor_row if jobs_table.row_count > 0 else 0
+        except (TypeError, AttributeError):
+            old_cursor = 0
         jobs_table.clear()
         for job in filtered_jobs:
             submitted_time = (
@@ -112,6 +118,12 @@ class JobsScreen(Screen):
                 format_runtime(job.runtime) if hasattr(job, "runtime") else "-",
                 submitted_time,
             )
+        # Restore cursor position if table has rows
+        try:
+            if jobs_table.row_count > 0:
+                jobs_table.move_cursor(row=min(old_cursor, jobs_table.row_count - 1))
+        except (TypeError, AttributeError):
+            pass
 
     def on_input_changed(self, event):
         """Handle search input changes."""

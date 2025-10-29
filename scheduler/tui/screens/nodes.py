@@ -11,7 +11,7 @@ class NodesScreen(Screen):
     """Detailed node information screen"""
 
     BINDINGS = [
-        ("n", "switch_to_cluster", "Overview"),
+        ("c", "switch_to_cluster", "Cluster"),
         ("j", "switch_to_jobs", "Jobs"),
         ("g", "switch_to_gpus", "GPUs"),
         ("q", "quit", "Quit"),
@@ -97,11 +97,22 @@ class NodesScreen(Screen):
 
         # Update nodes list
         nodes_list = self.query_one("#nodes-list", DataTable)
+        # Preserve cursor position
+        try:
+            old_cursor = nodes_list.cursor_row if nodes_list.row_count > 0 else 0
+        except (TypeError, AttributeError):
+            old_cursor = 0
         nodes_list.clear()
         for node in active_nodes:
             nodes_list.add_row(
                 node.node_name, node.status.value.capitalize(), f"{node.num_gpus} GPUs"
             )
+        # Restore cursor position if table has rows
+        try:
+            if nodes_list.row_count > 0:
+                nodes_list.move_cursor(row=min(old_cursor, nodes_list.row_count - 1))
+        except (TypeError, AttributeError):
+            pass
 
         # If a node was selected, update its details
         if self.selected_node:
@@ -155,6 +166,11 @@ class NodesScreen(Screen):
 
         # Update GPU table
         gpu_table = self.query_one("#gpu-detail-table", DataTable)
+        # Preserve cursor position
+        try:
+            old_cursor_gpu = gpu_table.cursor_row if gpu_table.row_count > 0 else 0
+        except (TypeError, AttributeError):
+            old_cursor_gpu = 0
         gpu_table.clear()
         for gpu in node.gpus:
             # Use same logic as GPU screen for consistency
@@ -181,6 +197,12 @@ class NodesScreen(Screen):
                 status,
                 job_id,
             )
+        # Restore cursor position if table has rows
+        try:
+            if gpu_table.row_count > 0:
+                gpu_table.move_cursor(row=min(old_cursor_gpu, gpu_table.row_count - 1))
+        except (TypeError, AttributeError):
+            pass
 
         # Update running jobs
         running_jobs = [

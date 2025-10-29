@@ -11,7 +11,8 @@ class GPUsScreen(Screen):
     """GPU details screen showing all GPUs across all nodes"""
 
     BINDINGS = [
-        ("n", "switch_to_cluster", "Overview"),
+        ("c", "switch_to_cluster", "Cluster"),
+        ("n", "switch_to_nodes", "Nodes"),
         ("j", "switch_to_jobs", "Jobs"),
         ("q", "quit", "Quit"),
         ("h", "help", "Help"),
@@ -98,6 +99,11 @@ class GPUsScreen(Screen):
 
         # Update GPU table (only for active nodes)
         gpu_table = self.query_one("#gpus-table", DataTable)
+        # Preserve cursor position
+        try:
+            old_cursor = gpu_table.cursor_row if gpu_table.row_count > 0 else 0
+        except (TypeError, AttributeError):
+            old_cursor = 0
         gpu_table.clear()
 
         for node in active_nodes:
@@ -129,3 +135,9 @@ class GPUsScreen(Screen):
                     status,
                     job_id,
                 )
+        # Restore cursor position if table has rows
+        try:
+            if gpu_table.row_count > 0:
+                gpu_table.move_cursor(row=min(old_cursor, gpu_table.row_count - 1))
+        except (TypeError, AttributeError):
+            pass
