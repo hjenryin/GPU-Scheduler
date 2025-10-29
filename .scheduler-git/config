@@ -1,0 +1,7 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+[user]
+	email = scheduler@localhost
+	name = GPU Scheduler

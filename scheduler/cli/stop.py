@@ -97,11 +97,8 @@ def _stop_all_nodes() -> int:
         # Load configuration to get head node address
         config = load_config()
         
-        # Get head node address from config or use default
-        address = config.address if config.address else f'localhost:{config.head.port}'
-        
-        # Create client to connect to head node
-        client = SchedulerClient(address=address, config=config)
+        # Create client (will auto-detect address from worker lock or config)
+        client = SchedulerClient(config=config)
         
         # Get list of all nodes
         nodes = client.list_nodes()
