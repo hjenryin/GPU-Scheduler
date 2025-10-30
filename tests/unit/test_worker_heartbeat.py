@@ -159,7 +159,10 @@ class TestHeartbeatSender:
     def test_start_heartbeat(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test starting heartbeat thread"""
         mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance.get_latest_stats.return_value = []
+        
         mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance.send_heartbeat.return_value = False  # No shutdown requested
         mock_client_class.return_value = mock_client_instance
 
         sender = HeartbeatSender(
@@ -183,7 +186,10 @@ class TestHeartbeatSender:
     def test_stop_heartbeat(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test stopping heartbeat thread"""
         mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance.get_latest_stats.return_value = []
+        
         mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance.send_heartbeat.return_value = False  # No shutdown requested
         mock_client_class.return_value = mock_client_instance
 
         sender = HeartbeatSender(
@@ -208,7 +214,10 @@ class TestHeartbeatSender:
     def test_start_already_running(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test starting heartbeat when already running"""
         mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance.get_latest_stats.return_value = []
+        
         mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance.send_heartbeat.return_value = False  # No shutdown requested
         mock_client_class.return_value = mock_client_instance
 
         sender = HeartbeatSender(
@@ -255,6 +264,7 @@ class TestHeartbeatSender:
         mock_gpu_monitor_instance.get_latest_stats.return_value = []
 
         mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance.send_heartbeat.return_value = False  # No shutdown requested
         mock_client_class.return_value = mock_client_instance
 
         # Mock sleep to control loop iterations
@@ -337,3 +347,81 @@ class TestHeartbeatSender:
         )
 
         assert sender.heartbeat_interval == 15
+
+    @patch('scheduler.worker.heartbeat.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
+    def test_send_heartbeat_with_shutdown_requested(self, mock_gpu_monitor, mock_client_class, test_config):
+        """Test heartbeat detects shutdown request from head node"""
+        mock_gpu_monitor_instance = Mock()
+        mock_stats = [
+            GPUStats(gpu_id=0, utilization=50.0, memory_used=1024, memory_total=2048, temperature=60, power_draw=100, power_limit=250)
+        ]
+        mock_gpu_monitor_instance.get_latest_stats.return_value = mock_stats
+
+        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance.send_heartbeat.return_value = True  # Shutdown requested
+        mock_client_class.return_value = mock_client_instance
+
+        sender = HeartbeatSender(
+            node_name="test-node",
+            head_address="localhost:8265",
+            gpu_monitor=mock_gpu_monitor_instance,
+            config=test_config
+        )
+
+        result = sender.send_heartbeat()
+
+        assert result is True
+        mock_client_instance.send_heartbeat.assert_called_once_with("test-node", mock_stats)
+
+    @patch('scheduler.worker.heartbeat.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
+    def test_send_heartbeat_without_shutdown_requested(self, mock_gpu_monitor, mock_client_class, test_config):
+        """Test heartbeat when no shutdown is requested"""
+        mock_gpu_monitor_instance = Mock()
+        mock_stats = [
+            GPUStats(gpu_id=0, utilization=50.0, memory_used=1024, memory_total=2048, temperature=60, power_draw=100, power_limit=250)
+        ]
+        mock_gpu_monitor_instance.get_latest_stats.return_value = mock_stats
+
+        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance.send_heartbeat.return_value = False  # No shutdown requested
+        mock_client_class.return_value = mock_client_instance
+
+        sender = HeartbeatSender(
+            node_name="test-node",
+            head_address="localhost:8265",
+            gpu_monitor=mock_gpu_monitor_instance,
+            config=test_config
+        )
+
+        result = sender.send_heartbeat()
+
+        assert result is False
+        mock_client_instance.send_heartbeat.assert_called_once_with("test-node", mock_stats)
+
+    @patch('scheduler.worker.heartbeat.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
+    def test_is_shutdown_requested(self, mock_gpu_monitor, mock_client_class, test_config):
+        """Test is_shutdown_requested method"""
+        mock_gpu_monitor_instance = Mock()
+        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_class.return_value = mock_client_instance
+
+        sender = HeartbeatSender(
+            node_name="test-node",
+            head_address="localhost:8265",
+            gpu_monitor=mock_gpu_monitor_instance,
+            config=test_config
+        )
+
+        # Initially running should be False, so shutdown is requested (not running)
+        assert sender.is_shutdown_requested() is True
+        
+        # Start the sender
+        sender.running = True
+        assert sender.is_shutdown_requested() is False
+        
+        # Stop it
+        sender.running = False
+        assert sender.is_shutdown_requested() is True
