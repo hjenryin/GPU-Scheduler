@@ -541,6 +541,42 @@ Requirements: 2 GPUs on any node
 View status: scheduler status (then press 'J' and search for job)
 ```
 
+**Automatic Workspace Snapshots:**
+
+When you submit a job, the scheduler automatically creates a git-based snapshot of your workspace:
+
+1. **Shadow Repository**: A `.scheduler-git/` directory is created in your workspace (if not already present)
+2. **File Selection**: Files are filtered based on size limits and patterns (configurable)
+3. **Snapshot Creation**: Selected files are committed to a job-specific branch
+4. **Isolated Execution**: Job runs in an isolated worktree at `~/.scheduler/work/job-{job_id}/snapshot/`
+
+This ensures your job runs with the exact files that existed at submission time, even if you continue modifying them while the job is pending.
+
+**What Gets Snapshotted:**
+- Python scripts (`.py`, `.sh`)
+- Configuration files (`.yaml`, `.json`, `.toml`, `.ini`, `.cfg`)
+- Small data files (under 1 MB by default, configurable per type)
+- Documentation (`.txt`, `.md`)
+
+**What Doesn't Get Snapshotted:**
+- Large files (over configured size limit)
+- Build artifacts (`__pycache__`, `*.pyc`)
+- Git repositories (`.git`, `.scheduler-git`)
+- Folders with >1000 files (configurable)
+
+**Configuration Example:**
+
+```yaml
+# In ~/.scheduler/config.yaml
+snapshot_max_file_size: 2097152  # 2 MB
+snapshot_data_type_limits:
+  .npy: 20971520  # 20 MB for numpy arrays
+```
+
+**Note**: Your original workspace files are never modified. The shadow repository tracks files in-place using git's `--work-tree` feature.
+
+**For complete snapshot documentation, see [GIT_DEV_PLAN.md](GIT_DEV_PLAN.md)**
+
 **Job ID Assignment:**
 The command returns the job ID which can be captured:
 ```bash
@@ -745,6 +781,17 @@ head:
 # Client defaults
 client:
   default_req: "1"  # Default GPU requirement
+
+# Git snapshot settings
+snapshot_max_file_size: 1048576  # 1 MB default
+snapshot_max_files_per_folder: 1000
+snapshot_data_type_limits:
+  .npy: 10485760   # 10 MB for numpy arrays
+  .pkl: 5242880    # 5 MB for pickle files
+  .json: 2097152   # 2 MB for JSON files
+  .csv: 5242880    # 5 MB for CSV files
+snapshot_always_include_extensions: ['.py', '.sh', '.yaml', '.json', '.txt', '.md', '.toml', '.ini', '.cfg', '.conf', '.env']
+snapshot_exclude_patterns: ['__pycache__', '.git', '.scheduler-git', '*.pyc']
 ```
 
 ---
@@ -1068,7 +1115,7 @@ When multiple node options are specified (comma-separated), the scheduler:
 1. **No Sudo Required**: All operations use user-space directories and ports >= 1024
 2. **Job IDs**: All job IDs are in the format `job_<uuid>` (e.g., `job_abc123def456`)
 3. **Node Names**: Node names must be unique and URL-safe (alphanumeric + hyphens/underscores)
-4. **File Versioning**: Jobs create versioned copies of scripts automatically (e.g., `train.py.scheduler_job_abc123_a1b2c3d4.py`)
+4. **Workspace Snapshots**: Jobs with snapshots execute in isolated git worktrees at `~/.scheduler/work/job-abc123def456/snapshot/` to ensure reproducibility
 5. **GPU Allocation**: GPUs are allocated via `CUDA_VISIBLE_DEVICES` environment variable
 6. **Logs**: All job logs are stored in `<log-dir>/<job-id>/` on the executing node
 7. **Auto-detection**: Commands automatically find the head node from local instance, config file, or environment variable

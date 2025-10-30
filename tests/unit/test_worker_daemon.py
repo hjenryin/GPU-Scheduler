@@ -521,3 +521,97 @@ class TestWorkerDaemon:
 
         # Daemon should be stopped
         assert daemon.running is False
+
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
+    @patch('scheduler.worker.daemon.time.sleep', autospec=True)
+    def test_execute_job_calls_cleanup_on_completion(self, mock_sleep, mock_file_handler, 
+                                                     mock_gpu_monitor, mock_job_executor,
+                                                     mock_heartbeat, mock_client, test_config, sample_job):
+        """Test that cleanup_job is called when job completes successfully"""
+        mock_monitor_instance = Mock()
+        mock_monitor_instance.detect_gpus.return_value = 2
+        mock_gpu_monitor.return_value = mock_monitor_instance
+
+        mock_executor_instance = Mock()
+        mock_executor_instance.execute_job.return_value = 12345
+        # Job completes immediately
+        mock_executor_instance.get_job_status.return_value = (False, 0)
+        mock_job_executor.return_value = mock_executor_instance
+
+        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client.return_value = mock_client_instance
+
+        daemon = WorkerDaemon(test_config, node_name="test-node")
+        daemon.running = True
+        
+        # Execute job
+        daemon._execute_job(sample_job)
+
+        # Verify cleanup_job was called
+        mock_executor_instance.cleanup_job.assert_called_once_with(sample_job)
+
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
+    @patch('scheduler.worker.daemon.time.sleep', autospec=True)
+    def test_execute_job_calls_cleanup_on_failure(self, mock_sleep, mock_file_handler,
+                                                   mock_gpu_monitor, mock_job_executor,
+                                                   mock_heartbeat, mock_client, test_config, sample_job):
+        """Test that cleanup_job is called when job fails"""
+        mock_monitor_instance = Mock()
+        mock_monitor_instance.detect_gpus.return_value = 2
+        mock_gpu_monitor.return_value = mock_monitor_instance
+
+        mock_executor_instance = Mock()
+        mock_executor_instance.execute_job.return_value = 12345
+        # Job fails with exit code 1
+        mock_executor_instance.get_job_status.return_value = (False, 1)
+        mock_job_executor.return_value = mock_executor_instance
+
+        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client.return_value = mock_client_instance
+
+        daemon = WorkerDaemon(test_config, node_name="test-node")
+        daemon.running = True
+        
+        # Execute job
+        daemon._execute_job(sample_job)
+
+        # Verify cleanup_job was called
+        mock_executor_instance.cleanup_job.assert_called_once_with(sample_job)
+
+    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
+    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
+    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
+    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
+    def test_execute_job_calls_cleanup_on_exception(self, mock_file_handler,
+                                                    mock_gpu_monitor, mock_job_executor,
+                                                    mock_heartbeat, mock_client, test_config, sample_job):
+        """Test that cleanup_job is called when job execution raises exception"""
+        mock_monitor_instance = Mock()
+        mock_monitor_instance.detect_gpus.return_value = 2
+        mock_gpu_monitor.return_value = mock_monitor_instance
+
+        mock_executor_instance = Mock()
+        # Simulate exception during execution
+        mock_executor_instance.execute_job.side_effect = RuntimeError("Test error")
+        mock_job_executor.return_value = mock_executor_instance
+
+        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client.return_value = mock_client_instance
+
+        daemon = WorkerDaemon(test_config, node_name="test-node")
+        daemon.running = True
+        
+        # Execute job (should handle exception)
+        daemon._execute_job(sample_job)
+
+        # Verify cleanup_job was called
+        mock_executor_instance.cleanup_job.assert_called_once_with(sample_job)

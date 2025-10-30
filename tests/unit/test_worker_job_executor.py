@@ -395,3 +395,235 @@ class TestJobExecutor:
         # Verify start_new_session was set
         call_args = mock_popen.call_args
         assert call_args[1]['start_new_session'] is True
+
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
+    @patch('builtins.open', new_callable=mock_open)
+    def test_execute_job_with_snapshot(self, mock_file, mock_popen, test_config):
+        """Test job execution with git snapshot"""
+        mock_process = mock_popen.return_value
+        mock_process.pid = 12345
+
+        executor = JobExecutor(test_config)
+        
+        # Mock git snapshot manager
+        executor.git_snapshot.restore_snapshot = Mock(return_value=True)
+        
+        # Create job with snapshot
+        job = Job(
+            job_id="test-job",
+            name="test",
+            script="/workspace/train.py",
+            requirements=JobRequirement("1"),
+            status=JobStatus.PENDING,
+            snapshot_ref="abc123",
+            snapshot_working_dir="/workspace"
+        )
+        
+        pid = executor.execute_job(job, [0])
+        
+        # Verify snapshot was restored
+        executor.git_snapshot.restore_snapshot.assert_called_once()
+        call_args = executor.git_snapshot.restore_snapshot.call_args
+        assert call_args[0][0] == "test-job"
+        assert call_args[0][1] == "abc123"
+        assert call_args[0][2] == "/workspace"
+        
+        # Verify job is tracked in worktrees
+        assert "test-job" in executor.job_worktrees
+        
+        # Verify execution happened
+        assert pid == 12345
+
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
+    @patch('builtins.open', new_callable=mock_open)
+    def test_execute_job_with_snapshot_in_subdirectory(self, mock_file, mock_popen, test_config):
+        """Test job execution with script in subdirectory"""
+        mock_process = mock_popen.return_value
+        mock_process.pid = 12345
+
+        executor = JobExecutor(test_config)
+        
+        # Mock git snapshot manager
+        executor.git_snapshot.restore_snapshot = Mock(return_value=True)
+        
+        # Create job with script in subdirectory
+        job = Job(
+            job_id="test-job",
+            name="test",
+            script="/workspace/scripts/train.py",
+            requirements=JobRequirement("1"),
+            status=JobStatus.PENDING,
+            snapshot_ref="abc123",
+            snapshot_working_dir="/workspace"
+        )
+        
+        pid = executor.execute_job(job, [0])
+        
+        # Verify command uses relative path
+        call_args = mock_popen.call_args
+        cmd = call_args[0][0]
+        # Script path should preserve subdirectory structure
+        assert "scripts/train.py" in cmd[1] or "scripts\\train.py" in cmd[1]
+        
+        assert pid == 12345
+
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
+    @patch('builtins.open', new_callable=mock_open)
+    def test_execute_job_snapshot_restore_failure(self, mock_file, mock_popen, test_config):
+        """Test job execution falls back when snapshot restore fails"""
+        mock_process = mock_popen.return_value
+        mock_process.pid = 12345
+
+        executor = JobExecutor(test_config)
+        
+        # Mock git snapshot manager to fail restore
+        executor.git_snapshot.restore_snapshot = Mock(return_value=False)
+        
+        # Create job with snapshot
+        job = Job(
+            job_id="test-job",
+            name="test",
+            script="/workspace/train.py",
+            requirements=JobRequirement("1"),
+            status=JobStatus.PENDING,
+            working_dir="/workspace",
+            snapshot_ref="abc123",
+            snapshot_working_dir="/workspace"
+        )
+        
+        pid = executor.execute_job(job, [0])
+        
+        # Verify fallback to original working directory
+        call_args = mock_popen.call_args
+        assert call_args[1]['cwd'] == "/workspace"
+        
+        # Verify job is NOT tracked in worktrees
+        assert "test-job" not in executor.job_worktrees
+        
+        assert pid == 12345
+
+    def test_cleanup_job_with_snapshot(self, test_config):
+        """Test cleanup creates completion snapshot"""
+        executor = JobExecutor(test_config)
+        
+        # Mock git snapshot manager
+        executor.git_snapshot.create_snapshot = Mock(return_value="completion_ref")
+        executor.git_snapshot.cleanup_snapshot = Mock()
+        
+        # Create job with snapshot
+        job = Job(
+            job_id="test-job",
+            name="test",
+            script="/workspace/train.py",
+            requirements=JobRequirement("1"),
+            status=JobStatus.PENDING,
+            snapshot_ref="abc123",
+            snapshot_working_dir="/workspace"
+        )
+        
+        # Add to worktrees tracking
+        worktree_path = "/tmp/worktree"
+        executor.job_worktrees[job.job_id] = worktree_path
+        
+        # Cleanup
+        executor.cleanup_job(job)
+        
+        # Verify completion snapshot was created
+        executor.git_snapshot.create_snapshot.assert_called_once_with(
+            "test-job-completion",
+            worktree_path
+        )
+        
+        # Verify cleanup was called
+        executor.git_snapshot.cleanup_snapshot.assert_called_once()
+        
+        # Verify worktree was removed from tracking
+        assert job.job_id not in executor.job_worktrees
+
+    def test_cleanup_job_without_snapshot(self, test_config):
+        """Test cleanup without snapshot"""
+        executor = JobExecutor(test_config)
+        
+        # Create job without snapshot
+        job = Job(
+            job_id="test-job",
+            name="test",
+            script="/workspace/train.py",
+            requirements=JobRequirement("1"),
+            status=JobStatus.PENDING
+        )
+        
+        # Cleanup should not fail
+        executor.cleanup_job(job)
+        
+        # No errors should occur
+
+    def test_cleanup_job_completion_snapshot_failure(self, test_config):
+        """Test cleanup continues even if completion snapshot fails"""
+        executor = JobExecutor(test_config)
+        
+        # Mock git snapshot manager to fail completion snapshot
+        executor.git_snapshot.create_snapshot = Mock(side_effect=Exception("Snapshot failed"))
+        executor.git_snapshot.cleanup_snapshot = Mock()
+        
+        # Create job with snapshot
+        job = Job(
+            job_id="test-job",
+            name="test",
+            script="/workspace/train.py",
+            requirements=JobRequirement("1"),
+            status=JobStatus.PENDING,
+            snapshot_ref="abc123",
+            snapshot_working_dir="/workspace"
+        )
+        
+        # Add to worktrees tracking
+        worktree_path = "/tmp/worktree"
+        executor.job_worktrees[job.job_id] = worktree_path
+        
+        # Cleanup should not fail even if completion snapshot fails
+        executor.cleanup_job(job)
+        
+        # Verify cleanup was still called
+        executor.git_snapshot.cleanup_snapshot.assert_called_once()
+        
+        # Verify worktree was removed from tracking
+        assert job.job_id not in executor.job_worktrees
+
+    @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
+    @patch('builtins.open', new_callable=mock_open)
+    def test_execute_job_snapshot_script_not_found_cleanup(self, mock_file, mock_popen, test_config):
+        """Test that worktree is cleaned up when script not found"""
+        # Mock Popen to raise FileNotFoundError
+        mock_popen.side_effect = FileNotFoundError("Script not found")
+
+        executor = JobExecutor(test_config)
+        
+        # Mock git snapshot manager
+        executor.git_snapshot.restore_snapshot = Mock(return_value=True)
+        executor.git_snapshot.cleanup_snapshot = Mock()
+        
+        # Create job with snapshot
+        job = Job(
+            job_id="test-job",
+            name="test",
+            script="/workspace/train.py",
+            requirements=JobRequirement("1"),
+            status=JobStatus.PENDING,
+            snapshot_ref="abc123",
+            snapshot_working_dir="/workspace"
+        )
+        
+        # Manually add to worktrees (since restore is mocked)
+        worktree_path = "/tmp/worktree"
+        executor.job_worktrees[job.job_id] = worktree_path
+        
+        # Execute should raise RuntimeError
+        with pytest.raises(RuntimeError, match="Script not found"):
+            executor.execute_job(job, [0])
+        
+        # Verify cleanup was called
+        executor.git_snapshot.cleanup_snapshot.assert_called_once()
+        
+        # Verify worktree was removed from tracking
+        assert job.job_id not in executor.job_worktrees
