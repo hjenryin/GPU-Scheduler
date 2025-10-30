@@ -19,6 +19,7 @@ GPU Scheduler is a **lightweight, user-space distributed job scheduler** designe
 - 📊 **Active GPU monitoring** - real-time utilization tracking
 - 🔗 **Multi-node clusters** - coordinate jobs across multiple machines
 - 🎯 **Smart scheduling** - considers GPU availability, stability, and grace periods
+- 📸 **Automatic snapshots** - git-based workspace snapshots for reproducibility
 - 🐍 **Python API** - programmatic job submission and monitoring
 - 🖥️ **Interactive TUI** - real-time cluster visualization
 - 📡 **HTTP-based** - no SSH required between machines
@@ -83,8 +84,10 @@ scheduler stop --all
 All files stored in user space (no root required):
 - Config: `~/.scheduler/config.yaml`
 - Logs: `~/.scheduler/logs/`
+- Work directory: `~/.scheduler/work/` (job worktrees)
 - Temp files: `~/.scheduler/tmp/`
 - Lock files: `~/.scheduler/*.lock`
+- Shadow repos: `{workspace}/.scheduler-git/` (per workspace)
 
 ---
 
@@ -118,6 +121,53 @@ Familiar CLI patterns for Ray users:
 - Workers pull jobs (long-polling)
 - Survives network disconnections
 - Easy to debug with `curl` or browser
+
+---
+
+## Git-Based Workspace Snapshots
+
+The scheduler automatically snapshots your workspace when you submit a job, ensuring the job runs with the exact files that existed at submission time, even if you continue modifying them while the job is pending.
+
+### How It Works
+
+**On Job Submission:**
+1. System creates a shadow git repository in your workspace (`.scheduler-git/`)
+2. Files are filtered based on size limits and patterns (configurable)
+3. Selected files are committed to a job-specific branch
+4. Your original files and git state remain untouched
+
+**On Job Execution:**
+1. Job executes in an isolated git worktree at `~/.scheduler/work/job-{job_id}/snapshot/`
+2. Worktree contains exact files from submission time
+3. Multiple jobs can run simultaneously with different file versions
+4. After completion, worktree is cleaned up automatically
+
+### Key Benefits
+
+✅ **Zero User Impact** - Your files and git state never modified  
+✅ **No File Duplication** - In-place tracking saves disk space  
+✅ **Complete Isolation** - Each job runs independently via worktrees  
+✅ **Disk Efficient** - Smart filtering + git delta compression  
+✅ **Fully Configurable** - Adjust all limits and patterns  
+✅ **Works Anywhere** - Not limited to git repositories  
+
+### Configuration
+
+All snapshot settings can be configured in `~/.scheduler/config.yaml`:
+
+```yaml
+# Snapshot configuration
+snapshot_max_file_size: 1048576  # 1 MB default
+snapshot_max_files_per_folder: 1000
+snapshot_data_type_limits:
+  .npy: 10485760   # 10 MB for numpy arrays
+  .pkl: 5242880    # 5 MB for pickle files
+  .json: 2097152   # 2 MB for JSON files
+snapshot_always_include_extensions: ['.py', '.sh', '.yaml', '.json', '.txt']
+snapshot_exclude_patterns: ['__pycache__', '.git', '*.pyc']
+```
+
+**For complete snapshot details, see [GIT_DEV_PLAN.md](GIT_DEV_PLAN.md)**
 
 ---
 
