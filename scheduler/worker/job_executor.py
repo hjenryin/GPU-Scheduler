@@ -83,9 +83,17 @@ class JobExecutor:
                     # Use worktree as working directory
                     working_dir = worktree_path
                     
-                    # Update script path to be relative to worktree
-                    script_basename = os.path.basename(job.script)
-                    script_path = os.path.join(worktree_path, script_basename)
+                    # Reconstruct script path relative to worktree
+                    # Script might be in subdirectories, so preserve relative structure
+                    try:
+                        # Get script path relative to original working dir
+                        rel_script_path = os.path.relpath(job.script, job.snapshot_working_dir)
+                        # Reconstruct in worktree
+                        script_path = os.path.join(worktree_path, rel_script_path)
+                    except ValueError:
+                        # Script is outside working dir (absolute path?), use basename
+                        script_basename = os.path.basename(job.script)
+                        script_path = os.path.join(worktree_path, script_basename)
                     
                     logger.info(f"Job {job.job_id} will execute in worktree: {worktree_path}")
                     logger.info(f"Job {job.job_id} script path in worktree: {script_path}")
@@ -214,12 +222,30 @@ class JobExecutor:
         """
         Cleanup resources after job completion.
         
-        This includes removing git worktrees if they were created.
+        This includes creating a completion snapshot (if job had a snapshot)
+        and removing git worktrees.
         
         Args:
             job: Job to cleanup
         """
         if job.job_id in self.job_worktrees:
+            # Create completion snapshot before cleanup
+            worktree_path = self.job_worktrees[job.job_id]
+            if job.snapshot_ref and job.snapshot_working_dir:
+                try:
+                    logger.info(f"Creating completion snapshot for job {job.job_id}")
+                    completion_ref = self.git_snapshot.create_snapshot(
+                        f"{job.job_id}-completion",
+                        worktree_path
+                    )
+                    if completion_ref:
+                        logger.info(f"Created completion snapshot {completion_ref} for job {job.job_id}")
+                    else:
+                        logger.warning(f"Failed to create completion snapshot for job {job.job_id}")
+                except Exception as e:
+                    logger.warning(f"Error creating completion snapshot for job {job.job_id}: {e}")
+            
+            # Now cleanup the worktree
             self._cleanup_job_worktree(job)
     
     def _cleanup_job_worktree(self, job: Job):
