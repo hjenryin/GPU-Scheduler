@@ -72,6 +72,7 @@ class SchedulerTUI(App):
         Binding("q", "quit", "Quit", priority=True),
         Binding("h", "help", "Help"),
         Binding("r", "refresh", "Refresh"),
+        Binding("c", "switch_to_cluster", "Cluster"),
         Binding("n", "switch_to_nodes", "Nodes"),
         Binding("j", "switch_to_jobs", "Jobs"),
         Binding("g", "switch_to_gpus", "GPUs"),
@@ -181,7 +182,7 @@ class SchedulerTUI(App):
 
     def action_switch_to_cluster(self):
         """
-        Switch to cluster overview (bound to 'n' from other screens).
+        Switch to cluster overview (bound to 'c' from other screens, escape for back).
         """
         self.switch_screen("cluster")
         self.refresh_data()

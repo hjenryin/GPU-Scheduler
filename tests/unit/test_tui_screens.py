@@ -63,7 +63,7 @@ class TestClusterScreen:
 
     @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one', autospec=True)
     def test_update_data_node_table(self, mock_query_one, mock_nodes, mock_jobs):
-        """Test node table update."""
+        """Test node table update - active nodes (not disconnected) are shown."""
         screen = ClusterScreen()
         
         mock_node_table = create_autospec(DataTable, instance=True, spec_set=True)
@@ -73,9 +73,40 @@ class TestClusterScreen:
 
         screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
-        # Verify table operations
+        # Verify table operations - active nodes (not disconnected) should be added
+        active_nodes = [n for n in mock_nodes if n.status != NodeStatus.DISCONNECTED]
         mock_node_table.clear.assert_called_once()
-        assert mock_node_table.add_row.call_count == len(mock_nodes)
+        assert mock_node_table.add_row.call_count == len(active_nodes)
+
+    @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one', autospec=True)
+    def test_update_data_filters_disconnected_nodes(self, mock_query_one, mock_nodes, mock_jobs):
+        """Test that disconnected nodes are filtered from display and counts."""
+        screen = ClusterScreen()
+        
+        mock_summary = create_autospec(Static, instance=True, spec_set=True)
+        mock_node_table = create_autospec(DataTable, instance=True, spec_set=True)
+        mock_gpu_bars = Mock()
+        mock_job_table = create_autospec(DataTable, instance=True, spec_set=True)
+        
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
+            "#cluster-summary": mock_summary,
+            "#node-table": mock_node_table,
+            "#gpu-bars": mock_gpu_bars,
+            "#job-table": mock_job_table
+        }.get(selector, Mock())
+
+        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
+
+        # Verify summary counts active nodes (not disconnected)
+        summary_text = mock_summary.update.call_args[0][0]
+        active_count = len([n for n in mock_nodes if n.status != NodeStatus.DISCONNECTED])
+        assert f"Nodes: {active_count} active" in summary_text
+        # Should NOT mention disconnected nodes
+        assert "disconnected" not in summary_text
+        
+        # Verify only active nodes (not disconnected) are in the table
+        assert mock_node_table.add_row.call_count == active_count
+
 
     @patch('scheduler.tui.screens.cluster.ClusterScreen.query_one', autospec=True)
     def test_update_data_gpu_bars(self, mock_query_one, mock_nodes, mock_jobs):
@@ -126,13 +157,13 @@ class TestNodesScreen:
         """Test NodesScreen has correct key bindings."""
         screen = NodesScreen()
         binding_keys = [binding[0] for binding in screen.BINDINGS]
-        expected_keys = ["n", "j", "g", "q", "h"]
+        expected_keys = ["c", "j", "g", "q", "h"]
         for key in expected_keys:
             assert key in binding_keys
 
     @patch('scheduler.tui.screens.nodes.NodesScreen.query_one', autospec=True)
     def test_update_data_nodes_list(self, mock_query_one, mock_nodes, mock_jobs):
-        """Test nodes list update."""
+        """Test nodes list update - only active nodes shown."""
         screen = NodesScreen()
         
         mock_nodes_list = create_autospec(DataTable, instance=True, spec_set=True)
@@ -142,9 +173,10 @@ class TestNodesScreen:
 
         screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
-        # Verify nodes list operations
+        # Verify nodes list operations - only active nodes (not disconnected) shown
+        active_nodes = [n for n in mock_nodes if n.status != NodeStatus.DISCONNECTED]
         mock_nodes_list.clear.assert_called_once()
-        assert mock_nodes_list.add_row.call_count == len(mock_nodes)
+        assert mock_nodes_list.add_row.call_count == len(active_nodes)
 
     @patch('scheduler.tui.screens.nodes.NodesScreen.query_one', autospec=True)
     def test_update_data_auto_select_first_node(self, mock_query_one, mock_nodes, mock_jobs):
@@ -354,6 +386,53 @@ class TestJobsScreen:
             except (AttributeError, LookupError):
                 pass  # Expected when app is not available
 
+    def test_escape_key_with_focused_input(self):
+        """Test escape key blurs input when focused, then goes back when pressed again."""
+        screen = JobsScreen()
+        
+        with patch.object(screen, 'query_one') as mock_query:
+            # Create mock input widget
+            mock_input = Mock(spec=Input)
+            mock_input.has_focus = True
+            mock_query.return_value = mock_input
+            
+            # Create mock key event
+            from textual import events
+            event = Mock(spec=events.Key)
+            event.key = "escape"
+            
+            # Call on_key handler
+            screen.on_key(event)
+            
+            # Verify input was blurred and event was stopped
+            mock_input.blur.assert_called_once()
+            event.prevent_default.assert_called_once()
+            event.stop.assert_called_once()
+
+    def test_escape_key_without_focused_input(self):
+        """Test escape key goes back when input is not focused."""
+        screen = JobsScreen()
+        
+        with patch.object(screen, 'query_one') as mock_query:
+            # Create mock input widget that is not focused
+            mock_input = Mock(spec=Input)
+            mock_input.has_focus = False
+            mock_query.return_value = mock_input
+            
+            # Create mock key event
+            from textual import events
+            event = Mock(spec=events.Key)
+            event.key = "escape"
+            
+            # Call on_key handler
+            screen.on_key(event)
+            
+            # Verify input was NOT blurred and event was NOT stopped
+            mock_input.blur.assert_not_called()
+            # prevent_default and stop should not be called
+            assert not event.prevent_default.called
+            assert not event.stop.called
+
 
 class TestGPUsScreen:
     """Test GPUsScreen functionality."""
@@ -386,8 +465,9 @@ class TestGPUsScreen:
 
         # Verify GPU table operations
         mock_gpu_table.clear.assert_called_once()
-        # Should add all GPUs from all nodes
-        total_gpus = sum(len(node.gpus) for node in mock_nodes)
+        # Should add all GPUs from active nodes only (not disconnected)
+        active_nodes = [n for n in mock_nodes if n.status != NodeStatus.DISCONNECTED]
+        total_gpus = sum(len(node.gpus) for node in active_nodes)
         assert mock_gpu_table.add_row.call_count == total_gpus
 
 

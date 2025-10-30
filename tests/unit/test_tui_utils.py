@@ -1,13 +1,13 @@
 """Unit tests for TUI utility functions."""
 
-import pytest
-from datetime import timedelta
+from datetime import timedelta, datetime
 from unittest.mock import patch
 
 from scheduler.tui.utils import (
     format_gpu_memory,
     get_status_color,
     format_runtime,
+    format_time_ago,
     create_gpu_utilization_bar,
     wrap_in_api_client
 )
@@ -110,6 +110,57 @@ class TestFormatRuntime:
         """Test formatting runtime with fractional seconds (should truncate)."""
         runtime = timedelta(seconds=30.7)
         assert format_runtime(runtime) == "00:00:30"
+
+
+class TestFormatTimeAgo:
+    """Test time ago formatting function."""
+
+    def test_format_time_ago_none(self):
+        """Test formatting None timestamp."""
+        assert format_time_ago(None) == "-"
+
+    def test_format_time_ago_seconds(self):
+        """Test formatting timestamp from seconds ago."""
+        now = datetime.now()
+        timestamp = now - timedelta(seconds=30)
+        result = format_time_ago(timestamp)
+        assert result == "30s ago" or result == "29s ago"  # Allow 1s variance
+
+    def test_format_time_ago_minutes(self):
+        """Test formatting timestamp from minutes ago."""
+        now = datetime.now()
+        timestamp = now - timedelta(minutes=5, seconds=30)
+        assert format_time_ago(timestamp) == "5m ago"
+
+    def test_format_time_ago_hours(self):
+        """Test formatting timestamp from hours ago."""
+        now = datetime.now()
+        timestamp = now - timedelta(hours=2, minutes=30)
+        assert format_time_ago(timestamp) == "2h ago"
+
+    def test_format_time_ago_days(self):
+        """Test formatting timestamp from days ago."""
+        now = datetime.now()
+        timestamp = now - timedelta(days=3, hours=12)
+        assert format_time_ago(timestamp) == "3d ago"
+
+    def test_format_time_ago_just_now(self):
+        """Test formatting timestamp from the future (should show just now)."""
+        now = datetime.now()
+        timestamp = now + timedelta(seconds=5)
+        assert format_time_ago(timestamp) == "just now"
+
+    def test_format_time_ago_boundary_60_seconds(self):
+        """Test formatting timestamp at 60 seconds boundary."""
+        now = datetime.now()
+        timestamp = now - timedelta(seconds=60)
+        assert format_time_ago(timestamp) == "1m ago"
+
+    def test_format_time_ago_boundary_3600_seconds(self):
+        """Test formatting timestamp at 1 hour boundary."""
+        now = datetime.now()
+        timestamp = now - timedelta(seconds=3600)
+        assert format_time_ago(timestamp) == "1h ago"
 
 
 class TestCreateGPUUtilizationBar:

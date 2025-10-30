@@ -13,7 +13,7 @@ from scheduler.core.exceptions import (
     NodeNotFoundException,
     ValidationException,
 )
-from scheduler.core.models import GPU, Job, JobStatus, Node, GPUStats
+from scheduler.core.models import GPU, Job, JobStatus, Node, NodeStatus, GPUStats
 from scheduler.core.config import Config, load_config
 from scheduler.core import constants
 from scheduler.core.utils import parse_address
@@ -594,14 +594,31 @@ class SchedulerClient:
             Node instance
         """
         # Parse timestamps
-        registered_at = datetime.fromisoformat(data["registered_at"]) if data.get("registered_at") else None
-        last_heartbeat = datetime.fromisoformat(data["last_heartbeat"]) if data.get("last_heartbeat") else None
+        registered_at = (
+            datetime.fromisoformat(data["registered_at"])
+            if data.get("registered_at")
+            else None
+        )
+        last_heartbeat = (
+            datetime.fromisoformat(data["last_heartbeat"])
+            if data.get("last_heartbeat")
+            else None
+        )
+
+        # Parse status
+        status = (
+            NodeStatus(data["status"])
+            if data.get("status")
+            else NodeStatus.INITIALIZING
+        )
 
         # Create node
         node = Node(
             node_name=data["node_name"],
             address=data["address"],
             num_gpus=data["num_gpus"],
+            status=status,
+            last_heartbeat=last_heartbeat,
             registered_at=registered_at
         )
 
@@ -627,9 +644,6 @@ class SchedulerClient:
                     stable_since=stable_since
                 )
                 node.gpus.append(gpu)
-
-        if last_heartbeat:
-            node.last_heartbeat = last_heartbeat
 
         return node
 

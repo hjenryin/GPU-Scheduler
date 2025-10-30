@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Optional
 from functools import wraps
 import logging
@@ -61,6 +61,38 @@ def format_runtime(runtime: Optional[timedelta]) -> str:
     seconds = total_seconds % 60
 
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def format_time_ago(timestamp: Optional[datetime]) -> str:
+    """
+    Format time since a timestamp for display.
+
+    Args:
+        timestamp: Datetime to compare against current time
+
+    Returns:
+        Formatted string (e.g., "5s ago", "2m ago", "1h ago" or "-")
+    """
+    if timestamp is None:
+        return "-"
+
+    now = datetime.now()
+    delta = now - timestamp
+    total_seconds = int(delta.total_seconds())
+
+    if total_seconds < 0:
+        return "just now"
+    elif total_seconds < 60:
+        return f"{total_seconds}s ago"
+    elif total_seconds < 3600:
+        minutes = total_seconds // 60
+        return f"{minutes}m ago"
+    elif total_seconds < 86400:
+        hours = total_seconds // 3600
+        return f"{hours}h ago"
+    else:
+        days = total_seconds // 86400
+        return f"{days}d ago"
 
 
 def create_gpu_utilization_bar(utilization: float, width: int = 20) -> str:
