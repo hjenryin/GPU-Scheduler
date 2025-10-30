@@ -528,6 +528,7 @@ class Node:
     last_heartbeat: Optional[datetime] = None
     registered_at: Optional[datetime] = None
     grace_period_until: Optional[datetime] = None
+    shutdown_requested: bool = False
 
     def __init__(
         self,
@@ -538,7 +539,8 @@ class Node:
         status: NodeStatus = NodeStatus.INITIALIZING,
         last_heartbeat: Optional[datetime] = None,
         registered_at: Optional[datetime] = None,
-        grace_period_until: Optional[datetime] = None
+        grace_period_until: Optional[datetime] = None,
+        shutdown_requested: bool = False
     ):
         """
         Initialize node.
@@ -552,6 +554,7 @@ class Node:
             last_heartbeat: Last heartbeat timestamp
             registered_at: Registration timestamp
             grace_period_until: Timestamp until which node is in grace period
+            shutdown_requested: Flag indicating if shutdown has been requested for this node
         """
         self.node_name = node_name
         self.address = address
@@ -561,6 +564,7 @@ class Node:
         self.last_heartbeat = last_heartbeat
         self.registered_at = registered_at or datetime.now()
         self.grace_period_until = grace_period_until
+        self.shutdown_requested = shutdown_requested
 
     def update_heartbeat(self, gpu_stats: List[GPUStats]):
         """Update node heartbeat and GPU statistics.

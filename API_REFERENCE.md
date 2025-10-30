@@ -213,8 +213,10 @@ scheduler stop [OPTIONS]
   - Can be run from any machine with a worker
 
 - **`scheduler stop --all`**:
-  - Stops the entire cluster (head + all workers)
-  - Only works when run from the machine with the head node
+  - Stops the entire cluster (head + all workers on all machines)
+  - Can be run from the head node or any worker node
+  - When run from head node: directly stops head and local workers
+  - When run from worker node: requests cluster shutdown from head, which signals all workers to shut down gracefully via heartbeat, then stops local worker
   - Gracefully shuts down all nodes with proper cleanup
 
 **Examples:**

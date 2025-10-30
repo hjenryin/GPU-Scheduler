@@ -284,3 +284,33 @@ class TestNodeManager:
         node = node_manager.get_node("gpu1")
         # GPU 1 should now start tracking stability
         assert node.gpus[1].stable_since is not None
+
+    def test_request_shutdown_all_workers(self, node_manager):
+        """Test requesting shutdown for all worker nodes"""
+        # Register some nodes
+        node_manager.register_node("gpu1", "192.168.1.10", 4)
+        node_manager.register_node("gpu2", "192.168.1.20", 8)
+        
+        # Simulate heartbeat to mark nodes as connected
+        stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(4)]
+        node_manager.update_heartbeat("gpu1", stats)
+        
+        stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(8)]
+        node_manager.update_heartbeat("gpu2", stats)
+        
+        # Verify nodes are connected and shutdown not requested
+        node1 = node_manager.get_node("gpu1")
+        node2 = node_manager.get_node("gpu2")
+        assert node1.status == NodeStatus.CONNECTED
+        assert node2.status == NodeStatus.CONNECTED
+        assert node1.shutdown_requested == False
+        assert node2.shutdown_requested == False
+        
+        # Request shutdown for all workers
+        node_manager.request_shutdown_all_workers()
+        
+        # Verify shutdown was requested
+        node1 = node_manager.get_node("gpu1")
+        node2 = node_manager.get_node("gpu2")
+        assert node1.shutdown_requested == True
+        assert node2.shutdown_requested == True

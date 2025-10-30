@@ -397,6 +397,40 @@ class TestHeartbeatRoute:
         
         assert exc_info.value.status_code == 400  # Route returns 400 for generic errors
 
+    @pytest.mark.asyncio
+    async def test_heartbeat_returns_shutdown_flag(self, mock_node_manager):
+        """Test heartbeat returns shutdown_requested flag"""
+        from unittest.mock import Mock
+        request = NodeHeartbeat(gpu_stats=[])
+        
+        # Mock node with shutdown requested
+        mock_node = Mock()
+        mock_node.shutdown_requested = True
+        mock_node_manager.get_node.return_value = mock_node
+        
+        result = await heartbeat_route("node1", request)
+        
+        assert result['status'] == "ok"
+        assert result['shutdown_requested'] == True
+        mock_node_manager.update_heartbeat.assert_called_once()
+        mock_node_manager.get_node.assert_called_once_with("node1")
+
+    @pytest.mark.asyncio
+    async def test_heartbeat_no_shutdown_requested(self, mock_node_manager):
+        """Test heartbeat when shutdown not requested"""
+        from unittest.mock import Mock
+        request = NodeHeartbeat(gpu_stats=[])
+        
+        # Mock node without shutdown requested
+        mock_node = Mock()
+        mock_node.shutdown_requested = False
+        mock_node_manager.get_node.return_value = mock_node
+        
+        result = await heartbeat_route("node1", request)
+        
+        assert result['status'] == "ok"
+        assert result['shutdown_requested'] == False
+
 
 class TestListNodesRoute:
     """Tests for list_nodes_route"""

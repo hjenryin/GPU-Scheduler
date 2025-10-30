@@ -68,18 +68,29 @@ class TestStopAllNodes:
     """Tests for _stop_all_nodes function"""
 
     @patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
-    @patch('scheduler.cli.stop._stop_daemon', autospec=True)
+    @patch('scheduler.cli.stop.load_config', autospec=True)
+    @patch('scheduler.cli.stop.SchedulerClient', autospec=True)
     @patch('scheduler.cli.stop._stop_local_worker_nodes', autospec=True)
-    def test_stop_all_from_head_node(self, mock_stop_local, mock_stop_daemon, mock_is_head):
+    @patch('scheduler.cli.stop.os.path.exists', autospec=True)
+    def test_stop_all_from_head_node(self, mock_exists, mock_stop_local, mock_client_class, mock_load, mock_is_head):
         """Test stopping all nodes when running from head"""
+        from scheduler.core.config import Config
         mock_is_head.return_value = True
-        mock_stop_daemon.return_value = True
+        mock_load.return_value = Config()
         mock_stop_local.return_value = True
+        mock_exists.return_value = True  # Head lock file exists
         
-        with patch('scheduler.cli.stop.click.echo', autospec=True):
+        # Mock the client
+        mock_client = MagicMock()
+        mock_client.list_nodes.return_value = []
+        mock_client.shutdown_cluster.return_value = True
+        mock_client_class.return_value = mock_client
+        
+        with patch('scheduler.cli.stop.click.echo', autospec=True), \
+             patch('scheduler.cli.stop.time.sleep', autospec=True):
             result = _stop_all_nodes()
             assert result == 0
-            mock_stop_daemon.assert_called()
+            mock_client.shutdown_cluster.assert_called_once()
 
     @patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
     @patch('scheduler.cli.stop.load_config', autospec=True)
@@ -101,10 +112,13 @@ class TestStopAllNodes:
         
         mock_stop_local.return_value = True
         
-        with patch('scheduler.cli.stop.click.echo', autospec=True):
+        with patch('scheduler.cli.stop.click.echo', autospec=True), \
+             patch('scheduler.cli.stop.time.sleep', autospec=True):
             result = _stop_all_nodes()
             assert result == 0
             mock_client.shutdown_cluster.assert_called_once()
+            # Worker no longer manually stops itself - it stops via heartbeat
+            mock_stop_local.assert_not_called()
 
     @patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
     @patch('scheduler.cli.stop.load_config', autospec=True)

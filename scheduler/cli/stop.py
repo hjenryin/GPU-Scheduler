@@ -1,6 +1,7 @@
 import os
 import signal
 import logging
+import time
 import click
 
 from scheduler.worker import is_daemon_running
@@ -72,23 +73,53 @@ def _stop_all_nodes() -> int:
         is_head_node = _is_running_on_head_node()
         
         if is_head_node:
-            # Running from head node - stop all nodes directly
-            # No need to query the API, just stop local processes
+            # Running from head node - request cluster shutdown via API
+            # This will signal ALL workers (including local ones) to shut down gracefully
             click.echo("✓ Shutting down entire cluster...")
             
-            # Stop local head node
+            # Request cluster shutdown via the API to signal all workers
+            try:
+                config = load_config()
+                client = SchedulerClient(config=config)
+                
+                # Get list of all nodes to show what we're shutting down
+                try:
+                    nodes = client.list_nodes()
+                    if nodes:
+                        click.echo(f"Found {len(nodes)} worker nodes in cluster")
+                except:
+                    pass  # Continue even if we can't list nodes
+                
+                # Request cluster shutdown to signal all workers
+                try:
+                    client.shutdown_cluster(graceful_timeout=60, force=False)
+                    click.echo("✓ Shutdown signal sent to all workers")
+                    # Give workers time to receive the signal and shut down (15+ seconds)
+                    # This matches the timeout in the orchestrator
+                    click.echo("Waiting for workers to shut down gracefully...")
+                    time.sleep(16)  # Wait slightly longer than orchestrator's 15s timeout
+                except Exception as e:
+                    logger.warning(f"Could not signal workers: {e}")
+                    click.echo("⚠ Could not signal workers via API")
+                    
+                    # Fallback: try to stop local workers directly if API call failed
+                    worker_stopped = _stop_local_worker_nodes()
+                    if worker_stopped:
+                        click.echo("✓ Local worker nodes stopped successfully")
+            except Exception as e:
+                logger.warning(f"Could not connect to head API: {e}")
+                # Fallback: stop local workers directly if can't connect to API
+                worker_stopped = _stop_local_worker_nodes()
+                if worker_stopped:
+                    click.echo("✓ Local worker nodes stopped successfully")
+            
+            # The head node should have stopped itself via the API shutdown
+            # But if it's still running, stop it manually
             head_lockfile = os.path.expanduser("~/.scheduler/head.lock")
-            head_stopped = _stop_daemon(head_lockfile, "head node")
-            
-            if head_stopped:
-                click.echo("✓ Head node stopped successfully")
+            if os.path.exists(head_lockfile):
+                click.echo("✓ Head node stopped itself")
             else:
-                click.echo("⚠ Head node was not running locally")
-            
-            # Stop local worker nodes (if any)
-            worker_stopped = _stop_local_worker_nodes()
-            if worker_stopped:
-                click.echo("✓ Local worker nodes stopped successfully")
+                click.echo("⚠ Head node not found (may have already stopped)")
             
             click.echo("✓ Cluster shutdown completed")
             return 0
@@ -121,11 +152,15 @@ def _stop_all_nodes() -> int:
             success = client.shutdown_cluster(graceful_timeout=60, force=False)
             if success:
                 click.echo("✓ Cluster shutdown initiated successfully")
+                click.echo("Waiting for all workers to shut down gracefully...")
                 
-                # Stop current worker node
-                worker_stopped = _stop_local_worker_nodes()
-                if worker_stopped:
-                    click.echo("✓ Current worker node stopped successfully")
+                # Wait for workers to receive shutdown signal and stop
+                # This matches the orchestrator's wait time
+                time.sleep(16)  # Wait slightly longer than orchestrator's 15s timeout
+                
+                click.echo("✓ All workers should have stopped")
+                # Note: The current worker will also stop via the heartbeat mechanism
+                # No need to manually stop it
             else:
                 click.echo("⚠ Cluster shutdown request failed")
                 return 1

@@ -422,13 +422,16 @@ class SchedulerClient:
         self,
         node_name: str,
         gpu_stats: List[GPUStats]
-    ):
+    ) -> bool:
         """
         Send heartbeat (worker use only).
 
         Args:
             node_name: Node name
             gpu_stats: GPU statistics
+
+        Returns:
+            True if shutdown is requested by head node, False otherwise
 
         Raises:
             ConnectionException: If cannot connect
@@ -440,6 +443,8 @@ class SchedulerClient:
         try:
             response = self.session.post(f"{self.base_url}/nodes/{node_name}/heartbeat", json=payload, timeout=30)
             response.raise_for_status()
+            data = response.json()
+            return data.get("shutdown_requested", False)
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to send heartbeat for node {node_name}: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")

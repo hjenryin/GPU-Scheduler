@@ -151,12 +151,23 @@ class WorkerDaemon:
         Run the worker daemon main loop (blocking).
         """
         self.start()
+        self.run_main_loop()
 
+    def run_main_loop(self):
+        """
+        Run the main worker loop without calling start().
+        Used when start() has already been called separately.
+        """
         # Main loop: poll for jobs and execute them
         logger.info("Entering main worker loop...")
 
         try:
             while self.running:
+                # Check if shutdown was requested via heartbeat
+                if self.heartbeat_sender.is_shutdown_requested():
+                    logger.info("Shutdown requested by head node - stopping worker")
+                    break
+                
                 # Poll for job assignment
                 logger.info("[TRACE] Main loop: polling for job...")
                 job = self.heartbeat_sender.poll_for_job()
