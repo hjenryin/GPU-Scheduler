@@ -332,6 +332,9 @@ def _daemonize_head(config: Config, singleton: SingletonDaemon) -> int:
         
         # Keep daemon alive
         orchestrator.run()
+        
+        # Clean up lock file when orchestrator exits
+        singleton.release_lock()
         sys.exit(0)
     except Exception as e:
         logger.error(f"Daemon failed: {e}", exc_info=True)
