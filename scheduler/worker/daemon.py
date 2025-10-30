@@ -157,6 +157,11 @@ class WorkerDaemon:
 
         try:
             while self.running:
+                # Check if shutdown was requested via heartbeat
+                if self.heartbeat_sender.is_shutdown_requested():
+                    logger.info("Shutdown requested by head node - stopping worker")
+                    break
+                
                 # Poll for job assignment
                 logger.info("[TRACE] Main loop: polling for job...")
                 job = self.heartbeat_sender.poll_for_job()

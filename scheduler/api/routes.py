@@ -265,7 +265,12 @@ async def heartbeat_route(node_name: str, request: NodeHeartbeat):
         # Convert dict stats to GPUStats objects
         gpu_stats = [GPUStats.from_dict(stat) for stat in request.gpu_stats]
         _node_manager.update_heartbeat(node_name, gpu_stats)
-        return {"status": "ok"}
+        
+        # Check if shutdown has been requested for this node
+        node = _node_manager.get_node(node_name)
+        shutdown_requested = node.shutdown_requested if node else False
+        
+        return {"status": "ok", "shutdown_requested": shutdown_requested}
     except NodeNotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:

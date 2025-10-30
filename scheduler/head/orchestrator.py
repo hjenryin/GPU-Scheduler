@@ -272,10 +272,14 @@ class Orchestrator:
             nodes = self.node_manager.get_connected_nodes()
             logger.info(f"Shutting down {len(nodes)} connected nodes")
             
-            # Send shutdown signals to all worker nodes
-            # Note: In a real implementation, we would send HTTP requests to each worker
-            # For now, we'll rely on the fact that stopping the head node will cause
-            # workers to lose connection and stop themselves
+            # Request shutdown for all worker nodes
+            # Workers will see this flag in their next heartbeat and shutdown gracefully
+            self.node_manager.request_shutdown_all_workers()
+            logger.info("Shutdown signal sent to all worker nodes via heartbeat mechanism")
+            
+            # Give workers a brief moment to receive the shutdown signal
+            # Most workers should get it within their heartbeat interval (typically 5-10 seconds)
+            time.sleep(2)
             
             # Stop the head node itself
             logger.info("Stopping head node...")

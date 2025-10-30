@@ -78,16 +78,21 @@ class HeartbeatSender:
         Send a single heartbeat to head node.
 
         Returns:
-            True if successful, False otherwise
+            True if shutdown requested by head, False otherwise
         """
         try:
             # Get latest GPU stats
             gpu_stats = self.gpu_monitor.get_latest_stats()
 
-            # Send heartbeat
-            self.client.send_heartbeat(self.node_name, gpu_stats)
+            # Send heartbeat and check for shutdown request
+            shutdown_requested = self.client.send_heartbeat(self.node_name, gpu_stats)
+            
+            if shutdown_requested:
+                logger.info(f"Shutdown requested by head node for {self.node_name}")
+                return True
+                
             logger.debug(f"Sent heartbeat for node {self.node_name}")
-            return True
+            return False
         except Exception as e:
             logger.error(f"Failed to send heartbeat: {e}")
             return False
@@ -116,7 +121,20 @@ class HeartbeatSender:
         logger.info("Heartbeat loop started")
 
         while self.running:
-            self.send_heartbeat()
+            shutdown_requested = self.send_heartbeat()
+            if shutdown_requested:
+                logger.info("Shutdown requested - stopping heartbeat loop")
+                self.running = False
+                break
             time.sleep(self.heartbeat_interval)
 
         logger.info("Heartbeat loop stopped")
+
+    def is_shutdown_requested(self) -> bool:
+        """
+        Check if shutdown has been requested.
+        
+        Returns:
+            True if shutdown was requested by the head node
+        """
+        return not self.running

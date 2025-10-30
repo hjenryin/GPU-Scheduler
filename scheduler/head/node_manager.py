@@ -195,3 +195,16 @@ class NodeManager:
         node.start_grace_period(self.config.worker.job_startup_grace)
         self.persistence.save_node(node)
         logger.debug(f"Grace period started for node {node_name}")
+
+    def request_shutdown_all_workers(self):
+        """
+        Request shutdown for all worker nodes.
+        Sets the shutdown_requested flag on all nodes so they will
+        gracefully shutdown when they next poll/heartbeat.
+        """
+        for node in self.nodes.values():
+            if node.status == NodeStatus.CONNECTED:
+                node.shutdown_requested = True
+                self.persistence.save_node(node)
+                logger.info(f"Shutdown requested for node {node.node_name}")
+        logger.info(f"Shutdown requested for {len(self.nodes)} worker nodes")
