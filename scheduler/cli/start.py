@@ -458,9 +458,6 @@ def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optio
 
     # Display connection info
     click.echo(f"Connecting to head node: {config.address}")
-    
-    # Save head node address for CLI commands
-    save_head_info(config.address)
 
     # Check for existing worker
     # Use hardcoded location for lock files as documented
@@ -472,6 +469,9 @@ def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optio
         click.echo(f"\nError: Worker '{node_name}' is already running on this machine")
         click.echo("Use 'scheduler stop' to stop it first")
         return 1
+    
+    # Save head node address for CLI commands (after lock file is created)
+    save_head_info(config.address)
 
     # If non-blocking mode, fork a background process
     if not block:
