@@ -469,13 +469,14 @@ def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optio
         click.echo(f"\nError: Worker '{node_name}' is already running on this machine")
         click.echo("Use 'scheduler stop' to stop it first")
         return 1
-    
-    # Save head node address for CLI commands (after lock file is created)
-    save_head_info(config.address)
 
     # If non-blocking mode, fork a background process
+    # Note: _daemonize_worker handles saving head info in the grandchild process
     if not block:
         return _daemonize_worker(config, node_name, num_gpus, singleton)
+    
+    # Save head node address for CLI commands (after lock file is created, blocking mode only)
+    save_head_info(config.address)
     
     # Blocking mode - run in foreground
     try:
