@@ -129,6 +129,9 @@ class FileHandler:
     def get_job_snapshot_dir(self, job_id: str) -> str:
         """
         Get directory path for job snapshot restoration.
+        
+        Creates a worktree directory at ~/.scheduler/work/job-{job_id}/snapshot/
+        as specified in GIT_DEV_PLAN.md
 
         Args:
             job_id: Job ID
@@ -136,6 +139,6 @@ class FileHandler:
         Returns:
             Path to snapshot directory
         """
-        snapshot_dir = os.path.join(self.work_dir, "snapshots", job_id)
+        snapshot_dir = os.path.join(self.work_dir, job_id, "snapshot")
         os.makedirs(snapshot_dir, exist_ok=True)
         return snapshot_dir

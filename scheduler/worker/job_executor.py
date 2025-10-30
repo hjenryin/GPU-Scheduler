@@ -8,6 +8,7 @@ from scheduler.core.config import Config
 from scheduler.core.models import Job
 from scheduler.core.exceptions import JobNotFoundException
 from scheduler.worker.file_handler import FileHandler
+from scheduler.worker.git_snapshot import GitSnapshotManager
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,9 @@ class JobExecutor:
         """
         self.config = config
         self.file_handler = FileHandler(config)
+        self.git_snapshot = GitSnapshotManager(config)
         self.processes: Dict[int, subprocess.Popen] = {}  # pid -> Popen object
+        self.job_worktrees: Dict[str, str] = {}  # job_id -> worktree_path
 
         logger.info("JobExecutor initialized")
 
@@ -57,8 +60,44 @@ class JobExecutor:
             else:
                 logger.info(f"[TRACE] Job {job.job_id}: No environment variables specified")
 
-            # Determine working directory
-            working_dir = job.working_dir or os.path.dirname(os.path.abspath(job.script))
+            # Determine working directory and script path
+            # If job has a snapshot, restore it to a worktree
+            if job.snapshot_ref and job.snapshot_working_dir:
+                logger.info(f"Job {job.job_id} has snapshot {job.snapshot_ref}, restoring to worktree")
+                
+                # Create worktree directory path
+                worktree_path = self.file_handler.get_job_snapshot_dir(job.job_id)
+                
+                # Restore snapshot to worktree
+                success = self.git_snapshot.restore_snapshot(
+                    job.job_id,
+                    job.snapshot_ref,
+                    job.snapshot_working_dir,
+                    worktree_path
+                )
+                
+                if success:
+                    # Store worktree path for cleanup
+                    self.job_worktrees[job.job_id] = worktree_path
+                    
+                    # Use worktree as working directory
+                    working_dir = worktree_path
+                    
+                    # Update script path to be relative to worktree
+                    script_basename = os.path.basename(job.script)
+                    script_path = os.path.join(worktree_path, script_basename)
+                    
+                    logger.info(f"Job {job.job_id} will execute in worktree: {worktree_path}")
+                    logger.info(f"Job {job.job_id} script path in worktree: {script_path}")
+                else:
+                    logger.warning(f"Failed to restore snapshot for job {job.job_id}, using original working directory")
+                    working_dir = job.working_dir or os.path.dirname(os.path.abspath(job.script))
+                    script_path = job.script
+            else:
+                # No snapshot, use original working directory
+                working_dir = job.working_dir or os.path.dirname(os.path.abspath(job.script))
+                script_path = job.script
+                logger.info(f"Job {job.job_id} has no snapshot, using original working directory")
 
             # Create log file paths
             stdout_log = self.file_handler.get_job_log_path(job.job_id, stderr=False)
@@ -66,14 +105,14 @@ class JobExecutor:
 
             # Build command - use python explicitly for .py files
             import sys
-            if job.script.endswith('.py'):
-                cmd = [sys.executable, job.script]
+            if script_path.endswith('.py'):
+                cmd = [sys.executable, script_path]
             else:
-                cmd = [job.script]
+                cmd = [script_path]
             if job.script_args:
                 cmd.extend(job.script_args)
 
-            logger.info(f"Executing job {job.job_id}: {job.script}")
+            logger.info(f"Executing job {job.job_id}: {script_path}")
             logger.info(f"Command: {cmd}")
             logger.info(f"Working directory: {working_dir}")
             logger.info(f"CUDA_VISIBLE_DEVICES: {env['CUDA_VISIBLE_DEVICES']}")
@@ -108,8 +147,14 @@ class JobExecutor:
             logger.info(f"Job {job.job_id} started with PID {pid}")
             return pid
         except FileNotFoundError as e:
+            # Cleanup worktree if it was created
+            if job.job_id in self.job_worktrees:
+                self._cleanup_job_worktree(job)
             raise RuntimeError(f"Script not found: {e}")
         except Exception as e:
+            # Cleanup worktree if it was created
+            if job.job_id in self.job_worktrees:
+                self._cleanup_job_worktree(job)
             logger.error(f"Failed to execute job {job.job_id}: {e}")
             raise RuntimeError(f"Failed to execute job: {e}")
 
@@ -164,6 +209,45 @@ class JobExecutor:
                 logger.info(f"Sent SIGTERM to PID {pid}")
         except OSError as e:
             logger.warning(f"Failed to terminate job with PID {pid}: {e}")
+
+    def cleanup_job(self, job: Job):
+        """
+        Cleanup resources after job completion.
+        
+        This includes removing git worktrees if they were created.
+        
+        Args:
+            job: Job to cleanup
+        """
+        if job.job_id in self.job_worktrees:
+            self._cleanup_job_worktree(job)
+    
+    def _cleanup_job_worktree(self, job: Job):
+        """
+        Internal method to cleanup git worktree for a job.
+        
+        Args:
+            job: Job to cleanup worktree for
+        """
+        if job.job_id not in self.job_worktrees:
+            return
+        
+        worktree_path = self.job_worktrees[job.job_id]
+        
+        try:
+            if job.snapshot_ref and job.snapshot_working_dir:
+                self.git_snapshot.cleanup_snapshot(
+                    job.job_id,
+                    job.snapshot_ref,
+                    job.snapshot_working_dir,
+                    worktree_path
+                )
+                logger.info(f"Cleaned up worktree for job {job.job_id}")
+            
+            # Remove from tracking
+            del self.job_worktrees[job.job_id]
+        except Exception as e:
+            logger.warning(f"Error cleaning up worktree for job {job.job_id}: {e}")
 
     def get_job_logs(
         self,

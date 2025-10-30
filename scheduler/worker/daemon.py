@@ -214,7 +214,9 @@ class WorkerDaemon:
                 is_running, exit_code = self.job_executor.get_job_status(pid)
 
                 if not is_running:
-                    # Job completed
+                    # Job completed - cleanup resources
+                    self.job_executor.cleanup_job(job)
+                    
                     if exit_code == 0:
                         logger.info(f"Job {job.job_id} completed successfully")
                         self.client.report_job_complete(job.job_id, exit_code)
@@ -231,6 +233,9 @@ class WorkerDaemon:
 
         except Exception as e:
             logger.error(f"Error executing job {job.job_id}: {e}")
+            # Cleanup resources on error
+            if self.current_job:
+                self.job_executor.cleanup_job(self.current_job)
             try:
                 self.client.report_job_failed(job.job_id, str(e))
             except Exception as report_error:
