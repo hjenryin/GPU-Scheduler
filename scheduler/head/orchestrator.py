@@ -277,9 +277,12 @@ class Orchestrator:
             self.node_manager.request_shutdown_all_workers()
             logger.info("Shutdown signal sent to all worker nodes via heartbeat mechanism")
             
-            # Give workers a brief moment to receive the shutdown signal
-            # Most workers should get it within their heartbeat interval (typically 5-10 seconds)
-            time.sleep(2)
+            # Give workers time to receive the shutdown signal and stop
+            # Workers send heartbeats every 5-10 seconds, so we need to wait at least that long
+            # Add extra time for graceful shutdown (completing current jobs, cleanup, etc.)
+            shutdown_timeout = 15  # 15 seconds should be enough for one heartbeat cycle + cleanup
+            logger.info(f"Waiting {shutdown_timeout} seconds for workers to shut down...")
+            time.sleep(shutdown_timeout)
             
             # Stop the head node itself
             logger.info("Stopping head node...")

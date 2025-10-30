@@ -449,6 +449,9 @@ def _daemonize_worker(config: Config, node_name: str, num_gpus: Optional[int], s
         
         # Continue running
         daemon.run_main_loop()  # Run without calling start() again
+        
+        # Clean up lock file when daemon exits
+        singleton.release_lock()
         sys.exit(0)
     except Exception as e:
         logger.error(f"Worker daemon failed: {e}", exc_info=True)
