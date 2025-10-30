@@ -151,7 +151,13 @@ class WorkerDaemon:
         Run the worker daemon main loop (blocking).
         """
         self.start()
+        self.run_main_loop()
 
+    def run_main_loop(self):
+        """
+        Run the main worker loop without calling start().
+        Used when start() has already been called separately.
+        """
         # Main loop: poll for jobs and execute them
         logger.info("Entering main worker loop...")
 

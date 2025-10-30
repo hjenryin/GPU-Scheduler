@@ -342,28 +342,57 @@ def _daemonize_head(config: Config, singleton: SingletonDaemon) -> int:
 def _daemonize_worker(config: Config, node_name: str, num_gpus: Optional[int], singleton: SingletonDaemon) -> int:
     """Fork and daemonize the worker node process."""
     import sys
+    import json
+    
+    # Create a status file to communicate startup success/failure
+    status_file = os.path.expanduser(f"~/.scheduler/worker-{node_name}.status")
     
     # First fork
     try:
         pid = os.fork()
         if pid > 0:
-            # Parent process - wait for grandchild PID to be written
+            # Parent process - wait for daemon to report status
             import time
-            time.sleep(0.5)
             
-            # Read the actual daemon PID from the lockfile
-            lockfile_path = os.path.expanduser(f"~/.scheduler/worker-{node_name}.lock")
-            try:
-                import json
-                with open(lockfile_path, 'r') as f:
-                    data = json.load(f)
-                daemon_pid = data.get('pid')
-                click.echo(f"\n✓ Worker node started in background (PID: {daemon_pid})")
-            except:
-                click.echo(f"\n✓ Worker node started in background")
+            # Wait up to 10 seconds for the daemon to start and report status
+            max_wait = 10
+            start_time = time.time()
             
-            click.echo("Use 'scheduler stop' to stop it")
-            return 0
+            while time.time() - start_time < max_wait:
+                if os.path.exists(status_file):
+                    try:
+                        with open(status_file, 'r') as f:
+                            status_data = json.load(f)
+                        
+                        if status_data.get('status') == 'running':
+                            daemon_pid = status_data.get('pid')
+                            click.echo(f"\n✓ Worker node started in background (PID: {daemon_pid})")
+                            click.echo("Use 'scheduler stop' to stop it")
+                            # Clean up status file
+                            try:
+                                os.remove(status_file)
+                            except:
+                                pass
+                            return 0
+                        elif status_data.get('status') == 'failed':
+                            error_msg = status_data.get('error', 'Unknown error')
+                            click.echo(f"\n✗ Worker node failed to start: {error_msg}")
+                            # Clean up status file
+                            try:
+                                os.remove(status_file)
+                            except:
+                                pass
+                            return 1
+                    except (json.JSONDecodeError, IOError):
+                        # File might be partially written, wait a bit more
+                        pass
+                
+                time.sleep(0.2)
+            
+            # Timeout - daemon didn't report status
+            click.echo("\n✗ Worker node failed to start: Timeout waiting for daemon status")
+            click.echo("Check logs in ~/.scheduler/logs/ for details")
+            return 1
     except OSError as e:
         click.echo(f"Fork failed: {e}")
         singleton.release_lock()
@@ -408,10 +437,39 @@ def _daemonize_worker(config: Config, node_name: str, num_gpus: Optional[int], s
     # Run the worker
     try:
         daemon = WorkerDaemon(config, node_name, num_gpus)
-        daemon.run()
+        daemon.start()  # Start the daemon (which includes registration)
+        
+        # If we get here, daemon started successfully
+        # Write success status
+        try:
+            with open(status_file, 'w') as f:
+                json.dump({'status': 'running', 'pid': os.getpid()}, f)
+        except Exception as status_error:
+            logger.error(f"Failed to write status file: {status_error}")
+        
+        # Continue running
+        daemon.run_main_loop()  # Run without calling start() again
         sys.exit(0)
     except Exception as e:
         logger.error(f"Worker daemon failed: {e}", exc_info=True)
+        
+        # Write failure status
+        try:
+            error_msg = str(e)
+            # Extract more user-friendly error message
+            if "Failed to register with head node" in error_msg:
+                if "Failed to resolve" in error_msg or "Name resolution" in error_msg:
+                    error_msg = f"Cannot resolve head node address '{config.address}'"
+                elif "Connection refused" in error_msg:
+                    error_msg = f"Cannot connect to head node at '{config.address}' (connection refused)"
+                else:
+                    error_msg = f"Cannot connect to head node at '{config.address}'"
+            
+            with open(status_file, 'w') as f:
+                json.dump({'status': 'failed', 'error': error_msg}, f)
+        except Exception as status_error:
+            logger.error(f"Failed to write status file: {status_error}")
+        
         singleton.release_lock()
         sys.exit(1)
 
