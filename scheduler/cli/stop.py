@@ -72,9 +72,36 @@ def _stop_all_nodes() -> int:
         is_head_node = _is_running_on_head_node()
         
         if is_head_node:
-            # Running from head node - stop all nodes directly
-            # No need to query the API, just stop local processes
+            # Running from head node - request cluster shutdown via API first
+            # to signal remote workers, then stop local processes
             click.echo("✓ Shutting down entire cluster...")
+            
+            # First, try to signal remote workers via the API
+            try:
+                config = load_config()
+                client = SchedulerClient(config=config)
+                
+                # Get list of all nodes to show what we're shutting down
+                try:
+                    nodes = client.list_nodes()
+                    if nodes:
+                        click.echo(f"Found {len(nodes)} worker nodes in cluster")
+                except:
+                    pass  # Continue even if we can't list nodes
+                
+                # Request cluster shutdown to signal all remote workers
+                try:
+                    client.shutdown_cluster(graceful_timeout=60, force=False)
+                    click.echo("✓ Shutdown signal sent to remote workers")
+                    # Give workers a moment to receive the signal
+                    import time
+                    time.sleep(1)
+                except Exception as e:
+                    logger.warning(f"Could not signal remote workers: {e}")
+                    click.echo("⚠ Could not signal remote workers via API (they may still be running)")
+            except Exception as e:
+                logger.warning(f"Could not connect to head API: {e}")
+                # Continue to stop local processes even if API call fails
             
             # Stop local head node
             head_lockfile = os.path.expanduser("~/.scheduler/head.lock")
