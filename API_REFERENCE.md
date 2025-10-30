@@ -1115,7 +1115,7 @@ When multiple node options are specified (comma-separated), the scheduler:
 1. **No Sudo Required**: All operations use user-space directories and ports >= 1024
 2. **Job IDs**: All job IDs are in the format `job_<uuid>` (e.g., `job_abc123def456`)
 3. **Node Names**: Node names must be unique and URL-safe (alphanumeric + hyphens/underscores)
-4. **Workspace Snapshots**: Jobs with snapshots execute in isolated git worktrees at `~/.scheduler/work/job-{job_id}/snapshot/` to ensure reproducibility
+4. **Workspace Snapshots**: Jobs with snapshots execute in isolated git worktrees at `~/.scheduler/work/job-abc123def456/snapshot/` to ensure reproducibility
 5. **GPU Allocation**: GPUs are allocated via `CUDA_VISIBLE_DEVICES` environment variable
 6. **Logs**: All job logs are stored in `<log-dir>/<job-id>/` on the executing node
 7. **Auto-detection**: Commands automatically find the head node from local instance, config file, or environment variable

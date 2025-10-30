@@ -84,7 +84,7 @@ scheduler stop --all
 All files stored in user space (no root required):
 - Config: `~/.scheduler/config.yaml`
 - Logs: `~/.scheduler/logs/`
-- Work directory: `~/.scheduler/work/` (job worktrees)
+- Work directory: `~/.scheduler/work/` (work files and job worktrees)
 - Temp files: `~/.scheduler/tmp/`
 - Lock files: `~/.scheduler/*.lock`
 - Shadow repos: `{workspace}/.scheduler-git/` (per workspace)
@@ -166,6 +166,12 @@ snapshot_data_type_limits:
 snapshot_always_include_extensions: ['.py', '.sh', '.yaml', '.json', '.txt']
 snapshot_exclude_patterns: ['__pycache__', '.git', '*.pyc']
 ```
+
+**Tuning Guidelines:**
+- **Small code/config files**: Keep defaults (1 MB) for code and config files
+- **Data files**: Set higher limits for data types your workflows commonly use
+- **Model checkpoints**: Either exclude from snapshots or store in shared locations
+- **Large datasets**: Keep in external storage and reference via absolute paths
 
 **For complete snapshot details, see [GIT_DEV_PLAN.md](GIT_DEV_PLAN.md)**
 
