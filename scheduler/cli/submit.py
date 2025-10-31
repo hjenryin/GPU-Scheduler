@@ -41,7 +41,7 @@ def submit_command(
     """
     # Validate command
     if not command or len(command) == 0:
-        click.echo(f"Error: Command cannot be empty")
+        click.echo("Error: Command cannot be empty")
         return 4
 
     # Parse environment variables

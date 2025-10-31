@@ -13,7 +13,7 @@ from scheduler.api.client import SchedulerClient
 class TestSubmitCommand:
     """Tests for submit_command function"""
 
-    def test_submit_script_not_found(self):
+    def test_submit_empty_command(self):
         """Test submitting with empty command"""
         result = submit_command(
             command=[],
