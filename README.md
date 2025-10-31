@@ -43,7 +43,14 @@ scheduler start --address=head-machine:8265
 
 **2. Submit a job:**
 ```bash
-scheduler submit --req 2 train.py
+# Python script with arguments
+scheduler submit --req 2 python train.py --epochs 100
+
+# Bash script
+scheduler submit --req 1 bash run.sh
+
+# Any executable
+scheduler submit --req 4 ./my_program --config config.yaml
 ```
 
 **3. Monitor cluster:**

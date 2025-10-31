@@ -468,15 +468,17 @@ Submit a new job to the scheduler.
 
 **Usage:**
 ```bash
-scheduler submit [OPTIONS] SCRIPT [-- SCRIPT_ARGS...]
+scheduler submit [OPTIONS] COMMAND...
 ```
 
-**Positional Arguments:**
+**Command Format:**
 
-| Argument | Description |
-|----------|-------------|
-| `SCRIPT` | Path to the script to execute (Python, bash, etc.) |
-| `SCRIPT_ARGS` | Arguments to pass to the script (after `--`) |
+The `COMMAND` can be any executable command with its arguments. The scheduler will execute the command exactly as specified:
+
+- `python script.py [args]` - Run a Python script
+- `bash script.sh [args]` - Run a bash script
+- `./executable [args]` - Run any executable
+- Any other command with arguments
 
 **Options:**
 
@@ -504,33 +506,44 @@ The `--req` flag supports flexible resource specifications:
 **Examples:**
 
 ```bash
-# Simple job requiring 2 GPUs on any node
-scheduler submit --req 2 train.py
+# Python script with arguments
+scheduler submit --req 2 python train.py --epochs 100 --batch-size 32
+
+# Bash script with arguments
+scheduler submit --req 1 bash run_experiment.sh arg1 arg2
+
+# Direct executable
+scheduler submit --req 4 ./my_training_binary --config model.yaml
 
 # Job requiring 4 GPUs specifically on gpu1
-scheduler submit --req gpu1:4 train.py
+scheduler submit --req gpu1:4 python train.py --model bert
 
 # Job that can run on either gpu1 (2 GPUs) or gpu2 (4 GPUs)
-scheduler submit --req gpu1:2,gpu2:4 train.py
+scheduler submit --req gpu1:2,gpu2:4 python train.py
 
 # Job with dependencies (waits for job_123 and job_456 to complete)
-scheduler submit --req 2 --depends-on job_123,job_456 train_stage2.py
+scheduler submit --req 2 --depends-on job_123,job_456 python train_stage2.py
 
 # Job with custom name and environment variables
 scheduler submit --req 4 \
                  --name "bert-training" \
                  --env WANDB_API_KEY=xyz123 \
                  --env DATASET_PATH=/data/bert \
-                 train.py
-
-# Job with script arguments
-scheduler submit --req 2 train.py -- --epochs 100 --batch-size 32
+                 python train.py --model bert-large
 
 # Submit and stream logs
-scheduler submit --req 1 --log-to-driver train.py
+scheduler submit --req 1 --log-to-driver python train.py
 
 # Submit asynchronously
-scheduler submit --req 2 --async train.py
+scheduler submit --req 2 --async python train.py
+
+# Complex command with multiple arguments
+scheduler submit --req 2 python train.py \
+    --model resnet50 \
+    --epochs 100 \
+    --lr 0.001 \
+    --batch-size 64 \
+    --dataset imagenet
 
 ```
 
