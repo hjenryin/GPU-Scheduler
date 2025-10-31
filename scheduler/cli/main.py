@@ -4,6 +4,7 @@ import sys
 from scheduler.cli.start import start_command
 from scheduler.cli.stop import stop_command
 from scheduler.cli.submit import submit_command
+from scheduler.cli.submit_batch import submit_batch_command
 from scheduler.cli.jobs import jobs_command
 from scheduler.cli.logs import logs_command
 from scheduler.cli.cancel import cancel_command
@@ -101,6 +102,39 @@ def submit(script, script_args, req, depends_on, name, priority, env, working_di
             code = submit_command(
             script=script,
             script_args=list(script_args),
+            req=req,
+            depends_on=list(depends_on) if depends_on else None,
+            name=name,
+            priority=priority,
+            env=list(env) if env else None,
+            working_dir=working_dir,
+            async_submit=async_submit,
+            log_to_driver=log_to_driver
+        )
+            sys.exit(code)
+    except KeyboardInterrupt:
+        click.echo("\nInterrupted")
+        sys.exit(130)
+    except Exception as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
+
+
+@cli.command('submit-batch')
+@click.argument('script_list')
+@click.option('--req', default='1', help='GPU requirements')
+@click.option('--depends-on', 'depends_on', multiple=True, help='Job dependencies')
+@click.option('--name', help='Job name')
+@click.option('--priority', type=int, default=0, help='Priority')
+@click.option('--env', multiple=True, help='Environment variables (KEY=VALUE)')
+@click.option('--working-dir', help='Working directory for job')
+@click.option('--async', 'async_submit', is_flag=True, help='Submit async')
+@click.option('--log-to-driver', is_flag=True, help='Stream logs')
+def submit_batch(script_list, req, depends_on, name, priority, env, working_dir, async_submit, log_to_driver):
+    """Submit multiple jobs from a file"""
+    try:
+            code = submit_batch_command(
+            script_list=script_list,
             req=req,
             depends_on=list(depends_on) if depends_on else None,
             name=name,
