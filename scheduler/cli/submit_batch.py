@@ -112,7 +112,7 @@ def submit_batch_command(
             abs_script = os.path.abspath(script)
             
             # Determine dependencies
-            job_depends_on = list(depends_on) if depends_on else []
+            job_depends_on = depends_on.copy() if depends_on else []
             if sequential and previous_job_id:
                 job_depends_on.append(previous_job_id)
             
