@@ -20,7 +20,7 @@ class TestCLIMainRouting:
         runner = CliRunner()
         result = runner.invoke(cli, [])
         
-        assert result.exit_code == 2  # Click returns 2 for missing command
+        assert result.exit_code == 0  # Click returns 0 when showing help
         assert "GPU Scheduler" in result.output
         assert "Commands:" in result.output
 
@@ -200,7 +200,7 @@ class TestCLIMainArgumentParsing:
         mock_submit.return_value = 0
         result = runner.invoke(cli, [
             'submit',
-            'test.py',
+            'python', 'test.py',
             'arg1', 'arg2',
             '--req', '2',
             '--name', 'test-job',
@@ -215,8 +215,7 @@ class TestCLIMainArgumentParsing:
         assert result.exit_code == 0
         assert mock_submit.called
         call_kwargs = mock_submit.call_args[1]
-        assert call_kwargs['script'] == 'test.py'
-        assert call_kwargs['script_args'] == ['arg1', 'arg2']
+        assert call_kwargs['command'] == ['python', 'test.py', 'arg1', 'arg2']
         assert call_kwargs['req'] == '2'
         assert call_kwargs['name'] == 'test-job'
         assert call_kwargs['priority'] == 5

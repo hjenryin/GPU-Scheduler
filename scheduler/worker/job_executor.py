@@ -111,12 +111,9 @@ class JobExecutor:
             stdout_log = self.file_handler.get_job_log_path(job.job_id, stderr=False)
             stderr_log = self.file_handler.get_job_log_path(job.job_id, stderr=True)
 
-            # Build command - use python explicitly for .py files
-            import sys
-            if script_path.endswith('.py'):
-                cmd = [sys.executable, script_path]
-            else:
-                cmd = [script_path]
+            # Build command from script and script_args
+            # Execute the command as-is without modification
+            cmd = [script_path]
             if job.script_args:
                 cmd.extend(job.script_args)
 

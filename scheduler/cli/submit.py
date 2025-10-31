@@ -8,8 +8,7 @@ from scheduler.core import load_config, ValidationException, ConnectionException
 
 
 def submit_command(
-    script: str,
-    script_args: List[str] = None,
+    command: List[str],
     req: str = "1",
     depends_on: List[str] = None,
     name: Optional[str] = None,
@@ -23,8 +22,7 @@ def submit_command(
     Submit a new job to the scheduler.
 
     Args:
-        script: Path to script to execute
-        script_args: Arguments to pass to script
+        command: Command to execute as a list (e.g., ['python', 'train.py', '--epochs', '10'])
         req: Resource requirement string
         depends_on: List of job IDs to depend on
         name: Human-readable job name
@@ -40,11 +38,10 @@ def submit_command(
     Raises:
         ValidationException: If arguments are invalid
         ConnectionException: If cannot connect to head node
-        FileNotFoundError: If script doesn't exist
     """
-    # Validate script path
-    if not os.path.exists(script):
-        click.echo(f"Error: Script not found: {script}")
+    # Validate command
+    if not command or len(command) == 0:
+        click.echo(f"Error: Command cannot be empty")
         return 4
 
     # Parse environment variables
@@ -58,16 +55,19 @@ def submit_command(
             key, value = env_var.split('=', 1)
             env_vars[key] = value
 
-    # Get absolute script path
-    script = os.path.abspath(script)
+    # Store command as script (first element) and script_args (remaining elements)
+    # This maintains backward compatibility with the Job model
+    script = command[0]
+    script_args = command[1:] if len(command) > 1 else None
 
     try:
         # Connect to scheduler
         config = load_config()
         client = SchedulerClient(config=config)
 
-        # Submit job
-        click.echo(f"Submitting job: {os.path.basename(script)}")
+        # Submit job - use the full command as the display name
+        command_str = ' '.join(command)
+        click.echo(f"Submitting job: {command_str}")
         job = client.submit_job(
             script=script,
             requirements=req,

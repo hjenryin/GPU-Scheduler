@@ -45,9 +45,8 @@ class TestJobExecutor:
         mock_popen.assert_called_once()
         call_args = mock_popen.call_args
 
-        # Check command - Python script gets sys.executable prepended
-        import sys
-        expected_cmd = [sys.executable, sample_job.script] + sample_job.script_args
+        # Check command - Command is executed as-is without modification
+        expected_cmd = [sample_job.script] + sample_job.script_args
         assert call_args[0][0] == expected_cmd
 
         # Check environment variables
@@ -78,10 +77,9 @@ class TestJobExecutor:
 
         pid = executor.execute_job(job, [0])
 
-        # Check command has Python executable + script, no args
+        # Check command is script only, no args
         call_args = mock_popen.call_args
-        import sys
-        expected_cmd = [sys.executable, job.script]
+        expected_cmd = [job.script]
         assert call_args[0][0] == expected_cmd
 
     @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
@@ -462,8 +460,8 @@ class TestJobExecutor:
         # Verify command uses relative path
         call_args = mock_popen.call_args
         cmd = call_args[0][0]
-        # Script path should preserve subdirectory structure
-        assert "scripts/train.py" in cmd[1] or "scripts\\train.py" in cmd[1]
+        # Script path should preserve subdirectory structure (it's cmd[0] now)
+        assert "scripts/train.py" in cmd[0] or "scripts\\train.py" in cmd[0]
         
         assert pid == 12345
 

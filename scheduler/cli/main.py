@@ -86,8 +86,7 @@ def stop(all_nodes):
 
 
 @cli.command()
-@click.argument('script')
-@click.argument('script_args', nargs=-1)
+@click.argument('command', nargs=-1, required=True)
 @click.option('--req', default='1', help='GPU requirements')
 @click.option('--depends-on', 'depends_on', multiple=True, help='Job dependencies')
 @click.option('--name', help='Job name')
@@ -96,12 +95,11 @@ def stop(all_nodes):
 @click.option('--working-dir', help='Working directory for job')
 @click.option('--async', 'async_submit', is_flag=True, help='Submit async')
 @click.option('--log-to-driver', is_flag=True, help='Stream logs')
-def submit(script, script_args, req, depends_on, name, priority, env, working_dir, async_submit, log_to_driver):
+def submit(command, req, depends_on, name, priority, env, working_dir, async_submit, log_to_driver):
     """Submit a job"""
     try:
             code = submit_command(
-            script=script,
-            script_args=list(script_args),
+            command=list(command),
             req=req,
             depends_on=list(depends_on) if depends_on else None,
             name=name,
