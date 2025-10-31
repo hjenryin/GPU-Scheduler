@@ -588,6 +588,186 @@ echo $JOB_ID  # job_abc123def456
 
 ---
 
+## Batch Job Submission
+
+### `scheduler submit-batch`
+
+Submit multiple jobs from a file, with optional sequential dependencies.
+
+**Requirement**: A worker must be running on your machine (or head address must be configured) to connect to the scheduler cluster.
+
+**Usage:**
+```bash
+scheduler submit-batch [OPTIONS] SCRIPT_LIST
+```
+
+**Positional Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `SCRIPT_LIST` | Path to file containing script paths (one per line) |
+
+**File Format:**
+
+Each line in the `SCRIPT_LIST` file contains a script path followed by optional space-separated arguments:
+
+```
+<script_path> [arg1] [arg2] [arg3] ...
+```
+
+**Example File:**
+```bash
+# experiments.txt
+preprocess.py --input data.csv --output clean.csv
+train.py --lr 0.001 --epochs 50 --model resnet50
+train.py --lr 0.01 --epochs 50 --model vgg16
+evaluate.py --model best.pt --data test.csv
+```
+
+Blank lines are ignored.
+
+**Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--req` | string | `1` | Resource requirements (applied to all jobs) |
+| `--depends-on` | list | none | Base dependencies (applied to all jobs) |
+| `--name` | string | none | Job name (applied to all jobs) |
+| `--priority` | int | `0` | Job priority (applied to all jobs) |
+| `--env` | list | none | Environment variables (KEY=VALUE format, applied to all jobs) |
+| `--working-dir` | path | current dir | Working directory (applied to all jobs) |
+| `--async` | flag | false | Submit and return immediately without waiting for last job |
+| `--log-to-driver` | flag | false | Stream logs from the last job to stdout |
+| `--sequential` | flag | false | **Each job depends on the previous job** (creates job chain) |
+
+**Behavior:**
+
+- **Non-Sequential Mode (default)**: All jobs are submitted independently and can run in parallel
+- **Sequential Mode (`--sequential`)**: Jobs are submitted as a dependency chain:
+  - Job 2 depends on Job 1
+  - Job 3 depends on Job 2
+  - etc.
+- **Error Handling**:
+  - Non-sequential: Continues submitting remaining jobs even if some fail
+  - Sequential: Stops on first failure (no point continuing if dependency will fail)
+
+**Examples:**
+
+```bash
+# Simple batch submission - all jobs independent
+cat > jobs.txt << EOF
+train.py --lr 0.001
+train.py --lr 0.01
+train.py --lr 0.1
+EOF
+scheduler submit-batch --req 2 jobs.txt
+
+# Sequential pipeline - each job waits for previous
+cat > pipeline.txt << EOF
+preprocess.py --input raw.csv
+train.py --data clean.csv
+evaluate.py --model best.pt
+EOF
+scheduler submit-batch --sequential --req 4 pipeline.txt
+
+# With all options
+scheduler submit-batch \
+  --sequential \
+  --req 4 \
+  --name "ml-pipeline" \
+  --priority 5 \
+  --env CUDA_VISIBLE_DEVICES=0,1,2,3 \
+  --working-dir /workspace/project \
+  pipeline.txt
+
+# With base dependencies (all jobs depend on these + sequential chain)
+scheduler submit-batch \
+  --sequential \
+  --depends-on job_abc123 \
+  --depends-on job_def456 \
+  --req 2 \
+  pipeline.txt
+```
+
+**Output:**
+
+```
+Submitting 3 jobs from pipeline.txt
+Sequential mode: Each job will depend on the previous job
+
+[1/3] Submitting job: preprocess.py --input raw.csv
+
+Job submitted successfully!
+Job ID: job_001
+Status: pending
+Requirements: 4
+
+[2/3] Submitting job: train.py --data clean.csv
+
+Job submitted successfully!
+Job ID: job_002
+Status: pending
+Requirements: 4
+Dependencies: job_001
+
+[3/3] Submitting job: evaluate.py --model best.pt
+
+Job submitted successfully!
+Job ID: job_003
+Status: pending
+Requirements: 4
+Dependencies: job_002
+
+==================================================
+Batch submission complete:
+  Succeeded: 3/3
+  Failed: 0/3
+==================================================
+```
+
+**Use Cases:**
+
+1. **Hyperparameter Sweeps**: Submit multiple training runs with different parameters
+   ```bash
+   # Create experiment configs
+   for lr in 0.001 0.01 0.1; do
+     echo "train.py --lr $lr --model resnet50" >> experiments.txt
+   done
+   scheduler submit-batch --req 2 experiments.txt
+   ```
+
+2. **Sequential Pipelines**: Create data processing pipelines
+   ```bash
+   cat > pipeline.txt << EOF
+   fetch_data.py --source s3://bucket/data
+   preprocess.py --normalize --augment
+   train.py --epochs 100
+   validate.py --threshold 0.95
+   deploy.py --target production
+   EOF
+   scheduler submit-batch --sequential --req 4 pipeline.txt
+   ```
+
+3. **Multi-Model Training**: Train different models on the same data
+   ```bash
+   cat > models.txt << EOF
+   train.py --model resnet50 --tag exp1
+   train.py --model vgg16 --tag exp2
+   train.py --model mobilenet --tag exp3
+   EOF
+   scheduler submit-batch --req 2 --name "model-comparison" models.txt
+   ```
+
+**Notes:**
+
+- Script arguments are parsed by splitting on whitespace
+- For scripts with paths containing spaces, use quotes or escape characters
+- All jobs share the same options (--req, --name, etc.)
+- Individual script arguments can differ per line
+- Uses automatic workspace snapshots (same as `scheduler submit`)
+
+---
+
 ## Job Management
 
 ### `scheduler jobs`
