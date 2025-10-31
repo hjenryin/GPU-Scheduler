@@ -106,9 +106,9 @@ def submit(ctx, req, depends_on, name, priority, env, working_dir, async_submit,
     scheduler submit ./myexec --option value
     """
     try:
-            # Get command from context args (everything after the options)
-            command = list(ctx.args)
-            code = submit_command(
+        # Get command from context args (everything after the options)
+        command = list(ctx.args)
+        code = submit_command(
             command=command,
             req=req,
             depends_on=list(depends_on) if depends_on else None,
@@ -119,7 +119,7 @@ def submit(ctx, req, depends_on, name, priority, env, working_dir, async_submit,
             async_submit=async_submit,
             log_to_driver=log_to_driver
         )
-            sys.exit(code)
+        sys.exit(code)
     except KeyboardInterrupt:
         click.echo("\nInterrupted")
         sys.exit(130)
