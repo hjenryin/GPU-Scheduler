@@ -41,10 +41,10 @@ class NodesScreen(Screen):
                 Vertical(
                     Static("NODES", id="nodes-list-header"),
                     DataTable(id="nodes-list"),
+                    Static("", id="node-detail-info"),
                 ),
                 Vertical(
                     Static("", id="node-detail-header"),
-                    Static("", id="node-detail-info"),
                     Static("GPUs", id="gpu-detail-header"),
                     DataTable(id="gpu-detail-table"),
                     Static("Running Jobs", id="jobs-detail-header"),
