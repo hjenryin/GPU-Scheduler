@@ -130,7 +130,8 @@ def submit(script, script_args, req, depends_on, name, priority, env, working_di
 @click.option('--working-dir', help='Working directory for job')
 @click.option('--async', 'async_submit', is_flag=True, help='Submit async')
 @click.option('--log-to-driver', is_flag=True, help='Stream logs')
-def submit_batch(script_list, req, depends_on, name, priority, env, working_dir, async_submit, log_to_driver):
+@click.option('--sequential', is_flag=True, help='Each job depends on previous job')
+def submit_batch(script_list, req, depends_on, name, priority, env, working_dir, async_submit, log_to_driver, sequential):
     """Submit multiple jobs from a file"""
     try:
             code = submit_batch_command(
@@ -142,7 +143,8 @@ def submit_batch(script_list, req, depends_on, name, priority, env, working_dir,
             env=list(env) if env else None,
             working_dir=working_dir,
             async_submit=async_submit,
-            log_to_driver=log_to_driver
+            log_to_driver=log_to_driver,
+            sequential=sequential
         )
             sys.exit(code)
     except KeyboardInterrupt:
