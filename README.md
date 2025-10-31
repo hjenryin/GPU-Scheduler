@@ -199,6 +199,7 @@ This is a **coordination system**, not an enforcement system. It works well when
 | `scheduler start` | Start head or worker node | [→ Docs](API_REFERENCE.md#starting-the-scheduler) |
 | `scheduler stop` | Stop nodes | [→ Docs](API_REFERENCE.md#stopping-the-scheduler) |
 | `scheduler submit` | Submit jobs | [→ Docs](API_REFERENCE.md#job-submission) |
+| `scheduler submit-batch` | Submit multiple jobs from file | [→ Docs](API_REFERENCE.md#batch-job-submission) |
 | `scheduler status` | Interactive TUI monitor | [→ Docs](API_REFERENCE.md#cluster-status) |
 | `scheduler jobs` | List jobs (non-interactive) | [→ Docs](API_REFERENCE.md#scheduler-jobs) |
 | `scheduler logs` | View job logs | [→ Docs](API_REFERENCE.md#scheduler-logs) |
@@ -333,7 +334,21 @@ pip install -e .
 scheduler submit --req 2 train.py
 ```
 
-### Example 2: Multi-Stage Pipeline
+### Example 2: Multi-Stage Pipeline (Using submit-batch)
+
+```bash
+# Create a pipeline script list
+cat > pipeline.txt << EOF
+preprocess.py --input data.csv --output clean.csv
+train.py --data clean.csv --epochs 50 --lr 0.001
+evaluate.py --model best.pt --data test.csv
+EOF
+
+# Submit as sequential pipeline (each job depends on previous)
+scheduler submit-batch --sequential --req 2 pipeline.txt
+```
+
+### Example 3: Multi-Stage Pipeline (Manual Dependencies)
 
 ```bash
 # Preprocess
@@ -346,7 +361,21 @@ JOB2=$(scheduler submit --req 4 --depends-on $JOB1 --name "train" --async train.
 scheduler submit --req 1 --depends-on $JOB2 --name "eval" eval.py
 ```
 
-### Example 3: Specific Node Requirements
+### Example 4: Batch Job Submission
+
+```bash
+# Create job list with arguments
+cat > experiments.txt << EOF
+train.py --lr 0.001 --model resnet50
+train.py --lr 0.01 --model vgg16
+train.py --lr 0.1 --model mobilenet
+EOF
+
+# Submit all experiments independently
+scheduler submit-batch --req 2 --name "hyperparam-sweep" experiments.txt
+```
+
+### Example 5: Specific Node Requirements
 
 ```bash
 # Must run on gpu1 with 4 GPUs
@@ -356,7 +385,7 @@ scheduler submit --req gpu1:4 train.py
 scheduler submit --req gpu1:2,gpu2:4 train.py
 ```
 
-### Example 4: Python API Integration
+### Example 6: Python API Integration
 
 ```python
 from scheduler import SchedulerClient, JobStatus
