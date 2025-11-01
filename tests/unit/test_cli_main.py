@@ -207,8 +207,7 @@ class TestCLIMainArgumentParsing:
             '--env', 'KEY1=value1',
             '--env', 'KEY2=value2',
             '--working-dir', '/tmp',
-            '--async',
-            '--log-to-driver',
+            '--block',
             'python', 'test.py',
             'arg1', 'arg2'
         ])
@@ -222,8 +221,7 @@ class TestCLIMainArgumentParsing:
         assert call_kwargs['priority'] == 5
         assert call_kwargs['env'] == ['KEY1=value1', 'KEY2=value2']
         assert call_kwargs['working_dir'] == '/tmp'
-        assert call_kwargs['async_submit'] is True
-        assert call_kwargs['log_to_driver'] is True
+        assert call_kwargs['block'] is True
 
     @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
     @patch('scheduler.cli.main.jobs_command', autospec=True)
