@@ -198,10 +198,9 @@ class TestCLIMainArgumentParsing:
         runner = CliRunner()
         
         mock_submit.return_value = 0
+        # Scheduler options must come before the command
         result = runner.invoke(cli, [
             'submit',
-            'python', 'test.py',
-            'arg1', 'arg2',
             '--req', '2',
             '--name', 'test-job',
             '--priority', '5',
@@ -209,7 +208,9 @@ class TestCLIMainArgumentParsing:
             '--env', 'KEY2=value2',
             '--working-dir', '/tmp',
             '--async',
-            '--log-to-driver'
+            '--log-to-driver',
+            'python', 'test.py',
+            'arg1', 'arg2'
         ])
         
         assert result.exit_code == 0
@@ -338,3 +339,42 @@ class TestCLIMainArgumentParsing:
         assert mock_start.called
         call_kwargs = mock_start.call_args[1]
         assert call_kwargs['block'] is True
+    @patch('scheduler.tui.run_tui', autospec=True)  # Mock the problematic textual import
+    @patch('scheduler.cli.main.submit_command', autospec=True)
+    def test_submit_with_conflicting_arguments(self, mock_submit, mock_tui):
+        """Test submit command preserves arguments that conflict with submit options."""
+        from scheduler.cli.main import cli
+        runner = CliRunner()
+        
+        mock_submit.return_value = 0
+        # Test with --req=1 before the command to set scheduler option
+        # Then cmd with various args including --req=1, --name, --env that should be preserved as command args
+        result = runner.invoke(cli, [
+            'submit',
+            '--req', '1',
+            'cmd',
+            '--aaa=1',
+            '-d',
+            '--async2',
+            '-f',
+            '--ff',
+            'file.txt',
+            '--req=1',
+            '-D',
+            '--name',
+            '2',
+            '-g',
+            '--env',
+            '--name',
+            '3'
+        ])
+        
+        assert result.exit_code == 0
+        assert mock_submit.called
+        call_kwargs = mock_submit.call_args[1]
+        # Verify scheduler options
+        assert call_kwargs['req'] == '1'
+        # Verify command and all its arguments are preserved in order
+        expected_cmd = ['cmd', '--aaa=1', '-d', '--async2', '-f', '--ff', 'file.txt', 
+                       '--req=1', '-D', '--name', '2', '-g', '--env', '--name', '3']
+        assert call_kwargs['command'] == expected_cmd

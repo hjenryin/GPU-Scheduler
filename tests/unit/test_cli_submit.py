@@ -301,4 +301,32 @@ class TestSubmitCommand:
             assert call_kwargs['script'] == "./myexec"
             assert call_kwargs['script_args'] == ["--option", "value", "--flag"]
 
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
+    def test_submit_command_with_conflicting_arguments(self, mock_client_class, mock_load_config):
+        """Test that command arguments are preserved even when they conflict with submit options"""
+        mock_job = Mock(spec_set=Job)
+        mock_job.job_id = "job_conflict_test"
+        mock_job.status.value = "pending"
+
+        mock_client = Mock(spec_set=SchedulerClient)
+        mock_client.submit_job.return_value = mock_job
+        mock_client_class.return_value = mock_client
+
+        with patch('scheduler.cli.submit.click.echo', autospec=True):
+            # Test complex command with arguments that could conflict with submit options
+            # Including: --aaa=1, -d, --async2, -f, --ff, file.txt, --req=1, -D, --name, 2, -g, --env, --name, 3
+            result = submit_command(
+                command=["cmd", "--aaa=1", "-d", "--async2", "-f", "--ff", "file.txt", 
+                         "--req=1", "-D", "--name", "2", "-g", "--env", "--name", "3"],
+                async_submit=True
+            )
+            assert result == 0
+            call_kwargs = mock_client.submit_job.call_args[1]
+            assert call_kwargs['script'] == "cmd"
+            # Verify all arguments are preserved in exact order
+            expected_args = ["--aaa=1", "-d", "--async2", "-f", "--ff", "file.txt", 
+                           "--req=1", "-D", "--name", "2", "-g", "--env", "--name", "3"]
+            assert call_kwargs['script_args'] == expected_args
+
 

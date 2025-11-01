@@ -85,7 +85,11 @@ def stop(all_nodes):
         sys.exit(1)
 
 
-@cli.command(context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
+@cli.command(context_settings=dict(
+    ignore_unknown_options=True, 
+    allow_extra_args=True,
+    allow_interspersed_args=False
+))
 @click.option('--req', default='1', help='GPU requirements')
 @click.option('--depends-on', 'depends_on', multiple=True, help='Job dependencies')
 @click.option('--name', help='Job name')
