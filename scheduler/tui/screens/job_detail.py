@@ -35,22 +35,22 @@ class JobDetailScreen(Screen):
             Widgets for job details (metadata, logs preview, actions)
         """
         yield Header()
-        yield Container(
-            Static(f"Job Details: {self.job_id}", id="job-detail-title"),
-            Static("", id="job-metadata"),
-            Static("Job Configuration", id="job-config-header"),
-            Static("", id="job-config"),
-            Static("Logs Preview (last 20 lines)", id="logs-header"),
-            VerticalScroll(
-                Static("Loading logs...", id="logs-preview"), id="logs-scroll"
-            ),
-            Horizontal(
-                Button("View Full Logs (l)", id="logs-button", variant="primary"),
-                Button("Cancel Job (c)", id="cancel-button", variant="error"),
-                Button("Back (esc)", id="back-button"),
-                id="action-buttons",
-            ),
-            id="job-detail-container",
+        yield VerticalScroll(
+            Container(
+                Static(f"Job Details: {self.job_id}", id="job-detail-title"),
+                Static("", id="job-metadata"),
+                Static("Job Configuration", id="job-config-header"),
+                Static("", id="job-config"),
+                Static("Logs Preview (last 20 lines)", id="logs-header"),
+                Static("Loading logs...", id="logs-preview"),
+                Horizontal(
+                    Button("View Full Logs (l)", id="logs-button", variant="primary"),
+                    Button("Cancel Job (c)", id="cancel-button", variant="error"),
+                    Button("Back (esc)", id="back-button"),
+                    id="action-buttons",
+                ),
+                id="job-detail-container",
+            )
         )
         yield Footer()
 
@@ -67,9 +67,13 @@ class JobDetailScreen(Screen):
                     logs = self.app.client.get_job_logs(
                         self.job_id, lines=20, stderr=False
                     )
-                    self.query_one("#logs-preview", Static).update(
-                        logs if logs else "No logs available yet."
-                    )
+                    # Process logs to handle escape sequences properly
+                    if logs:
+                        # Replace literal \n with actual newlines and handle other escape sequences
+                        processed_logs = logs.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
+                        self.query_one("#logs-preview", Static).update(processed_logs)
+                    else:
+                        self.query_one("#logs-preview", Static).update("No logs available yet.")
                 except Exception as e:
                     self.query_one("#logs-preview", Static).update(
                         f"Could not fetch logs: {e}"
@@ -177,10 +181,16 @@ class JobDetailScreen(Screen):
                     self.job_id, lines=None, stderr=True
                 )
 
-                full_logs = "=== STDOUT ===\n" + (logs if logs else "No stdout logs")
-                full_logs += "\n\n=== STDERR ===\n" + (
-                    stderr_logs if stderr_logs else "No stderr logs"
-                )
+                # Process logs to handle escape sequences
+                stdout = logs if logs else "No stdout logs"
+                stderr = stderr_logs if stderr_logs else "No stderr logs"
+                
+                # Replace literal \n with actual newlines and handle other escape sequences
+                stdout = stdout.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
+                stderr = stderr.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
+                
+                full_logs = "=== STDOUT ===\n" + stdout
+                full_logs += "\n\n=== STDERR ===\n" + stderr
 
                 self.query_one("#logs-preview", Static).update(full_logs)
                 self.query_one("#logs-header", Static).update("Full Logs")

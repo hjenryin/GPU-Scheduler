@@ -15,8 +15,7 @@ def submit_batch_command(
     priority: int = 0,
     env: List[str] = None,
     working_dir: Optional[str] = None,
-    async_submit: bool = False,
-    log_to_driver: bool = False,
+    block: bool = False,
     sequential: bool = False
 ) -> int:
     """
@@ -30,8 +29,7 @@ def submit_batch_command(
         priority: Job priority (applied to all jobs)
         env: List of "KEY=VALUE" environment variables (applied to all jobs)
         working_dir: Working directory for jobs (applied to all jobs)
-        async_submit: If True, return immediately after submission
-        log_to_driver: If True, stream logs to stdout (only for last job)
+        block: If True, wait for last job completion and stream logs
         sequential: If True, each job depends on the previous job
 
     Returns:
@@ -170,31 +168,36 @@ def submit_batch_command(
         click.echo(f"  Failed: {failed}/{len(scripts_with_args)}")
         click.echo(f"{'='*50}")
         
-        # Handle log streaming for last job if requested
-        if log_to_driver and submitted_jobs:
+        # Handle block mode - stream logs and wait for last job
+        if block and submitted_jobs:
             last_job = submitted_jobs[-1]
-            click.echo(f"\nStreaming logs for last job ({last_job.job_id}) (Ctrl+C to stop)...")
+            click.echo(f"\nWaiting for last job ({last_job.job_id}) to complete and streaming logs (Ctrl+C to stop)...")
+            
             try:
                 for line in client.stream_job_logs(last_job.job_id):
-                    click.echo(line)
+                    click.echo(line, nl=False)
             except KeyboardInterrupt:
-                click.echo("\nStopped streaming logs")
-        
-        # Wait for last job completion if not async
-        elif not async_submit and submitted_jobs:
-            last_job = submitted_jobs[-1]
-            click.echo(f"\nWaiting for last job ({last_job.job_id}) to complete...")
-            while True:
-                job = client.get_job(last_job.job_id)
-                if job.status.value in ['completed', 'failed', 'cancelled']:
-                    break
-                time.sleep(2)
+                click.echo("\n\nStopped streaming logs (job still running)")
+                return 130
             
-            click.echo(f"\nJob {job.status.value}")
+            # Get final job status
+            job = client.get_job(last_job.job_id)
+            click.echo(f"\n\nJob {job.status.value}")
             if job.exit_code is not None:
                 click.echo(f"Exit code: {job.exit_code}")
-            if job.error_message:
-                click.echo(f"Error: {job.error_message}")
+            
+            # If job failed, fetch and print stderr
+            if job.status.value == 'failed':
+                try:
+                    stderr = client.get_job_logs(last_job.job_id, stderr=True)
+                    if stderr:
+                        click.echo(f"\n=== STDERR ===")
+                        click.echo(stderr)
+                except Exception as e:
+                    click.echo(f"Could not fetch stderr: {e}")
+                
+                if job.error_message:
+                    click.echo(f"\nError: {job.error_message}")
             
             return 0 if job.status.value == 'completed' else 1
         
