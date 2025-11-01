@@ -60,6 +60,10 @@ def submit_command(
     script = command[0]
     script_args = command[1:] if len(command) > 1 else None
 
+    # Use current directory if not specified (must be set on client side, not server side)
+    if working_dir is None:
+        working_dir = os.getcwd()
+
     try:
         # Connect to scheduler
         config = load_config()

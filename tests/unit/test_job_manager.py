@@ -4,8 +4,8 @@ from datetime import datetime
 
 from scheduler.core.models import Job, JobStatus, JobRequirement
 from scheduler.core.exceptions import JobNotFoundException
-from scheduler.head.job_manager import JobManager
-from scheduler.head.persistence import PersistenceManager
+from scheduler.manager import JobManager
+from scheduler.manager import PersistenceManager
 
 
 @pytest.fixture

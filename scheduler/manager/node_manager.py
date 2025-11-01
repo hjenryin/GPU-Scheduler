@@ -2,10 +2,10 @@ from typing import List, Optional, Dict
 import logging
 from datetime import datetime, timedelta
 
-from scheduler.core.config import Config
-from scheduler.core.models import GPU, Node, GPUStats, NodeStatus
-from scheduler.core.exceptions import NodeNotFoundException, ValidationException
-from scheduler.head.persistence import PersistenceManager
+from scheduler.core import Config
+from scheduler.core import GPU, Node, GPUStats, NodeStatus
+from scheduler.core import NodeNotFoundException, ValidationException
+from scheduler.manager.persistence import PersistenceManager
 
 logger = logging.getLogger(__name__)
 

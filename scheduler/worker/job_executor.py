@@ -4,9 +4,9 @@ import subprocess
 import logging
 from typing import List, Optional, Tuple, Dict
 
-from scheduler.core.config import Config
-from scheduler.core.models import Job
-from scheduler.core.exceptions import JobNotFoundException
+from scheduler.core import Config
+from scheduler.core import Job
+from scheduler.core import JobNotFoundException
 from scheduler.worker.file_handler import FileHandler
 from scheduler.worker.git_snapshot import GitSnapshotManager
 
@@ -61,13 +61,13 @@ class JobExecutor:
                 logger.info(f"[TRACE] Job {job.job_id}: No environment variables specified")
 
             # Determine working directory and script path
-            # If job has a snapshot, restore it to a worktree
+            # If job has a snapshot (created by client at submission time), restore it to a worktree
             if job.snapshot_ref and job.snapshot_working_dir:
                 logger.info(f"Job {job.job_id} has snapshot {job.snapshot_ref}, restoring to worktree")
-                
+
                 # Create worktree directory path
                 worktree_path = self.file_handler.get_job_snapshot_dir(job.job_id)
-                
+
                 # Restore snapshot to worktree
                 success = self.git_snapshot.restore_snapshot(
                     job.job_id,
@@ -75,13 +75,28 @@ class JobExecutor:
                     job.snapshot_working_dir,
                     worktree_path
                 )
-                
+
                 if success:
                     # Store worktree path for cleanup
                     self.job_worktrees[job.job_id] = worktree_path
                     
-                    # Use worktree as working directory
-                    working_dir = worktree_path
+                    # Calculate the working directory within the worktree
+                    # The worktree contains the entire workspace from snapshot_working_dir
+                    # We need to find the subdirectory that corresponds to job.working_dir
+                    try:
+                        # Get relative path from workspace root to job working dir
+                        rel_working_dir = os.path.relpath(job.working_dir, job.snapshot_working_dir)
+                        # Reconstruct working dir in worktree
+                        if rel_working_dir == '.':
+                            # Job was submitted from workspace root
+                            working_dir = worktree_path
+                        else:
+                            # Job was submitted from subdirectory
+                            working_dir = os.path.join(worktree_path, rel_working_dir)
+                    except ValueError:
+                        # working_dir is outside snapshot_working_dir, use worktree root
+                        logger.warning(f"Job working_dir {job.working_dir} is outside snapshot root {job.snapshot_working_dir}, using worktree root")
+                        working_dir = worktree_path
                     
                     # Reconstruct script path relative to worktree
                     # Script might be in subdirectories, so preserve relative structure
@@ -95,7 +110,7 @@ class JobExecutor:
                         script_basename = os.path.basename(job.script)
                         script_path = os.path.join(worktree_path, script_basename)
                     
-                    logger.info(f"Job {job.job_id} will execute in worktree: {worktree_path}")
+                    logger.info(f"Job {job.job_id} will execute in worktree: {working_dir}")
                     logger.info(f"Job {job.job_id} script path in worktree: {script_path}")
                 else:
                     logger.warning(f"Failed to restore snapshot for job {job.job_id}, using original working directory")

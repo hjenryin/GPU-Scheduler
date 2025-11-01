@@ -2,7 +2,7 @@
 Helper functions for CLI commands.
 """
 import click
-from scheduler.core.head_info import load_head_info
+from scheduler.core import load_head_info
 
 
 def check_head_address_or_prompt():

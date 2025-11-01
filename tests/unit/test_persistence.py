@@ -6,7 +6,7 @@ from scheduler.storage import StorageBackend
 
 from scheduler.core import Config
 from scheduler.core.models import Job, Node, JobStatus, NodeStatus, JobRequirement
-from scheduler.head.persistence import PersistenceManager
+from scheduler.manager import PersistenceManager
 
 
 class TestPersistenceManager:
@@ -280,7 +280,7 @@ class TestPersistenceManager:
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test that errors are logged
-        with patch('scheduler.head.persistence.logger', autospec=True) as mock_logger:
+        with patch('scheduler.manager.persistence.logger', autospec=True) as mock_logger:
             with pytest.raises(Exception):
                 persistence.save_job(sample_job)
             
@@ -298,7 +298,7 @@ class TestPersistenceManager:
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test that errors are logged
-        with patch('scheduler.head.persistence.logger', autospec=True) as mock_logger:
+        with patch('scheduler.manager.persistence.logger', autospec=True) as mock_logger:
             result = persistence.load_job("job-001")
             
             assert result is None
@@ -316,7 +316,7 @@ class TestPersistenceManager:
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test that errors are logged
-        with patch('scheduler.head.persistence.logger', autospec=True) as mock_logger:
+        with patch('scheduler.manager.persistence.logger', autospec=True) as mock_logger:
             result = persistence.load_all_jobs()
             
             assert result == []
@@ -333,7 +333,7 @@ class TestPersistenceManager:
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test that errors are logged
-        with patch('scheduler.head.persistence.logger', autospec=True) as mock_logger:
+        with patch('scheduler.manager.persistence.logger', autospec=True) as mock_logger:
             with pytest.raises(Exception):
                 persistence.delete_job("job-001")
             
@@ -351,7 +351,7 @@ class TestPersistenceManager:
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test that errors are logged
-        with patch('scheduler.head.persistence.logger', autospec=True) as mock_logger:
+        with patch('scheduler.manager.persistence.logger', autospec=True) as mock_logger:
             with pytest.raises(Exception):
                 persistence.save_node(sample_node)
             
@@ -369,7 +369,7 @@ class TestPersistenceManager:
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test that errors are logged
-        with patch('scheduler.head.persistence.logger', autospec=True) as mock_logger:
+        with patch('scheduler.manager.persistence.logger', autospec=True) as mock_logger:
             result = persistence.load_node("gpu1")
             
             assert result is None
@@ -387,7 +387,7 @@ class TestPersistenceManager:
         persistence = PersistenceManager(mock_backend, test_config)
         
         # Test that errors are logged
-        with patch('scheduler.head.persistence.logger', autospec=True) as mock_logger:
+        with patch('scheduler.manager.persistence.logger', autospec=True) as mock_logger:
             result = persistence.load_all_nodes()
             
             assert result == []

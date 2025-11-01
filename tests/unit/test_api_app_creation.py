@@ -2,8 +2,8 @@
 import pytest
 from unittest.mock import Mock, MagicMock
 from scheduler.api.routes import create_app
-from scheduler.head.job_manager import JobManager
-from scheduler.head.node_manager import NodeManager
+from scheduler.manager import JobManager
+from scheduler.manager import NodeManager
 
 
 class TestCreateApp:

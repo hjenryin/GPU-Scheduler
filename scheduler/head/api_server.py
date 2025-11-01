@@ -5,10 +5,9 @@ from typing import Optional
 import uvicorn
 from fastapi import FastAPI
 
-from scheduler.head.job_manager import JobManager
-from scheduler.head.node_manager import NodeManager
+from scheduler.manager import JobManager, NodeManager
 from scheduler.core import Config, PermissionDeniedException
-from scheduler.api.routes import create_app
+from scheduler.api import create_app
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +76,7 @@ class APIServer:
         except OSError as e:
             if "Address already in use" in str(e) or "Permission denied" in str(e):
                 # Check if it's a port conflict with another process
-                from scheduler.core.utils import is_port_available
+                from scheduler.core import is_port_available
                 if not is_port_available(self.port):
                     raise PermissionDeniedException(
                         f"Cannot bind to port {self.port}. Port is already in use by another process. "

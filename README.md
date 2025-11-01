@@ -96,6 +96,33 @@ All files stored in user space (no root required):
 - Lock files: `~/.scheduler/*.lock`
 - Shadow repos: `{workspace}/.scheduler-git/` (per workspace)
 
+### Workspace Mounting
+
+**IMPORTANT**: For the scheduler to work correctly across multiple machines, **the same working directory paths must be accessible on all worker nodes**. This ensures that:
+
+1. **Job snapshots are accessible**: When a job is submitted, a snapshot is created at the workspace root (where `.git` or `.scheduler-git` is found). Worker nodes need access to this location to restore the snapshot.
+
+2. **File paths are consistent**: Scripts and data files referenced by jobs must have the same paths across all machines.
+
+**Recommended Setup:**
+
+- Use a shared network file system (NFS, Lustre, etc.) mounted at the same path on all machines
+- Example: `/shared/users/username/` mounted identically on all worker nodes
+- Alternative: Use rsync or similar tools to keep workspaces synchronized
+
+**Example Configuration:**
+```bash
+# On all machines, ensure the same path exists
+# Machine 1 (head + worker):
+cd /shared/users/alice/myproject
+scheduler submit python train.py
+
+# Machine 2 (worker):
+# /shared/users/alice/myproject must exist and be accessible
+```
+
+Without this setup, jobs may fail to restore snapshots or access required files on worker nodes.
+
 ---
 
 ## Design Philosophy

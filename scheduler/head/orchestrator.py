@@ -7,10 +7,7 @@ from typing import Optional
 
 from scheduler.core import Config, PermissionDeniedException
 from scheduler.storage import FileBackend, SQLiteBackend
-from scheduler.head.persistence import PersistenceManager
-from scheduler.head.job_manager import JobManager
-from scheduler.head.node_manager import NodeManager
-from scheduler.head.scheduler import Scheduler
+from scheduler.manager import PersistenceManager, JobManager, NodeManager, Scheduler
 from scheduler.head.api_server import APIServer
 
 logger = logging.getLogger(__name__)

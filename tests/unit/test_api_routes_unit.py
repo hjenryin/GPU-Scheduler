@@ -30,7 +30,7 @@ from scheduler.core.exceptions import JobNotFoundException, NodeNotFoundExceptio
 def mock_job_manager():
     """Mocks the _job_manager in the routes file with autospec."""
     # Use Mock with spec instead of autospec on already-mocked attributes
-    from scheduler.head.job_manager import JobManager
+    from scheduler.manager import JobManager
     mock_jm = MagicMock(spec=JobManager)
     
     with patch('scheduler.api.routes._job_manager', mock_jm):
@@ -41,7 +41,7 @@ def mock_job_manager():
 def mock_node_manager():
     """Mocks the _node_manager in the routes file with autospec."""
     # Use Mock with spec instead of autospec on already-mocked attributes
-    from scheduler.head.node_manager import NodeManager
+    from scheduler.manager import NodeManager
     mock_nm = MagicMock(spec=NodeManager)
     
     with patch('scheduler.api.routes._node_manager', mock_nm):
@@ -614,7 +614,7 @@ class TestShutdownClusterRoute:
         mock_node_manager.get_connected_nodes.return_value = []
         
         # Mock orchestrator instance
-        with patch('scheduler.head.orchestrator._orchestrator_instance', None):
+        with patch('scheduler.api.routes._orchestrator_instance', None):
             with pytest.raises(HTTPException) as exc_info:
                 await shutdown_cluster_route(graceful_timeout=60, force=False)
             
@@ -630,7 +630,7 @@ class TestShutdownClusterRoute:
         mock_orchestrator = MagicMock()
         mock_orchestrator.request_cluster_shutdown = MagicMock()
         
-        with patch('scheduler.head.orchestrator._orchestrator_instance', mock_orchestrator):
+        with patch('scheduler.head._orchestrator_instance', mock_orchestrator):
             result = await shutdown_cluster_route(graceful_timeout=60, force=True)
             
             assert result['status'] == "shutdown_initiated"

@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 
 from scheduler.core.models import Node, GPU, GPUStats, NodeStatus
 from scheduler.core.exceptions import NodeNotFoundException
-from scheduler.head.node_manager import NodeManager
-from scheduler.head.persistence import PersistenceManager
+from scheduler.manager import NodeManager
+from scheduler.manager import PersistenceManager
 
 
 @pytest.fixture

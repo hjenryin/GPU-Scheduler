@@ -7,7 +7,7 @@ import click
 from scheduler.worker import is_daemon_running
 from scheduler.core import load_config
 from scheduler.api import SchedulerClient
-from scheduler.core.exceptions import ConnectionException
+from scheduler.core import ConnectionException
 
 logger = logging.getLogger(__name__)
 

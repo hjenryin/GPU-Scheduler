@@ -1,6 +1,5 @@
 from scheduler.api.client import SchedulerClient
-# Note: create_app is an internal function used by APIServer
-# It should be imported directly from scheduler.api.routes, not re-exported here
+from scheduler.api.routes import create_app
 from scheduler.api.schemas import (
     JobSubmitRequest,
     JobResponse,
@@ -12,7 +11,7 @@ from scheduler.api.schemas import (
 
 __all__ = [
     "SchedulerClient",
-    # "create_app",  # Removed - internal use only
+    "create_app",
     "JobSubmitRequest",
     "JobResponse",
     "NodeRegisterRequest",

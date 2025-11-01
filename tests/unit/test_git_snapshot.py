@@ -125,24 +125,28 @@ class TestCreateSnapshot:
     
     def test_creates_snapshot_successfully(self, git_manager, temp_work_dir):
         """Test successful snapshot creation"""
-        snapshot_ref = git_manager.create_snapshot('job123', temp_work_dir)
+        result = git_manager.create_snapshot('job123', temp_work_dir)
         
-        assert snapshot_ref is not None
+        assert result is not None
+        snapshot_ref, workspace_root = result
         assert len(snapshot_ref) == 40  # SHA-1 hash length
+        assert workspace_root == temp_work_dir
     
     def test_creates_branch_for_job(self, git_manager, temp_work_dir):
         """Test that a branch is created for the job"""
         job_id = 'job456'
-        snapshot_ref = git_manager.create_snapshot(job_id, temp_work_dir)
+        result = git_manager.create_snapshot(job_id, temp_work_dir)
+        assert result is not None
+        snapshot_ref, workspace_root = result
         
         # Check branch exists in the workspace's shadow repo
-        shadow_repo_path = git_manager._get_shadow_repo_path(temp_work_dir)
+        shadow_repo_path = git_manager._get_shadow_repo_path(workspace_root)
         # .scheduler-git IS the git directory (no .git subfolder)
         git_dir = shadow_repo_path
         
         result = subprocess.run(
             ['git', f'--git-dir={git_dir}', 'branch', '--list', f'job-{job_id}'],
-            cwd=temp_work_dir,
+            cwd=workspace_root,
             stdout=subprocess.PIPE,
             text=True
         )
@@ -150,15 +154,17 @@ class TestCreateSnapshot:
     
     def test_snapshot_contains_files(self, git_manager, temp_work_dir):
         """Test that snapshot contains the expected files"""
-        snapshot_ref = git_manager.create_snapshot('job789', temp_work_dir)
+        result = git_manager.create_snapshot('job789', temp_work_dir)
+        assert result is not None
+        snapshot_ref, workspace_root = result
         
         # Get files in the snapshot from workspace's shadow repo
-        shadow_repo_path = git_manager._get_shadow_repo_path(temp_work_dir)
+        shadow_repo_path = git_manager._get_shadow_repo_path(workspace_root)
         git_dir = shadow_repo_path  # .scheduler-git IS the git directory
         
         result = subprocess.run(
             ['git', f'--git-dir={git_dir}', 'ls-tree', '-r', '--name-only', snapshot_ref],
-            cwd=temp_work_dir,
+            cwd=workspace_root,
             stdout=subprocess.PIPE,
             text=True,
             check=True
@@ -191,16 +197,17 @@ class TestCreateSnapshot:
         with open(os.path.join(nested_dir, 'deep.py'), 'w') as f:
             f.write('# deep file\n')
         
-        snapshot_ref = git_manager.create_snapshot('job_nested', temp_work_dir)
-        assert snapshot_ref is not None
+        result = git_manager.create_snapshot('job_nested', temp_work_dir)
+        assert result is not None
+        snapshot_ref, workspace_root = result
         
         # Verify nested file is in snapshot
-        shadow_repo_path = git_manager._get_shadow_repo_path(temp_work_dir)
+        shadow_repo_path = git_manager._get_shadow_repo_path(workspace_root)
         git_dir = shadow_repo_path  # .scheduler-git IS the git directory
         
         result = subprocess.run(
             ['git', f'--git-dir={git_dir}', 'ls-tree', '-r', '--name-only', snapshot_ref],
-            cwd=temp_work_dir,
+            cwd=workspace_root,
             stdout=subprocess.PIPE,
             text=True,
             check=True
@@ -214,13 +221,14 @@ class TestRestoreSnapshot:
     def test_restore_creates_worktree(self, git_manager, temp_work_dir):
         """Test that restore creates a git worktree"""
         # Create snapshot
-        snapshot_ref = git_manager.create_snapshot('job_restore', temp_work_dir)
-        assert snapshot_ref is not None
+        result = git_manager.create_snapshot('job_restore', temp_work_dir)
+        assert result is not None
+        snapshot_ref, workspace_root = result
         
         # Restore to a new location
         restore_dir = tempfile.mkdtemp()
         try:
-            result = git_manager.restore_snapshot('job_restore', snapshot_ref, temp_work_dir, restore_dir)
+            result = git_manager.restore_snapshot('job_restore', snapshot_ref, workspace_root, restore_dir)
             
             # Should succeed
             assert result is True
@@ -292,12 +300,13 @@ class TestIntegration:
         job_id = 'job_workflow'
         
         # 1. Create snapshot
-        snapshot_ref = git_manager.create_snapshot(job_id, temp_work_dir)
-        assert snapshot_ref is not None
+        result = git_manager.create_snapshot(job_id, temp_work_dir)
+        assert result is not None
+        snapshot_ref, workspace_root = result
         
         # 2. Restore snapshot
         restore_dir = tempfile.mkdtemp()
-        success = git_manager.restore_snapshot(job_id, snapshot_ref, temp_work_dir, restore_dir)
+        success = git_manager.restore_snapshot(job_id, snapshot_ref, workspace_root, restore_dir)
         assert success is True
         
         # 3. Verify restored files
@@ -307,7 +316,7 @@ class TestIntegration:
         assert 'training' in content
         
         # 4. Cleanup
-        git_manager.cleanup_snapshot(job_id, snapshot_ref, temp_work_dir, restore_dir)
+        git_manager.cleanup_snapshot(job_id, snapshot_ref, workspace_root, restore_dir)
         
         # Verify cleanup
         shadow_repo_path = git_manager._get_shadow_repo_path(temp_work_dir)
