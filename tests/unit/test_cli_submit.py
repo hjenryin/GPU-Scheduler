@@ -321,9 +321,9 @@ class TestSubmitCommand:
 
         with patch('scheduler.cli.submit.click.echo', autospec=True):
             # Test complex command with arguments that could conflict with submit options
-            # Including: --aaa=1, -d, --block2, -f, --ff, file.txt, --req=1, -D, --name, 2, -g, --env, --name, 3
+            # Including: --aaa=1, -d, --async2, -f, --ff, file.txt, --req=1, -D, --name, 2, -g, --env, --name, 3
             result = submit_command(
-                command=["cmd", "--aaa=1", "-d", "--block2", "-f", "--ff", "file.txt", 
+                command=["cmd", "--aaa=1", "-d", "--async2", "-f", "--ff", "file.txt", 
                          "--req=1", "-D", "--name", "2", "-g", "--env", "--name", "3"],
                 block=False
             )
@@ -331,7 +331,7 @@ class TestSubmitCommand:
             call_kwargs = mock_client.submit_job.call_args[1]
             assert call_kwargs['script'] == "cmd"
             # Verify all arguments are preserved in exact order
-            expected_args = ["--aaa=1", "-d", "--block2", "-f", "--ff", "file.txt", 
+            expected_args = ["--aaa=1", "-d", "--async2", "-f", "--ff", "file.txt", 
                            "--req=1", "-D", "--name", "2", "-g", "--env", "--name", "3"]
             assert call_kwargs['script_args'] == expected_args
 

@@ -6,6 +6,22 @@ from scheduler.core import Job  # Import from peer submodule's public API
 from scheduler.tui.utils import format_runtime
 
 
+def process_log_escape_sequences(logs: str) -> str:
+    """
+    Process escape sequences in log strings to render them properly.
+    
+    Args:
+        logs: Raw log string that may contain literal escape sequences
+        
+    Returns:
+        Processed log string with escape sequences converted to actual characters
+    """
+    if not logs:
+        return logs
+    # Replace literal \n with actual newlines and handle other escape sequences
+    return logs.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
+
+
 class JobDetailScreen(Screen):
     """Single job detail screen"""
 
@@ -69,8 +85,7 @@ class JobDetailScreen(Screen):
                     )
                     # Process logs to handle escape sequences properly
                     if logs:
-                        # Replace literal \n with actual newlines and handle other escape sequences
-                        processed_logs = logs.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
+                        processed_logs = process_log_escape_sequences(logs)
                         self.query_one("#logs-preview", Static).update(processed_logs)
                     else:
                         self.query_one("#logs-preview", Static).update("No logs available yet.")
@@ -185,9 +200,9 @@ class JobDetailScreen(Screen):
                 stdout = logs if logs else "No stdout logs"
                 stderr = stderr_logs if stderr_logs else "No stderr logs"
                 
-                # Replace literal \n with actual newlines and handle other escape sequences
-                stdout = stdout.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
-                stderr = stderr.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
+                # Apply escape sequence processing
+                stdout = process_log_escape_sequences(stdout)
+                stderr = process_log_escape_sequences(stderr)
                 
                 full_logs = "=== STDOUT ===\n" + stdout
                 full_logs += "\n\n=== STDERR ===\n" + stderr
