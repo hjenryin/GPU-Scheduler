@@ -6,7 +6,7 @@ from scheduler.core.models import (
     Job, Node, GPU, GPUStats, JobRequirement,
     JobStatus, NodeStatus
 )
-from scheduler.head.scheduler import Scheduler
+from scheduler.manager import Scheduler
 
 
 class TestScheduler:

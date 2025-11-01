@@ -4,9 +4,9 @@ import subprocess
 import logging
 from typing import List, Optional, Tuple, Dict
 
-from scheduler.core.config import Config
-from scheduler.core.models import Job
-from scheduler.core.exceptions import JobNotFoundException
+from scheduler.core import Config
+from scheduler.core import Job
+from scheduler.core import JobNotFoundException
 from scheduler.worker.file_handler import FileHandler
 from scheduler.worker.git_snapshot import GitSnapshotManager
 
@@ -61,13 +61,13 @@ class JobExecutor:
                 logger.info(f"[TRACE] Job {job.job_id}: No environment variables specified")
 
             # Determine working directory and script path
-            # If job has a snapshot, restore it to a worktree
+            # If job has a snapshot (created by client at submission time), restore it to a worktree
             if job.snapshot_ref and job.snapshot_working_dir:
                 logger.info(f"Job {job.job_id} has snapshot {job.snapshot_ref}, restoring to worktree")
-                
+
                 # Create worktree directory path
                 worktree_path = self.file_handler.get_job_snapshot_dir(job.job_id)
-                
+
                 # Restore snapshot to worktree
                 success = self.git_snapshot.restore_snapshot(
                     job.job_id,
@@ -75,7 +75,7 @@ class JobExecutor:
                     job.snapshot_working_dir,
                     worktree_path
                 )
-                
+
                 if success:
                     # Store worktree path for cleanup
                     self.job_worktrees[job.job_id] = worktree_path

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
-from scheduler.core.models import Job, Node
+from scheduler.core import Job, Node
 
 
 class StorageBackend(ABC):

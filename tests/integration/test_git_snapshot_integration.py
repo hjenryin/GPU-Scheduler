@@ -10,8 +10,8 @@ from unittest.mock import Mock, patch, create_autospec
 
 from scheduler.core.config import Config
 from scheduler.core.models import Job, JobStatus, JobRequirement
-from scheduler.head.job_manager import JobManager
-from scheduler.head.persistence import PersistenceManager
+from scheduler.manager import JobManager
+from scheduler.manager import PersistenceManager
 from scheduler.worker.git_snapshot import GitSnapshotManager
 
 
@@ -86,70 +86,69 @@ class TestGitSnapshotIntegration:
     """Integration tests for git snapshot feature"""
     
     def test_submit_job_in_git_repo_creates_snapshot(self, job_manager, temp_git_repo):
-        """Test that submitting a job in a git repo creates a snapshot"""
+        """Test that submitting a job in a git repo (snapshot created on worker now)"""
         script_path = os.path.join(temp_git_repo, 'train.py')
-        
+
         # Submit job
         job = job_manager.submit_job(
             script=script_path,
             requirements="1",
             working_dir=temp_git_repo
         )
-        
+
         # Verify job was created
         assert job is not None
         assert job.job_id is not None
         assert job.status == JobStatus.PENDING
-        
-        # Verify snapshot was created
-        assert job.snapshot_ref is not None
-        assert job.snapshot_working_dir == temp_git_repo
-        assert len(job.snapshot_ref) >= 40  # At least a SHA-1 hash
+
+        # NOTE: Snapshots are now created on worker, not during submission
+        # So these fields will be None until worker picks up the job
+        assert job.snapshot_ref is None
+        assert job.snapshot_working_dir is None
     
     def test_submit_job_in_non_git_dir_creates_snapshot(self, job_manager, temp_non_git_dir):
-        """Test that submitting a job in a non-git directory now creates snapshot in shadow repo"""
+        """Test that submitting a job in a non-git directory (snapshot created on worker now)"""
         script_path = os.path.join(temp_non_git_dir, 'train.py')
-        
+
         # Submit job
         job = job_manager.submit_job(
             script=script_path,
             requirements="1",
             working_dir=temp_non_git_dir
         )
-        
+
         # Verify job was created
         assert job is not None
         assert job.job_id is not None
         assert job.status == JobStatus.PENDING
-        
-        # With shadow repo approach, we now create snapshots for all directories
-        assert job.snapshot_ref is not None
-        assert job.snapshot_working_dir == temp_non_git_dir
+
+        # NOTE: Snapshots are now created on worker, not during submission
+        assert job.snapshot_ref is None
+        assert job.snapshot_working_dir is None
     
     def test_submit_job_with_uncommitted_changes_creates_snapshot(self, job_manager, temp_git_repo):
-        """Test that submitting a job with uncommitted changes creates snapshot (no stash in shadow repo)"""
+        """Test that submitting a job with uncommitted changes (snapshot created on worker now)"""
         script_path = os.path.join(temp_git_repo, 'train.py')
-        
+
         # Modify the file (create uncommitted changes)
         with open(script_path, 'w') as f:
             f.write('print("version 2 - modified")\n')
-        
+
         # Submit job
         job = job_manager.submit_job(
             script=script_path,
             requirements="1",
             working_dir=temp_git_repo
         )
-        
+
         # Verify job was created
         assert job is not None
-        assert job.snapshot_ref is not None
-        
-        # With shadow repo, we just get a single commit SHA (no stash)
-        assert len(job.snapshot_ref) == 40  # SHA-1 hash length
-        assert ':' not in job.snapshot_ref  # No stash in shadow repo approach
-        
-        # Verify working directory still has modifications (we don't touch it)
+
+        # NOTE: Snapshots are now created on worker, not during submission
+        assert job.snapshot_ref is None
+        assert job.snapshot_working_dir is None
+
+        # Verify working directory still has modifications (we don't touch it during submission)
         with open(script_path, 'r') as f:
             content = f.read()
         assert 'version 2 - modified' in content
@@ -157,53 +156,62 @@ class TestGitSnapshotIntegration:
     def test_job_serialization_includes_snapshot_fields(self, job_manager, temp_git_repo):
         """Test that job serialization includes snapshot fields"""
         script_path = os.path.join(temp_git_repo, 'train.py')
-        
+
         # Submit job
         job = job_manager.submit_job(
             script=script_path,
             requirements="1",
             working_dir=temp_git_repo
         )
-        
+
         # Serialize job
         job_dict = job.to_dict()
-        
-        # Verify snapshot fields are in dictionary
+
+        # Verify snapshot fields are in dictionary (but they're None since snapshots are created on worker now)
         assert 'snapshot_ref' in job_dict
         assert 'snapshot_working_dir' in job_dict
-        assert job_dict['snapshot_ref'] is not None
+        # NOTE: Snapshots are now created on the worker, not during submission
+        # So these fields will be None until the worker picks up the job
+        assert job_dict['snapshot_ref'] is None
+        assert job_dict['snapshot_working_dir'] is None
+
+        # Simulate worker setting snapshot fields
+        job.snapshot_ref = 'abc123'
+        job.snapshot_working_dir = temp_git_repo
+
+        # Serialize again with snapshot fields set
+        job_dict = job.to_dict()
+        assert job_dict['snapshot_ref'] == 'abc123'
         assert job_dict['snapshot_working_dir'] == temp_git_repo
-        
+
         # Deserialize job
         restored_job = Job.from_dict(job_dict)
-        
+
         # Verify snapshot fields are restored
         assert restored_job.snapshot_ref == job.snapshot_ref
         assert restored_job.snapshot_working_dir == job.snapshot_working_dir
     
     def test_snapshot_creation_failure_doesnt_break_job_submission(self, job_manager, temp_git_repo):
-        """Test that snapshot creation failure doesn't prevent job submission"""
+        """Test that snapshot creation failure doesn't prevent job submission
+
+        NOTE: Snapshots are now created on the worker, not during submission.
+        This test now verifies that job submission succeeds without snapshots.
+        """
         script_path = os.path.join(temp_git_repo, 'train.py')
-        
-        # Mock GitSnapshotManager to simulate failure
-        with patch('scheduler.head.job_manager.GitSnapshotManager') as MockGitManager:
-            mock_manager = MockGitManager.return_value
-            mock_manager.is_git_repository.return_value = True
-            mock_manager.create_snapshot.side_effect = Exception("Simulated failure")
-            
-            # Submit job - should not raise exception
-            job = job_manager.submit_job(
-                script=script_path,
-                requirements="1",
-                working_dir=temp_git_repo
-            )
-            
-            # Verify job was created despite snapshot failure
-            assert job is not None
-            assert job.job_id is not None
-            assert job.status == JobStatus.PENDING
-            # Snapshot fields should be None due to failure
-            assert job.snapshot_ref is None
+
+        # Submit job - should succeed without creating snapshot
+        job = job_manager.submit_job(
+            script=script_path,
+            requirements="1",
+            working_dir=temp_git_repo
+        )
+
+        # Verify job was created without snapshot fields set
+        assert job is not None
+        assert job.snapshot_ref is None
+        assert job.snapshot_working_dir is None
+        assert job.job_id is not None
+        assert job.status == JobStatus.PENDING
 
 
 class TestBackwardCompatibility:

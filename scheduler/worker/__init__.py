@@ -4,6 +4,7 @@ from scheduler.worker.gpu_monitor import GPUMonitor
 from scheduler.worker.job_executor import JobExecutor
 from scheduler.worker.heartbeat import HeartbeatSender
 from scheduler.worker.file_handler import FileHandler
+from scheduler.worker.git_snapshot import GitSnapshotManager
 
 __all__ = [
     "WorkerDaemon",
@@ -13,4 +14,5 @@ __all__ = [
     "JobExecutor",
     "HeartbeatSender",
     "FileHandler",
+    "GitSnapshotManager",
 ]

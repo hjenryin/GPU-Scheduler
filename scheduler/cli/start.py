@@ -131,7 +131,7 @@ def start_command(
 
 def _start_head_node(config: Config, block: bool) -> int:
     """Start head node orchestrator."""
-    from scheduler.core.utils import is_port_available, find_available_port
+    from scheduler.core import is_port_available, find_available_port
     
     click.echo("Starting scheduler as HEAD NODE...")
     
@@ -147,7 +147,7 @@ def _start_head_node(config: Config, block: bool) -> int:
             click.echo(f"Using available port: {available_port}")
             
             # Create a new config with the available port
-            from scheduler.core.config import HeadConfig
+            from scheduler.core import HeadConfig
             new_head_config = HeadConfig(
                 port=available_port,
                 heartbeat_timeout=config.head.heartbeat_timeout,
@@ -511,7 +511,7 @@ def _start_worker_node_internal(config: Config, node_name: Optional[str], num_gp
 
 def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optional[int], block: bool) -> int:
     """Start worker node daemon."""
-    from scheduler.core.head_info import save_head_info
+    from scheduler.core import save_head_info
     
     # Determine node name
     if not node_name:

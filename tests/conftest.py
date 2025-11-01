@@ -10,10 +10,10 @@ from scheduler.core.models import (
     JobStatus, NodeStatus
 )
 from scheduler.core.config import Config
-from scheduler.head.job_manager import JobManager
-from scheduler.head.node_manager import NodeManager
-from scheduler.head.scheduler import Scheduler
-from scheduler.head.persistence import PersistenceManager
+from scheduler.manager import JobManager
+from scheduler.manager import NodeManager
+from scheduler.manager import Scheduler
+from scheduler.manager import PersistenceManager
 from scheduler.storage import FileBackend
 
 

@@ -2,10 +2,10 @@ from typing import List, Optional, Tuple
 import logging
 from datetime import datetime
 
-from scheduler.core.config import Config
-from scheduler.core.models import Job, Node
-from scheduler.head.job_manager import JobManager
-from scheduler.head.node_manager import NodeManager
+from scheduler.core import Config
+from scheduler.core import Job, Node
+from scheduler.manager.job_manager import JobManager
+from scheduler.manager.node_manager import NodeManager
 
 logger = logging.getLogger(__name__)
 

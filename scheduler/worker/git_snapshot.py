@@ -7,7 +7,7 @@ from typing import Optional, List, Set, Dict, Tuple
 from pathlib import Path
 
 from scheduler.core import Config
-from scheduler.core.constants import (
+from scheduler.core import (
     DEFAULT_SNAPSHOT_MAX_FILE_SIZE,
     DEFAULT_SNAPSHOT_MAX_FILES_PER_FOLDER,
     DEFAULT_SNAPSHOT_DATA_TYPE_LIMITS,
@@ -345,21 +345,40 @@ class GitSnapshotManager:
                 timeout=10,
                 check=True
             )
-            
-            # Add selected files
-            for rel_path in files_to_snapshot:
+
+            # Add selected files in batches to avoid argument length limits
+            # Batch size of 1000 files per git add call for efficiency
+            BATCH_SIZE = 1000
+            for i in range(0, len(files_to_snapshot), BATCH_SIZE):
+                batch = files_to_snapshot[i:i + BATCH_SIZE]
                 try:
+                    # Add all files in this batch with a single git add call
                     subprocess.run(
-                        ['git', f'--git-dir={git_dir}', f'--work-tree={workspace_root}', 'add', '--', rel_path],
+                        ['git', f'--git-dir={git_dir}', f'--work-tree={workspace_root}', 'add', '--'] + batch,
                         cwd=workspace_root,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         text=True,
-                        timeout=5,
+                        timeout=30,  # Increased timeout for batch operations
                         check=True
                     )
+                    logger.debug(f"Added batch of {len(batch)} files to git index")
                 except subprocess.CalledProcessError as e:
-                    logger.warning(f"Failed to add file {rel_path}: {e.stderr}")
+                    logger.warning(f"Failed to add batch of files: {e.stderr}")
+                    # If batch fails, try adding files individually to identify problematic files
+                    for rel_path in batch:
+                        try:
+                            subprocess.run(
+                                ['git', f'--git-dir={git_dir}', f'--work-tree={workspace_root}', 'add', '--', rel_path],
+                                cwd=workspace_root,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                text=True,
+                                timeout=5,
+                                check=False  # Don't raise on individual failures
+                            )
+                        except subprocess.CalledProcessError:
+                            logger.debug(f"Skipped problematic file: {rel_path}")
             
             # Write tree (creates tree object from index)
             result = subprocess.run(

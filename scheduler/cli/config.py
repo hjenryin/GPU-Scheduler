@@ -2,7 +2,7 @@ import yaml
 from typing import Optional
 import click
 
-from scheduler.core.config import load_config, save_config, init_config
+from scheduler.core import load_config, save_config, init_config
 from scheduler.core import constants
 
 

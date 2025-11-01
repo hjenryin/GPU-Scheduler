@@ -7,16 +7,16 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from scheduler.core.exceptions import (
+from scheduler.core import (
     ConnectionException,
     JobNotFoundException,
     NodeNotFoundException,
     ValidationException,
 )
-from scheduler.core.models import GPU, Job, JobStatus, Node, NodeStatus, GPUStats
-from scheduler.core.config import Config, load_config
+from scheduler.core import GPU, Job, JobStatus, Node, NodeStatus, GPUStats
+from scheduler.core import Config, load_config
 from scheduler.core import constants
-from scheduler.core.utils import parse_address
+from scheduler.core import parse_address
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class SchedulerClient:
             self._has_recorded_address = False  # Explicit means not from worker
         else:
             # Try to load recorded head address
-            from scheduler.core.head_info import load_head_info
+            from scheduler.core import load_head_info
             recorded_address = load_head_info()
             
             if recorded_address:
@@ -138,6 +138,11 @@ class SchedulerClient:
         """
         Submit a job.
 
+        This method:
+        1. Generates job_id on the client
+        2. Creates git snapshot locally (if in a git repository)
+        3. Sends job with snapshot info to head node
+
         Args:
             (same as JobManager.submit_job)
 
@@ -148,7 +153,37 @@ class SchedulerClient:
             ConnectionException: If cannot connect to head node
             ValidationException: If parameters invalid
         """
+        from scheduler.core import generate_job_id
+        from scheduler.worker import GitSnapshotManager
+        import os
+
+        # Generate job_id on client
+        job_id = generate_job_id()
+
+        # Use current working directory if not specified
+        if working_dir is None:
+            working_dir = os.getcwd()
+
+        # Create git snapshot on client machine
+        snapshot_ref = None
+        snapshot_working_dir = None
+
+        try:
+            git_manager = GitSnapshotManager(self.config)
+            if git_manager.is_git_repository(working_dir):
+                logger.info(f"Creating git snapshot for job {job_id} on client")
+                snapshot_result = git_manager.create_snapshot(job_id, working_dir)
+                if snapshot_result:
+                    snapshot_ref, snapshot_working_dir = snapshot_result
+                    logger.info(f"Created snapshot {snapshot_ref} at {snapshot_working_dir}")
+                else:
+                    logger.debug(f"No snapshot created for job {job_id}")
+        except Exception as e:
+            # Don't fail job submission if snapshot creation fails
+            logger.warning(f"Failed to create snapshot for job {job_id}: {e}")
+
         payload = {
+            "job_id": job_id,
             "script": script,
             "requirements": requirements,
             "name": name,
@@ -157,6 +192,8 @@ class SchedulerClient:
             "env_vars": env_vars,
             "dependencies": dependencies,
             "priority": priority,
+            "snapshot_ref": snapshot_ref,
+            "snapshot_working_dir": snapshot_working_dir,
         }
 
         try:
@@ -555,7 +592,7 @@ class SchedulerClient:
         Returns:
             Job instance
         """
-        from scheduler.core.models import JobRequirement
+        from scheduler.core import JobRequirement
 
         # Parse timestamps
         submitted_at = datetime.fromisoformat(data["submitted_at"]) if data.get("submitted_at") else None

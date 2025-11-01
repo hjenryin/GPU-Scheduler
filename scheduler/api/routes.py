@@ -4,8 +4,7 @@ import logging
 from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import StreamingResponse
 
-from scheduler.head.job_manager import JobManager
-from scheduler.head.node_manager import NodeManager
+from scheduler.manager import JobManager, NodeManager
 from scheduler.api.schemas import (
     JobSubmitRequest, JobResponse, JobListResponse,
     NodeRegisterRequest, NodeHeartbeat, NodeResponse
@@ -126,6 +125,9 @@ async def submit_job_route(request: JobSubmitRequest) -> JobResponse:
             env_vars=request.env_vars,
             dependencies=request.dependencies,
             priority=request.priority,
+            job_id=request.job_id,
+            snapshot_ref=request.snapshot_ref,
+            snapshot_working_dir=request.snapshot_working_dir,
         )
         return JobResponse.from_job(job)
     except Exception as e:
@@ -184,7 +186,7 @@ async def get_job_logs_route(
         # Try to read from worker's log directory
         # This is a simplified approach - in production, you'd want a proper log aggregation system
         import os
-        from scheduler.core.config import load_config
+        from scheduler.core import load_config
         
         config = load_config()
         
@@ -381,7 +383,7 @@ async def shutdown_cluster_route(graceful_timeout: int = 60, force: bool = False
         
         # Signal orchestrator to shutdown cluster
         # This will be handled by the orchestrator's shutdown_cluster method
-        from scheduler.head.orchestrator import _orchestrator_instance
+        from scheduler.head import _orchestrator_instance
         if _orchestrator_instance:
             _orchestrator_instance.request_cluster_shutdown(graceful_timeout, force)
             logger.info("Cluster shutdown initiated successfully")

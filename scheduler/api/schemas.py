@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel
-from scheduler.core.models import Job, Node
+from scheduler.core import Job, Node
 
 class JobSubmitRequest(BaseModel):
     """Job submission request schema"""
@@ -13,6 +13,9 @@ class JobSubmitRequest(BaseModel):
     env_vars: Optional[Dict[str, str]] = None
     dependencies: Optional[List[str]] = None
     priority: int = 0
+    job_id: Optional[str] = None
+    snapshot_ref: Optional[str] = None
+    snapshot_working_dir: Optional[str] = None
 
 
 class JobResponse(BaseModel):

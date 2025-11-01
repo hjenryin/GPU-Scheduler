@@ -4,8 +4,8 @@ import os
 from typing import List, Optional
 
 from scheduler.storage.backend import StorageBackend
-from scheduler.core.models import Job, Node
-from scheduler.core.utils import ensure_dir_exists
+from scheduler.core import Job, Node
+from scheduler.core import ensure_dir_exists
 
 
 class SQLiteBackend(StorageBackend):
