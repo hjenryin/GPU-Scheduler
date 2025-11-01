@@ -243,17 +243,32 @@ class GitSnapshotManager:
     def is_git_repository(self, path: str) -> bool:
         """Check if path is inside a git repository
         
-        Note: This now checks if we should create a snapshot, not if user has git.
-        We always create snapshots in our shadow repo.
+        This checks for the existence of a .git directory or file.
         
         Args:
             path: Directory path to check
             
         Returns:
-            True if we should create a snapshot (always True now)
+            True if inside a git repository, False otherwise
         """
-        # We always create snapshots in the shadow repo
-        return True
+        try:
+            # Walk up the directory tree looking for .git
+            current = os.path.abspath(path)
+            while True:
+                git_path = os.path.join(current, '.git')
+                if os.path.exists(git_path):
+                    return True
+                
+                parent = os.path.dirname(current)
+                if parent == current:
+                    # Reached root without finding .git
+                    break
+                current = parent
+            
+            return False
+        except Exception as e:
+            logger.debug(f"Error checking for git repository: {e}")
+            return False
     
     def create_snapshot(self, job_id: str, working_dir: str) -> Optional[str]:
         """Create a git snapshot of the working directory using the shadow repository

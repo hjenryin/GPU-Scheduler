@@ -195,6 +195,19 @@ This scheduler monitors but cannot prevent other users from starting jobs outsid
 ⚠️ **Best Effort Coordination**  
 This is a **coordination system**, not an enforcement system. It works well when users cooperate and code respects GPU assignments.
 
+⚠️ **Workspace Consistency Across Machines**  
+**IMPORTANT:** For the scheduler to work correctly, **the same working directories must be mounted/accessible on all machines in the cluster** with the same paths. This ensures:
+- Jobs can find their files when executed on any worker node
+- Shadow repositories (.scheduler-git) are accessible from all nodes
+- File paths remain consistent across the cluster
+
+**Example Setup:**
+- Use NFS, CIFS, or other network file systems to share directories
+- Mount user home directories at the same paths (e.g., `/home/username`) on all nodes
+- Ensure project directories are accessible with identical paths across all machines
+
+If directories are not consistently mounted, jobs may fail with "file not found" errors when scheduled to different nodes.
+
 ---
 
 ## Features

@@ -71,6 +71,8 @@ This system provides distributed job scheduling across multiple GPU machines wit
 
 ⚠️ **Best Effort**: This is a coordination system, not an enforcement system. It works well when users cooperate and code respects GPU assignments.
 
+⚠️ **Workspace Consistency**: **The same working directories must be mounted/accessible on all machines in the cluster** with the same paths. Use NFS, CIFS, or other network file systems to ensure directories (especially user homes and project directories) are accessible at identical paths on all nodes. Jobs may fail with "file not found" errors if directories are not consistently mounted.
+
 ---
 
 ## Starting the Scheduler

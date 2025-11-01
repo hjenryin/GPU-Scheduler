@@ -5,6 +5,7 @@ import click
 
 from scheduler.api import SchedulerClient
 from scheduler.core import load_config, ValidationException, ConnectionException
+from scheduler.worker.git_snapshot import GitSnapshotManager
 
 
 def submit_command(
@@ -59,6 +60,35 @@ def submit_command(
     # This maintains backward compatibility with the Job model
     script = command[0]
     script_args = command[1:] if len(command) > 1 else None
+
+    # If working directory is not specified, use the current directory
+    # This ensures jobs run in the directory where they were submitted from
+    if working_dir is None:
+        working_dir = os.getcwd()
+
+    # Check if working directory is in a git repository
+    # If not, ask user to confirm the workspace
+    try:
+        config = load_config()
+        git_manager = GitSnapshotManager(config)
+        
+        if not git_manager.is_git_repository(working_dir):
+            # Not in a git repo - inform user and ask for confirmation
+            click.echo(f"\n⚠️  Working directory is not in a git repository: {working_dir}")
+            click.echo("\nThe scheduler will create a shadow repository (.scheduler-git) to track job snapshots.")
+            click.echo("This ensures jobs run with consistent file versions even if you modify files while they're queued.")
+            
+            # Ask user to confirm or provide alternate workspace
+            if not click.confirm(f"\nUse '{working_dir}' as workspace?", default=True):
+                workspace = click.prompt("Enter workspace path", type=str, default=working_dir)
+                working_dir = os.path.abspath(workspace)
+                
+                if not os.path.isdir(working_dir):
+                    click.echo(f"Error: Directory does not exist: {working_dir}")
+                    return 4
+    except Exception as e:
+        # Don't fail submission if git check fails, just log and continue
+        click.echo(f"Warning: Could not check git repository status: {e}")
 
     try:
         # Connect to scheduler

@@ -96,17 +96,17 @@ class JobManager:
         )
         logger.info(f"[TRACE] Job {job_id} created with env_vars: {job.env_vars}")
 
-        # Create git snapshot if working directory is a git repository
+        # Create git snapshot using shadow repository
+        # This always creates snapshots regardless of whether working_dir is in a git repo
         try:
             git_manager = GitSnapshotManager(self.config)
-            if git_manager.is_git_repository(working_dir):
-                snapshot_ref = git_manager.create_snapshot(job_id, working_dir)
-                if snapshot_ref:
-                    job.snapshot_ref = snapshot_ref
-                    job.snapshot_working_dir = working_dir
-                    logger.info(f"Created git snapshot {snapshot_ref} for job {job_id}")
-                else:
-                    logger.debug(f"No snapshot created for job {job_id} (not in git repo or error)")
+            snapshot_ref = git_manager.create_snapshot(job_id, working_dir)
+            if snapshot_ref:
+                job.snapshot_ref = snapshot_ref
+                job.snapshot_working_dir = working_dir
+                logger.info(f"Created git snapshot {snapshot_ref} for job {job_id}")
+            else:
+                logger.debug(f"No snapshot created for job {job_id} (error or no files to snapshot)")
         except Exception as e:
             # Don't fail job submission if snapshot creation fails
             logger.warning(f"Failed to create snapshot for job {job_id}: {e}")
