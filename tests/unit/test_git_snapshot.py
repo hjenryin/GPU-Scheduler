@@ -67,14 +67,23 @@ class TestGitSnapshotManager:
 class TestIsGitRepository:
     """Test is_git_repository method"""
     
-    def test_always_returns_true(self, git_manager, temp_work_dir):
-        """Test that we always create snapshots (shadow repo approach)"""
-        # With shadow repo, we always create snapshots
+    def test_detects_git_repo(self, git_manager, temp_work_dir):
+        """Test that git repository is detected when .git exists"""
+        # Initialize a git repo
+        subprocess.run(['git', 'init'], cwd=temp_work_dir, check=True,
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        # Should detect git repo
         assert git_manager.is_git_repository(temp_work_dir) is True
     
-    def test_returns_true_for_nonexistent_dir(self, git_manager):
-        """Test that even non-existent dirs return True (shadow repo approach)"""
-        assert git_manager.is_git_repository('/nonexistent/path') is True
+    def test_detects_non_git_dir(self, git_manager, temp_work_dir):
+        """Test that non-git directory is detected correctly"""
+        # temp_work_dir is not a git repo
+        assert git_manager.is_git_repository(temp_work_dir) is False
+    
+    def test_returns_false_for_nonexistent_dir(self, git_manager):
+        """Test that non-existent dirs return False"""
+        assert git_manager.is_git_repository('/nonexistent/path') is False
 
 
 class TestFileSelection:
