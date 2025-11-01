@@ -71,6 +71,13 @@ This system provides distributed job scheduling across multiple GPU machines wit
 
 ⚠️ **Best Effort**: This is a coordination system, not an enforcement system. It works well when users cooperate and code respects GPU assignments.
 
+⚠️ **Workspace Mounting Requirement**: **All worker nodes must have access to the same workspace paths**. When you submit a job from `/path/to/myproject`, all worker nodes must be able to access `/path/to/myproject` at the same path. This is typically achieved through:
+- Shared network file systems (NFS, Lustre, GPFS, etc.)
+- Synchronized directories (using rsync or similar)
+- Common mount points across all machines
+
+Without this, jobs will fail to restore snapshots and access files. See the [Workspace Mounting](#workspace-mounting) section in README.md for details.
+
 ---
 
 ## Starting the Scheduler
