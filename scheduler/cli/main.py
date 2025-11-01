@@ -85,9 +85,11 @@ def stop(all_nodes):
         sys.exit(1)
 
 
-@cli.command()
-@click.argument('script')
-@click.argument('script_args', nargs=-1)
+@cli.command(context_settings=dict(
+    ignore_unknown_options=True, 
+    allow_extra_args=True,
+    allow_interspersed_args=False
+))
 @click.option('--req', default='1', help='GPU requirements')
 @click.option('--depends-on', 'depends_on', multiple=True, help='Job dependencies')
 @click.option('--name', help='Job name')
@@ -96,12 +98,22 @@ def stop(all_nodes):
 @click.option('--working-dir', help='Working directory for job')
 @click.option('--async', 'async_submit', is_flag=True, help='Submit async')
 @click.option('--log-to-driver', is_flag=True, help='Stream logs')
-def submit(script, script_args, req, depends_on, name, priority, env, working_dir, async_submit, log_to_driver):
-    """Submit a job"""
+@click.pass_context
+def submit(ctx, req, depends_on, name, priority, env, working_dir, async_submit, log_to_driver):
+    """Submit a job
+
+    COMMAND can be any command with arguments, e.g.:
+    
+    \b
+    scheduler submit python train.py --epochs 10
+    scheduler submit bash run.sh arg1 arg2
+    scheduler submit ./myexec --option value
+    """
     try:
-            code = submit_command(
-            script=script,
-            script_args=list(script_args),
+        # Get command from context args (everything after the options)
+        command = list(ctx.args)
+        code = submit_command(
+            command=command,
             req=req,
             depends_on=list(depends_on) if depends_on else None,
             name=name,
@@ -111,7 +123,7 @@ def submit(script, script_args, req, depends_on, name, priority, env, working_di
             async_submit=async_submit,
             log_to_driver=log_to_driver
         )
-            sys.exit(code)
+        sys.exit(code)
     except KeyboardInterrupt:
         click.echo("\nInterrupted")
         sys.exit(130)

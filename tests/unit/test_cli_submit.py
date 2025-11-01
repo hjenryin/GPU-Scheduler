@@ -13,10 +13,10 @@ from scheduler.api.client import SchedulerClient
 class TestSubmitCommand:
     """Tests for submit_command function"""
 
-    def test_submit_script_not_found(self):
-        """Test submitting a non-existent script"""
+    def test_submit_empty_command(self):
+        """Test submitting with empty command"""
         result = submit_command(
-            script="/nonexistent/script.py",
+            command=[],
             req="1"
         )
         assert result == 4
@@ -29,7 +29,7 @@ class TestSubmitCommand:
 
         try:
             result = submit_command(
-                script=temp_script,
+                command=["python", temp_script],
                 env=["INVALID_FORMAT_NO_EQUALS"]
             )
             assert result == 2
@@ -56,7 +56,7 @@ class TestSubmitCommand:
             with patch('scheduler.cli.submit.click.echo', autospec=True):
                 # Use async_submit to avoid waiting loop
                 result = submit_command(
-                    script=temp_script,
+                    command=["python", temp_script],
                     req="2",
                     name="test_job",
                     async_submit=True
@@ -86,8 +86,7 @@ class TestSubmitCommand:
             with patch('scheduler.cli.submit.click.echo', autospec=True):
                 # Use async_submit to avoid waiting loop
                 result = submit_command(
-                    script=temp_script,
-                    script_args=["arg1", "arg2"],
+                    command=["python", temp_script, "arg1", "arg2"],
                     req="4",
                     depends_on=["job_1", "job_2"],
                     name="my-job",
@@ -99,10 +98,10 @@ class TestSubmitCommand:
                 assert result == 0
                 # Verify all parameters passed through
                 call_kwargs = mock_client.submit_job.call_args[1]
-                assert call_kwargs['script'] == os.path.abspath(temp_script)
+                assert call_kwargs['script'] == "python"
                 assert call_kwargs['requirements'] == "4"
                 assert call_kwargs['name'] == "my-job"
-                assert call_kwargs['script_args'] == ["arg1", "arg2"]
+                assert call_kwargs['script_args'] == [temp_script, "arg1", "arg2"]
                 assert call_kwargs['working_dir'] == "/tmp/work"
                 assert call_kwargs['env_vars']['KEY1'] == "value1"
                 assert call_kwargs['env_vars']['KEY2'] == "value2"
@@ -125,7 +124,7 @@ class TestSubmitCommand:
 
         try:
             with patch('scheduler.cli.submit.click.echo', autospec=True):
-                result = submit_command(script=temp_script, req="invalid")
+                result = submit_command(command=["python", temp_script], req="invalid")
                 assert result == 2
         finally:
             os.unlink(temp_script)
@@ -144,7 +143,7 @@ class TestSubmitCommand:
 
         try:
             with patch('scheduler.cli.submit.click.echo', autospec=True):
-                result = submit_command(script=temp_script)
+                result = submit_command(command=["python", temp_script])
                 assert result == 3
         finally:
             os.unlink(temp_script)
@@ -168,7 +167,7 @@ class TestSubmitCommand:
         try:
             with patch('scheduler.cli.submit.click.echo', autospec=True):
                 result = submit_command(
-                    script=temp_script,
+                    command=["python", temp_script],
                     async_submit=True
                 )
                 assert result == 0
@@ -201,7 +200,7 @@ class TestSubmitCommand:
         try:
             with patch('scheduler.cli.submit.click.echo', autospec=True), \
                  patch('scheduler.cli.submit.time.sleep', autospec=True):
-                result = submit_command(script=temp_script)
+                result = submit_command(command=["python", temp_script])
                 assert result == 0  # Completed successfully
         finally:
             os.unlink(temp_script)
@@ -231,8 +230,103 @@ class TestSubmitCommand:
         try:
             with patch('scheduler.cli.submit.click.echo', autospec=True), \
                  patch('scheduler.cli.submit.time.sleep', autospec=True):
-                result = submit_command(script=temp_script)
+                result = submit_command(command=["python", temp_script])
                 assert result == 1  # Failed
         finally:
             os.unlink(temp_script)
+
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
+    def test_submit_python_command(self, mock_client_class, mock_load_config):
+        """Test submitting a python command with arguments"""
+        mock_job = Mock(spec_set=Job)
+        mock_job.job_id = "job_123"
+        mock_job.status.value = "pending"
+
+        mock_client = Mock(spec_set=SchedulerClient)
+        mock_client.submit_job.return_value = mock_job
+        mock_client_class.return_value = mock_client
+
+        with patch('scheduler.cli.submit.click.echo', autospec=True):
+            result = submit_command(
+                command=["python", "train.py", "--epochs", "10", "--lr", "0.01"],
+                async_submit=True
+            )
+            assert result == 0
+            call_kwargs = mock_client.submit_job.call_args[1]
+            assert call_kwargs['script'] == "python"
+            assert call_kwargs['script_args'] == ["train.py", "--epochs", "10", "--lr", "0.01"]
+
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
+    def test_submit_bash_command(self, mock_client_class, mock_load_config):
+        """Test submitting a bash command with arguments"""
+        mock_job = Mock(spec_set=Job)
+        mock_job.job_id = "job_456"
+        mock_job.status.value = "pending"
+
+        mock_client = Mock(spec_set=SchedulerClient)
+        mock_client.submit_job.return_value = mock_job
+        mock_client_class.return_value = mock_client
+
+        with patch('scheduler.cli.submit.click.echo', autospec=True):
+            result = submit_command(
+                command=["bash", "run.sh", "arg1", "arg2"],
+                async_submit=True
+            )
+            assert result == 0
+            call_kwargs = mock_client.submit_job.call_args[1]
+            assert call_kwargs['script'] == "bash"
+            assert call_kwargs['script_args'] == ["run.sh", "arg1", "arg2"]
+
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
+    def test_submit_executable_command(self, mock_client_class, mock_load_config):
+        """Test submitting an executable with options"""
+        mock_job = Mock(spec_set=Job)
+        mock_job.job_id = "job_789"
+        mock_job.status.value = "pending"
+
+        mock_client = Mock(spec_set=SchedulerClient)
+        mock_client.submit_job.return_value = mock_job
+        mock_client_class.return_value = mock_client
+
+        with patch('scheduler.cli.submit.click.echo', autospec=True):
+            result = submit_command(
+                command=["./myexec", "--option", "value", "--flag"],
+                async_submit=True
+            )
+            assert result == 0
+            call_kwargs = mock_client.submit_job.call_args[1]
+            assert call_kwargs['script'] == "./myexec"
+            assert call_kwargs['script_args'] == ["--option", "value", "--flag"]
+
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
+    def test_submit_command_with_conflicting_arguments(self, mock_client_class, mock_load_config):
+        """Test that command arguments are preserved even when they conflict with submit options"""
+        mock_job = Mock(spec_set=Job)
+        mock_job.job_id = "job_conflict_test"
+        mock_job.status.value = "pending"
+
+        mock_client = Mock(spec_set=SchedulerClient)
+        mock_client.submit_job.return_value = mock_job
+        mock_client_class.return_value = mock_client
+
+        with patch('scheduler.cli.submit.click.echo', autospec=True):
+            # Test complex command with arguments that could conflict with submit options
+            # Including: --aaa=1, -d, --async2, -f, --ff, file.txt, --req=1, -D, --name, 2, -g, --env, --name, 3
+            result = submit_command(
+                command=["cmd", "--aaa=1", "-d", "--async2", "-f", "--ff", "file.txt", 
+                         "--req=1", "-D", "--name", "2", "-g", "--env", "--name", "3"],
+                async_submit=True
+            )
+            assert result == 0
+            call_kwargs = mock_client.submit_job.call_args[1]
+            assert call_kwargs['script'] == "cmd"
+            # Verify all arguments are preserved in exact order
+            expected_args = ["--aaa=1", "-d", "--async2", "-f", "--ff", "file.txt", 
+                           "--req=1", "-D", "--name", "2", "-g", "--env", "--name", "3"]
+            assert call_kwargs['script_args'] == expected_args
+
 
