@@ -51,8 +51,8 @@ class JobDetailScreen(Screen):
             Widgets for job details (metadata, logs preview, actions)
         """
         yield Header()
-        yield VerticalScroll(
-            Container(
+        yield Container(
+            VerticalScroll(
                 Static(f"Job Details: {self.job_id}", id="job-detail-title"),
                 Static("", id="job-metadata"),
                 Static("Job Configuration", id="job-config-header"),
@@ -65,8 +65,9 @@ class JobDetailScreen(Screen):
                     Button("Back (esc)", id="back-button"),
                     id="action-buttons",
                 ),
-                id="job-detail-container",
-            )
+                id="job-scroll"
+            ),
+            id="job-detail-container",
         )
         yield Footer()
 
