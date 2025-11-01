@@ -143,8 +143,10 @@ class TestWorkingDirectoryWithSnapshot:
         # Check the log - should show worktree path with subdirectory
         logs = executor.get_job_logs('test_job_2', stderr=False)
         # The working directory should be in worktree, but in the same relative path
-        assert 'experiments/exp1' in logs or 'experiments\\exp1' in logs, \
-            f"Expected experiments/exp1 subdirectory in logs, got: {logs}"
+        # Check for the subdirectory structure using os.path.sep for platform compatibility
+        expected_subpath = f'experiments{os.path.sep}exp1'
+        assert expected_subpath in logs, \
+            f"Expected {expected_subpath} subdirectory in logs, got: {logs}"
         
         # Cleanup
         executor.cleanup_job(job)

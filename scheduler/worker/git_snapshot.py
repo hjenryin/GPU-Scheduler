@@ -3,7 +3,7 @@
 import os
 import subprocess
 import logging
-from typing import Optional, List, Set, Dict
+from typing import Optional, List, Set, Dict, Tuple
 from pathlib import Path
 
 from scheduler.core import Config
@@ -297,7 +297,7 @@ class GitSnapshotManager:
         # We always create snapshots in the shadow repo
         return True
     
-    def create_snapshot(self, job_id: str, working_dir: str) -> Optional[tuple]:
+    def create_snapshot(self, job_id: str, working_dir: str) -> Optional[Tuple[str, str]]:
         """Create a git snapshot of the working directory using the shadow repository
         
         This creates a snapshot by:

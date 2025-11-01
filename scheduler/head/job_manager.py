@@ -79,7 +79,9 @@ class JobManager:
         # If not provided, we can't infer it correctly on the server side
         if working_dir is None:
             # Fallback to script directory if working_dir not provided
-            working_dir = os.path.dirname(os.path.abspath(script)) if script else os.getcwd()
+            # If script is just a filename, use current directory
+            script_dir = os.path.dirname(os.path.abspath(script)) if script else None
+            working_dir = script_dir if script_dir else os.getcwd()
 
         # Create job
         logger.info(f"[TRACE] Creating job {job_id} with env_vars: {env_vars}")
