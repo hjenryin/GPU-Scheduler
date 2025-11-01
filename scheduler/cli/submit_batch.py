@@ -81,6 +81,10 @@ def submit_batch_command(
     if sequential:
         click.echo("Sequential mode: Each job will depend on the previous job")
     
+    # Use current directory if not specified (must be set on client side, not server side)
+    if working_dir is None:
+        working_dir = os.getcwd()
+    
     # Submit each script
     failed = 0
     succeeded = 0

@@ -240,6 +240,48 @@ class GitSnapshotManager:
             logger.error(f"Error collecting files from {working_dir}: {e}")
             return []
     
+    def _find_workspace_root(self, path: str) -> str:
+        """Find the workspace root by searching for .git or .scheduler-git
+        
+        Searches upward from the given path to find:
+        1. A .git directory (user's git repository)
+        2. A .scheduler-git directory (our shadow repository)
+        
+        If neither is found, returns the original path.
+        
+        Args:
+            path: Starting directory path
+            
+        Returns:
+            Path to workspace root
+        """
+        current = os.path.abspath(path)
+        
+        # Search upward until we find .git or .scheduler-git or reach root
+        while True:
+            # Check for .git directory (user's repo)
+            git_dir = os.path.join(current, '.git')
+            if os.path.exists(git_dir):
+                logger.info(f"Found .git directory at {current}")
+                return current
+            
+            # Check for .scheduler-git directory (our shadow repo)
+            scheduler_git_dir = os.path.join(current, '.scheduler-git')
+            if os.path.exists(scheduler_git_dir):
+                logger.info(f"Found .scheduler-git directory at {current}")
+                return current
+            
+            # Move to parent directory
+            parent = os.path.dirname(current)
+            
+            # Stop at filesystem root
+            if parent == current:
+                # No git repo found, use original path
+                logger.debug(f"No .git or .scheduler-git found, using {path} as workspace root")
+                return os.path.abspath(path)
+            
+            current = parent
+    
     def is_git_repository(self, path: str) -> bool:
         """Check if path is inside a git repository
         
@@ -255,32 +297,39 @@ class GitSnapshotManager:
         # We always create snapshots in the shadow repo
         return True
     
-    def create_snapshot(self, job_id: str, working_dir: str) -> Optional[str]:
+    def create_snapshot(self, job_id: str, working_dir: str) -> Optional[tuple]:
         """Create a git snapshot of the working directory using the shadow repository
         
         This creates a snapshot by:
-        1. Ensuring shadow repo exists (working_dir/.scheduler-git as git dir)
-        2. Using git --git-dir and --work-tree to add files directly from working_dir
-        3. Creating a commit without checking out (using git write-tree and commit-tree)
-        4. Creating a branch pointing to the commit
-        5. Returning the commit SHA as the snapshot reference
+        1. Finding the workspace root (by searching for .git or .scheduler-git)
+        2. Ensuring shadow repo exists (workspace_root/.scheduler-git as git dir)
+        3. Using git --git-dir and --work-tree to add files directly from workspace_root
+        4. Creating a commit without checking out (using git write-tree and commit-tree)
+        5. Creating a branch pointing to the commit
+        6. Returning the commit SHA and workspace root
         
         Args:
             job_id: Unique job identifier
-            working_dir: Working directory to snapshot
+            working_dir: Working directory where job was submitted from
             
         Returns:
-            Snapshot reference (commit SHA) or None on error
+            Tuple of (snapshot_ref, workspace_root) or None on error
+            - snapshot_ref: commit SHA in shadow repo
+            - workspace_root: path to workspace root where snapshot was created
         """
         try:
+            # Find the workspace root (search for .git or .scheduler-git)
+            workspace_root = self._find_workspace_root(working_dir)
+            logger.info(f"Using workspace root: {workspace_root} for job {job_id}")
+            
             # Ensure shadow repo exists for this workspace
-            self._ensure_shadow_repo(working_dir)
-            git_dir = self._get_shadow_repo_path(working_dir)  # This IS the git dir
+            self._ensure_shadow_repo(workspace_root)
+            git_dir = self._get_shadow_repo_path(workspace_root)  # This IS the git dir
             
             branch_name = f"job-{job_id}"
             
-            # Collect files to snapshot
-            files_to_snapshot = self._collect_files_to_snapshot(working_dir)
+            # Collect files to snapshot from workspace root
+            files_to_snapshot = self._collect_files_to_snapshot(workspace_root)
             
             if not files_to_snapshot:
                 logger.warning(f"No files to snapshot for job {job_id}")
@@ -288,8 +337,8 @@ class GitSnapshotManager:
             
             # Reset index to clear any previous state
             subprocess.run(
-                ['git', f'--git-dir={git_dir}', f'--work-tree={working_dir}', 'reset'],
-                cwd=working_dir,
+                ['git', f'--git-dir={git_dir}', f'--work-tree={workspace_root}', 'reset'],
+                cwd=workspace_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -301,8 +350,8 @@ class GitSnapshotManager:
             for rel_path in files_to_snapshot:
                 try:
                     subprocess.run(
-                        ['git', f'--git-dir={git_dir}', f'--work-tree={working_dir}', 'add', '--', rel_path],
-                        cwd=working_dir,
+                        ['git', f'--git-dir={git_dir}', f'--work-tree={workspace_root}', 'add', '--', rel_path],
+                        cwd=workspace_root,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         text=True,
@@ -315,7 +364,7 @@ class GitSnapshotManager:
             # Write tree (creates tree object from index)
             result = subprocess.run(
                 ['git', f'--git-dir={git_dir}', 'write-tree'],
-                cwd=working_dir,
+                cwd=workspace_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -328,7 +377,7 @@ class GitSnapshotManager:
             parent_args = []
             result = subprocess.run(
                 ['git', f'--git-dir={git_dir}', 'rev-parse', 'HEAD'],
-                cwd=working_dir,
+                cwd=workspace_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -339,10 +388,11 @@ class GitSnapshotManager:
                 parent_args = ['-p', parent_sha]
             
             # Create commit object
-            commit_message = f"Snapshot for job {job_id}\n\nSource: {working_dir}\nFiles: {len(files_to_snapshot)}"
+            # Note: commit message includes the original working_dir for reference
+            commit_message = f"Snapshot for job {job_id}\n\nWorkspace: {workspace_root}\nSubmitted from: {working_dir}\nFiles: {len(files_to_snapshot)}"
             result = subprocess.run(
                 ['git', f'--git-dir={git_dir}', 'commit-tree', tree_sha] + parent_args + ['-m', commit_message],
-                cwd=working_dir,
+                cwd=workspace_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -354,7 +404,7 @@ class GitSnapshotManager:
             # Create/update branch to point to this commit
             subprocess.run(
                 ['git', f'--git-dir={git_dir}', 'branch', '-f', branch_name, commit_sha],
-                cwd=working_dir,
+                cwd=workspace_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -363,7 +413,7 @@ class GitSnapshotManager:
             )
             
             logger.info(f"Created snapshot {commit_sha} for job {job_id} on branch {branch_name} ({len(files_to_snapshot)} files)")
-            return commit_sha
+            return (commit_sha, workspace_root)
             
         except subprocess.TimeoutExpired:
             logger.warning(f"Git command timed out while creating snapshot for job {job_id}")

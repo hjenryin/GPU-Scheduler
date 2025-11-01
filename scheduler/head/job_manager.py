@@ -75,9 +75,11 @@ class JobManager:
         job_id = generate_job_id()
         job_name = name or os.path.basename(script)
 
-        # Use current directory if not specified
+        # working_dir should be set by the client, not the server
+        # If not provided, we can't infer it correctly on the server side
         if working_dir is None:
-            working_dir = os.getcwd()
+            # Fallback to script directory if working_dir not provided
+            working_dir = os.path.dirname(os.path.abspath(script)) if script else os.getcwd()
 
         # Create job
         logger.info(f"[TRACE] Creating job {job_id} with env_vars: {env_vars}")
@@ -100,11 +102,12 @@ class JobManager:
         try:
             git_manager = GitSnapshotManager(self.config)
             if git_manager.is_git_repository(working_dir):
-                snapshot_ref = git_manager.create_snapshot(job_id, working_dir)
-                if snapshot_ref:
+                snapshot_result = git_manager.create_snapshot(job_id, working_dir)
+                if snapshot_result:
+                    snapshot_ref, workspace_root = snapshot_result
                     job.snapshot_ref = snapshot_ref
-                    job.snapshot_working_dir = working_dir
-                    logger.info(f"Created git snapshot {snapshot_ref} for job {job_id}")
+                    job.snapshot_working_dir = workspace_root
+                    logger.info(f"Created git snapshot {snapshot_ref} for job {job_id} at workspace {workspace_root}")
                 else:
                     logger.debug(f"No snapshot created for job {job_id} (not in git repo or error)")
         except Exception as e:
