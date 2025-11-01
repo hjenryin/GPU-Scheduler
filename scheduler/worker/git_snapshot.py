@@ -33,25 +33,67 @@ class GitSnapshotManager:
     
     def __init__(self, config: Config):
         """Initialize git snapshot manager
-        
+
         Args:
             config: Configuration instance
         """
         self.config = config
-        
+
         # Load configuration values with defaults from constants
         self.max_file_size = getattr(config, 'snapshot_max_file_size', DEFAULT_SNAPSHOT_MAX_FILE_SIZE)
         self.max_files_per_folder = getattr(config, 'snapshot_max_files_per_folder', DEFAULT_SNAPSHOT_MAX_FILES_PER_FOLDER)
-        
+
         # Load data type size limits (can be overridden by config)
         self.data_type_size_limits = getattr(config, 'snapshot_data_type_limits', DEFAULT_SNAPSHOT_DATA_TYPE_LIMITS.copy())
-        
+
         # Load file extension and exclusion patterns (can be overridden by config)
         self.always_include_extensions = getattr(config, 'snapshot_always_include_extensions', DEFAULT_SNAPSHOT_ALWAYS_INCLUDE_EXTENSIONS.copy())
         self.exclude_patterns = getattr(config, 'snapshot_exclude_patterns', DEFAULT_SNAPSHOT_EXCLUDE_PATTERNS.copy())
-        
+
         logger.debug(f"GitSnapshotManager initialized (max_file_size={self.max_file_size}, "
                     f"max_files_per_folder={self.max_files_per_folder})")
+
+    def _parse_scheduler_snapshot_ignore(self, working_dir: str) -> Set[str]:
+        """Parse .scheduler_snapshot_ignore file in working directory
+
+        The .scheduler_snapshot_ignore file uses the same format as .gitignore:
+        - One pattern per line
+        - Lines starting with # are comments
+        - Empty lines are ignored
+        - Patterns can be:
+          - Directory names (e.g., 'wandb')
+          - File patterns (e.g., '*.safetensors')
+          - Path patterns (e.g., 'data/**/*.npy')
+
+        Args:
+            working_dir: The working directory to search for .scheduler_snapshot_ignore
+
+        Returns:
+            Set of patterns to exclude, empty set if file doesn't exist
+        """
+        ignore_file = os.path.join(working_dir, '.scheduler_snapshot_ignore')
+        patterns = set()
+
+        if not os.path.exists(ignore_file):
+            logger.debug(f"No .scheduler_snapshot_ignore found in {working_dir}")
+            return patterns
+
+        try:
+            with open(ignore_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    # Skip empty lines and comments
+                    if not line or line.startswith('#'):
+                        continue
+                    patterns.add(line)
+
+            logger.info(f"Loaded {len(patterns)} patterns from .scheduler_snapshot_ignore")
+            logger.debug(f"Patterns: {patterns}")
+
+        except Exception as e:
+            logger.warning(f"Failed to read .scheduler_snapshot_ignore: {e}")
+
+        return patterns
     
     def _get_shadow_repo_path(self, working_dir: str) -> str:
         """Get the shadow repository path for a given working directory
@@ -69,28 +111,70 @@ class GitSnapshotManager:
         # .scheduler-git IS the git directory (contains branches, objects, etc.)
         return os.path.join(working_dir, '.scheduler-git')
     
+    def _setup_git_exclude(self, working_dir: str):
+        """Set up .scheduler-git/info/exclude with default patterns and .scheduler_snapshot_ignore
+
+        Git's info/exclude file allows per-repo excludes without affecting .gitignore.
+        We write our default patterns plus any user patterns from .scheduler_snapshot_ignore.
+
+        Args:
+            working_dir: The working directory containing the shadow repo
+        """
+        shadow_git_dir = self._get_shadow_repo_path(working_dir)
+        info_dir = os.path.join(shadow_git_dir, 'info')
+        exclude_file = os.path.join(info_dir, 'exclude')
+
+        # Ensure info directory exists
+        os.makedirs(info_dir, exist_ok=True)
+
+        # Merge default patterns with user patterns
+        user_patterns = self._parse_scheduler_snapshot_ignore(working_dir)
+        all_patterns = self.exclude_patterns | user_patterns
+
+        # Write to info/exclude
+        try:
+            with open(exclude_file, 'w') as f:
+                f.write("# Scheduler snapshot exclude patterns\n")
+                f.write("# Auto-generated - do not edit manually\n\n")
+
+                f.write("# Default exclude patterns:\n")
+                for pattern in sorted(self.exclude_patterns):
+                    f.write(f"{pattern}\n")
+
+                if user_patterns:
+                    f.write("\n# From .scheduler_snapshot_ignore:\n")
+                    for pattern in sorted(user_patterns):
+                        f.write(f"{pattern}\n")
+
+            logger.debug(f"Updated {exclude_file} with {len(all_patterns)} patterns")
+
+        except Exception as e:
+            logger.warning(f"Failed to write git exclude file: {e}")
+
     def _ensure_shadow_repo(self, working_dir: str):
         """Ensure the shadow git repository exists and is initialized
-        
+
         This initializes a git repository where .scheduler-git IS the git directory.
         Unlike normal git repos, we don't have .git - instead .scheduler-git serves
         as the git directory directly.
-        
+
         Args:
             working_dir: The working directory that needs a shadow repo
         """
         shadow_git_dir = self._get_shadow_repo_path(working_dir)
-        
+
         # Check if it's already initialized (check for HEAD file)
         head_file = os.path.join(shadow_git_dir, 'HEAD')
         if os.path.exists(head_file):
             logger.debug(f"Shadow repo already initialized at {shadow_git_dir}")
+            # Update exclude file even if repo exists (in case .scheduler_snapshot_ignore changed)
+            self._setup_git_exclude(working_dir)
             return
-        
+
         # Create git directory if needed
         if not os.path.exists(shadow_git_dir):
             os.makedirs(shadow_git_dir, exist_ok=True)
-        
+
         try:
             # Initialize git repo with --separate-git-dir equivalent
             # We use git init with --git-dir to create repo structure directly in .scheduler-git
@@ -121,6 +205,9 @@ class GitSnapshotManager:
                 timeout=5,
                 check=True
             )
+
+            # Set up git exclude patterns
+            self._setup_git_exclude(working_dir)
             
             # Set bare to false so we can use it with --work-tree
             subprocess.run(
@@ -139,33 +226,29 @@ class GitSnapshotManager:
             raise
     
     def _should_include_file(self, file_path: str, working_dir: str) -> bool:
-        """Determine if a file should be included in the snapshot
-        
-        Uses configurable size limits and data type-specific overrides.
-        
+        """Determine if a file should be included in the snapshot based on size limits
+
+        Note: Exclude patterns are now handled by git via .scheduler-git/info/exclude.
+        This method only checks file size limits.
+
         Args:
             file_path: Absolute path to the file
             working_dir: Working directory base path
-            
+
         Returns:
             True if file should be included, False otherwise
         """
         try:
-            # Get relative path
+            # Get relative path for logging
             rel_path = os.path.relpath(file_path, working_dir)
-            
-            # Check exclude patterns
-            for pattern in self.exclude_patterns:
-                if pattern in rel_path or Path(rel_path).match(pattern):
-                    return False
-            
+
             # Check file extension
             ext = os.path.splitext(file_path)[1].lower()
-            
+
             # Check file size with data type-specific limits
             try:
                 file_size = os.path.getsize(file_path)
-                
+
                 # Determine size limit for this file
                 if ext in self.data_type_size_limits:
                     # Use data type-specific limit
@@ -176,66 +259,84 @@ class GitSnapshotManager:
                 else:
                     # Use default size limit
                     size_limit = self.max_file_size
-                
+
                 if file_size > size_limit:
                     logger.debug(f"Excluding file {rel_path} ({file_size} bytes > {size_limit} limit)")
                     return False
-                    
+
             except OSError:
                 return False
-            
+
             return True
-            
+
         except Exception as e:
             logger.debug(f"Error checking file {file_path}: {e}")
             return False
     
     def _collect_files_to_snapshot(self, working_dir: str) -> List[str]:
         """Collect list of files to include in snapshot
-        
-        Applies folder file count limits to prevent snapshotting folders with too many files.
-        
+
+        Uses git ls-files to get all untracked/unignored files, automatically
+        respecting .scheduler-git/info/exclude patterns.
+
         Args:
             working_dir: Working directory to scan
-            
+
         Returns:
             List of relative file paths to include
         """
         files_to_include = []
-        
+        git_dir = self._get_shadow_repo_path(working_dir)
+
         try:
-            # First pass: count files per folder
+            # Use git ls-files to get all files, excluding those in info/exclude
+            # --others: show untracked files
+            # --exclude-standard: use standard exclude files (info/exclude)
+            # -c: also show cached files (for existing snapshots)
+            result = subprocess.run(
+                ['git', f'--git-dir={git_dir}', f'--work-tree={working_dir}',
+                 'ls-files', '--others', '--exclude-standard'],
+                cwd=working_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=30,
+                check=True
+            )
+
+            all_files = result.stdout.strip().split('\n') if result.stdout.strip() else []
+            logger.debug(f"git ls-files found {len(all_files)} unignored files")
+
+            # Apply size limits and folder limits
             folder_file_counts: Dict[str, int] = {}
-            
-            for root, dirs, files in os.walk(working_dir):
-                # Filter out excluded directories
-                dirs[:] = [d for d in dirs if not any(pattern in d for pattern in self.exclude_patterns)]
-                
-                # Count files in this folder (not including subdirectories)
-                file_count = len([f for f in files if os.path.isfile(os.path.join(root, f))])
-                folder_file_counts[root] = file_count
-            
-            # Second pass: collect files, excluding folders with too many files
-            for root, dirs, files in os.walk(working_dir):
-                # Filter out excluded directories
-                dirs[:] = [d for d in dirs if not any(pattern in d for pattern in self.exclude_patterns)]
-                
-                # Skip folders with too many files
-                if folder_file_counts.get(root, 0) > self.max_files_per_folder:
-                    logger.warning(f"Skipping folder {os.path.relpath(root, working_dir)} "
-                                 f"with {folder_file_counts[root]} files (limit: {self.max_files_per_folder})")
-                    dirs[:] = []  # Don't descend into subdirectories either
+
+            # Count files per folder
+            for rel_path in all_files:
+                file_path = os.path.join(working_dir, rel_path)
+                folder = os.path.dirname(file_path)
+                folder_file_counts[folder] = folder_file_counts.get(folder, 0) + 1
+
+            # Filter files by size and folder limits
+            for rel_path in all_files:
+                file_path = os.path.join(working_dir, rel_path)
+                folder = os.path.dirname(file_path)
+
+                # Check folder file limit
+                if folder_file_counts.get(folder, 0) > self.max_files_per_folder:
+                    logger.warning(f"Skipping folder {os.path.relpath(folder, working_dir)} "
+                                 f"with {folder_file_counts[folder]} files (limit: {self.max_files_per_folder})")
                     continue
-                
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    if self._should_include_file(file_path, working_dir):
-                        rel_path = os.path.relpath(file_path, working_dir)
-                        files_to_include.append(rel_path)
-            
+
+                # Check file size limits
+                if self._should_include_file(file_path, working_dir):
+                    files_to_include.append(rel_path)
+
             logger.debug(f"Collected {len(files_to_include)} files to snapshot from {working_dir}")
             return files_to_include
-            
+
+        except subprocess.CalledProcessError as e:
+            logger.error(f"git ls-files failed: {e.stderr}")
+            return []
         except Exception as e:
             logger.error(f"Error collecting files from {working_dir}: {e}")
             return []
@@ -330,11 +431,33 @@ class GitSnapshotManager:
             
             # Collect files to snapshot from workspace root
             files_to_snapshot = self._collect_files_to_snapshot(workspace_root)
-            
+
             if not files_to_snapshot:
                 logger.warning(f"No files to snapshot for job {job_id}")
                 return None
-            
+
+            # Calculate total size and log progress information
+            total_size = 0
+            for rel_path in files_to_snapshot:
+                try:
+                    file_path = os.path.join(workspace_root, rel_path)
+                    total_size += os.path.getsize(file_path)
+                except OSError:
+                    pass
+
+            total_size_mb = total_size / (1024 * 1024)
+            logger.info(f"Creating snapshot for job {job_id}: {len(files_to_snapshot)} files, "
+                       f"{total_size_mb:.2f} MB total")
+
+            # Warn if snapshot is large
+            if len(files_to_snapshot) > 1000:
+                logger.warning(f"Large snapshot detected: {len(files_to_snapshot)} files. "
+                             f"Consider creating a .scheduler_snapshot_ignore file to exclude unnecessary files.")
+
+            if total_size_mb > 100:
+                logger.warning(f"Large snapshot detected: {total_size_mb:.2f} MB. "
+                             f"Consider creating a .scheduler_snapshot_ignore file to exclude large data files.")
+
             # Reset index to clear any previous state
             subprocess.run(
                 ['git', f'--git-dir={git_dir}', f'--work-tree={workspace_root}', 'reset'],
@@ -351,34 +474,18 @@ class GitSnapshotManager:
             BATCH_SIZE = 1000
             for i in range(0, len(files_to_snapshot), BATCH_SIZE):
                 batch = files_to_snapshot[i:i + BATCH_SIZE]
-                try:
-                    # Add all files in this batch with a single git add call
-                    subprocess.run(
-                        ['git', f'--git-dir={git_dir}', f'--work-tree={workspace_root}', 'add', '--'] + batch,
-                        cwd=workspace_root,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                        timeout=30,  # Increased timeout for batch operations
-                        check=True
-                    )
-                    logger.debug(f"Added batch of {len(batch)} files to git index")
-                except subprocess.CalledProcessError as e:
-                    logger.warning(f"Failed to add batch of files: {e.stderr}")
-                    # If batch fails, try adding files individually to identify problematic files
-                    for rel_path in batch:
-                        try:
-                            subprocess.run(
-                                ['git', f'--git-dir={git_dir}', f'--work-tree={workspace_root}', 'add', '--', rel_path],
-                                cwd=workspace_root,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                text=True,
-                                timeout=5,
-                                check=False  # Don't raise on individual failures
-                            )
-                        except subprocess.CalledProcessError:
-                            logger.debug(f"Skipped problematic file: {rel_path}")
+                # Add all files in this batch with a single git add call
+                # If batch fails, the entire snapshot creation fails (no fallback)
+                subprocess.run(
+                    ['git', f'--git-dir={git_dir}', f'--work-tree={workspace_root}', 'add', '--'] + batch,
+                    cwd=workspace_root,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=30,  # Increased timeout for batch operations
+                    check=True
+                )
+                logger.debug(f"Added batch of {len(batch)} files to git index")
             
             # Write tree (creates tree object from index)
             result = subprocess.run(

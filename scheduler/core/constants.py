@@ -82,7 +82,7 @@ DEFAULT_SNAPSHOT_EXCLUDE_PATTERNS = {
     '.egg-info', '.eggs', 'build', 'dist', '.git', '.scheduler-git',
     '*.pyc', '*.pyo', '*.pyd', '.so', '*.dylib',
     '.coverage', 'htmlcov', '.DS_Store', '*.swp', '*.swo',
-    '.vscode', '.idea', '*.log'
+    '.vscode', '.idea', '*.log', 'wandb', '*.safetensors'
 }
 
 # Exit codes
