@@ -6,7 +6,7 @@ import subprocess
 import pytest
 from unittest.mock import patch, Mock
 from scheduler.cli.submit import submit_command
-from scheduler.core import Job
+from scheduler.core import Job, JobStatus
 
 
 class TestGitWorkspacePrompting:
@@ -29,7 +29,7 @@ class TestGitWorkspacePrompting:
             # Mock job response
             mock_job = Mock(spec=Job)
             mock_job.job_id = "job_123"
-            mock_job.status.value = "pending"
+            mock_job.status = JobStatus.PENDING
             
             # Mock client
             mock_client = Mock()
@@ -97,7 +97,7 @@ class TestGitWorkspacePrompting:
             # Mock job response
             mock_job = Mock(spec=Job)
             mock_job.job_id = "job_123"
-            mock_job.status.value = "pending"
+            mock_job.status = JobStatus.PENDING
             
             # Mock client
             mock_client = Mock()
