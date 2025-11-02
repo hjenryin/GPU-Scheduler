@@ -10,6 +10,7 @@ from scheduler.worker.gpu_monitor import GPUMonitor
 from scheduler.worker.job_executor import JobExecutor
 from scheduler.worker.heartbeat import HeartbeatSender
 from scheduler.worker.file_handler import FileHandler
+from scheduler.worker.log_reader import LogChunkReader
 from scheduler.api import SchedulerClient
 
 logger = logging.getLogger(__name__)
@@ -57,12 +58,16 @@ class WorkerDaemon:
         # Initialize file handler
         self.file_handler = FileHandler(config)
 
+        # Initialize log chunk reader for streaming logs to head
+        self.log_reader = LogChunkReader(config, self.file_handler)
+
         # Initialize heartbeat sender
         self.heartbeat_sender = HeartbeatSender(
             node_name=node_name,
             head_address=self.head_address,
             gpu_monitor=self.gpu_monitor,
-            config=config
+            config=config,
+            log_reader=self.log_reader
         )
 
         # Initialize client for job operations
@@ -225,9 +230,12 @@ class WorkerDaemon:
                 is_running, exit_code = self.job_executor.get_job_status(pid)
 
                 if not is_running:
+                    # Mark job as finished in log reader (will send EOF when all logs sent)
+                    self.log_reader.mark_job_finished(job.job_id)
+
                     # Job completed - cleanup resources
                     self.job_executor.cleanup_job(job)
-                    
+
                     if exit_code == 0:
                         logger.info(f"Job {job.job_id} completed successfully")
                         self.client.report_job_complete(job.job_id, exit_code)
@@ -244,6 +252,8 @@ class WorkerDaemon:
 
         except Exception as e:
             logger.error(f"Error executing job {job.job_id}: {e}")
+            # Mark job as finished in log reader
+            self.log_reader.mark_job_finished(job.job_id)
             # Cleanup resources on error
             if self.current_job:
                 self.job_executor.cleanup_job(self.current_job)

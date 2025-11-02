@@ -37,6 +37,8 @@ class JobResponse(BaseModel):
     env_vars: Optional[Dict[str, str]] = None
     dependencies: Optional[List[str]] = None
     priority: int = 0
+    snapshot_ref: Optional[str] = None
+    snapshot_working_dir: Optional[str] = None
 
     @classmethod
     def from_job(cls, job: Job) -> 'JobResponse':
@@ -58,7 +60,9 @@ class JobResponse(BaseModel):
             working_dir=job.working_dir,
             env_vars=job.env_vars,
             dependencies=job.dependencies,
-            priority=job.priority
+            priority=job.priority,
+            snapshot_ref=job.snapshot_ref,
+            snapshot_working_dir=job.snapshot_working_dir
         )
 
 
@@ -75,9 +79,43 @@ class NodeRegisterRequest(BaseModel):
     num_gpus: int
 
 
+class LogRequest(BaseModel):
+    """Head → Worker: Request log chunk from position"""
+    job_id: str
+    stdout_pos: int  # Byte position to read from
+    stderr_pos: int
+
+
+class LogChunk(BaseModel):
+    """Worker → Head: Log chunk with position tracking"""
+    job_id: str
+
+    # Stdout data
+    stdout_chunk: str
+    requested_stdout_pos: int  # Position head requested
+    new_stdout_pos: int        # Next position to read from
+
+    # Stderr data
+    stderr_chunk: str
+    requested_stderr_pos: int
+    new_stderr_pos: int
+
+    # Status
+    eof: bool  # True when job finished AND all logs sent
+    position_error: bool = False  # True if couldn't read from requested position
+
+
 class NodeHeartbeat(BaseModel):
     """Node heartbeat request schema"""
     gpu_stats: List[dict]  # List of GPUStats dicts
+    log_chunks: List[LogChunk] = []
+
+
+class HeartbeatResponse(BaseModel):
+    """Head → Worker: Heartbeat response"""
+    status: str
+    shutdown_requested: bool
+    log_requests: List[LogRequest] = []
 
 
 class GPUResponse(BaseModel):

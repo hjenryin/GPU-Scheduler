@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from scheduler.api.routes import create_app
+from scheduler.manager.log_position_manager import LogPositionManager
 from scheduler.core import JobStatus
 
 
@@ -19,7 +20,8 @@ class TestHealthEndpoint:
     @pytest.fixture
     def api_client(self, job_manager, node_manager):
         """Create test client with test dependencies"""
-        app = create_app(job_manager, node_manager)
+        mock_log_pos_mgr = Mock(spec_set=LogPositionManager)
+        app = create_app(job_manager, node_manager, mock_log_pos_mgr)
         return TestClient(app)
 
     def test_health_check_success(self, api_client):
@@ -39,7 +41,8 @@ class TestJobEndpoints:
     @pytest.fixture
     def api_client(self, job_manager, node_manager):
         """Create test client with test dependencies"""
-        app = create_app(job_manager, node_manager)
+        mock_log_pos_mgr = Mock(spec_set=LogPositionManager)
+        app = create_app(job_manager, node_manager, mock_log_pos_mgr)
         return TestClient(app)
 
     # POST /api/v1/jobs - Job submission tests
@@ -276,7 +279,8 @@ class TestNodeEndpoints:
     @pytest.fixture
     def api_client(self, job_manager, node_manager):
         """Create test client with test dependencies"""
-        app = create_app(job_manager, node_manager)
+        mock_log_pos_mgr = Mock(spec_set=LogPositionManager)
+        app = create_app(job_manager, node_manager, mock_log_pos_mgr)
         return TestClient(app)
 
     # POST /api/v1/nodes/register - Node registration tests
@@ -483,7 +487,8 @@ class TestWorkerEndpoints:
     @pytest.fixture
     def api_client(self, job_manager, node_manager):
         """Create test client with test dependencies"""
-        app = create_app(job_manager, node_manager)
+        mock_log_pos_mgr = Mock(spec_set=LogPositionManager)
+        app = create_app(job_manager, node_manager, mock_log_pos_mgr)
         return TestClient(app)
 
     # GET /api/v1/workers/{node_name}/jobs/next - Poll job tests
@@ -723,7 +728,8 @@ class TestErrorHandling:
     @pytest.fixture
     def api_client(self, job_manager, node_manager):
         """Create test client with test dependencies"""
-        app = create_app(job_manager, node_manager)
+        mock_log_pos_mgr = Mock(spec_set=LogPositionManager)
+        app = create_app(job_manager, node_manager, mock_log_pos_mgr)
         return TestClient(app)
 
     def test_invalid_json_body(self, api_client):
@@ -759,7 +765,8 @@ class TestResponseSchemas:
     @pytest.fixture
     def api_client(self, job_manager, node_manager):
         """Create test client with test dependencies"""
-        app = create_app(job_manager, node_manager)
+        mock_log_pos_mgr = Mock(spec_set=LogPositionManager)
+        app = create_app(job_manager, node_manager, mock_log_pos_mgr)
         return TestClient(app)
 
     def test_job_response_schema(self, api_client):

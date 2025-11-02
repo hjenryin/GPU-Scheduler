@@ -5,9 +5,10 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import StreamingResponse
 
 from scheduler.manager import JobManager, NodeManager
+from scheduler.manager.log_position_manager import LogPositionManager
 from scheduler.api.schemas import (
     JobSubmitRequest, JobResponse, JobListResponse,
-    NodeRegisterRequest, NodeHeartbeat, NodeResponse
+    NodeRegisterRequest, NodeHeartbeat, HeartbeatResponse, NodeResponse
 )
 from scheduler.core import JobStatus, GPUStats, JobNotFoundException, NodeNotFoundException, constants
 
@@ -16,11 +17,13 @@ logger = logging.getLogger(__name__)
 # Global references (will be set by create_app)
 _job_manager: Optional[JobManager] = None
 _node_manager: Optional[NodeManager] = None
+_log_position_manager: Optional[LogPositionManager] = None
 
 
 def create_app(
     job_manager: JobManager,
-    node_manager: NodeManager
+    node_manager: NodeManager,
+    log_position_manager: LogPositionManager
 ) -> FastAPI:
     """
     Create FastAPI application with all routes.
@@ -28,13 +31,15 @@ def create_app(
     Args:
         job_manager: JobManager instance
         node_manager: NodeManager instance
+        log_position_manager: LogPositionManager instance
 
     Returns:
         FastAPI application
     """
-    global _job_manager, _node_manager
+    global _job_manager, _node_manager, _log_position_manager
     _job_manager = job_manager
     _node_manager = node_manager
+    _log_position_manager = log_position_manager
 
     app = FastAPI(
         title="GPU Scheduler API",
@@ -176,69 +181,48 @@ async def get_job_logs_route(
     lines: Optional[int] = None,
     stderr: bool = False
 ) -> str:
-    """GET /api/v1/jobs/{job_id}/logs - Get job logs"""
+    """GET /api/v1/jobs/{job_id}/logs - Get job logs from head's storage"""
     try:
-        # Get job to find assigned node
+        # Verify job exists
         job = _job_manager.get_job(job_id)
         if not job:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {job_id} not found")
-        
-        # Try to read from worker's log directory
-        # This is a simplified approach - in production, you'd want a proper log aggregation system
+
+        # Read from head's log storage (logs are streamed from workers via heartbeat)
         import os
         from scheduler.core import load_config
-        
+
         config = load_config()
-        
-        # For E2E tests, we need to look in the same temp directory structure
-        # In production, this would be handled by a proper log aggregation system
-        if job.assigned_node:
-            # Try to find the temp directory by looking for scheduler_e2e directories
-            import glob
-            temp_dirs = glob.glob('/tmp/scheduler_e2e_*')
-            if temp_dirs:
-                # Use the most recent temp directory
-                latest_temp_dir = max(temp_dirs, key=os.path.getctime)
-                e2e_log_dir = os.path.join(latest_temp_dir, f'logs_{job.assigned_node}')
-                if os.path.exists(e2e_log_dir):
-                    log_dir = e2e_log_dir
-                else:
-                    # Fall back to configured log directory
-                    log_dir = os.path.expanduser(config.worker.log_dir)
-            else:
-                # Fall back to configured log directory
-                log_dir = os.path.expanduser(config.worker.log_dir)
-        else:
-            log_dir = os.path.expanduser(config.worker.log_dir)
-            
+        log_dir = os.path.expanduser(config.worker.log_dir)
         suffix = 'stderr' if stderr else 'stdout'
         log_filename = f"{job_id}.{suffix}.log"
         log_path = os.path.join(log_dir, log_filename)
-        
-        if os.path.exists(log_path):
-            try:
-                with open(log_path, 'r') as f:
-                    if lines is None:
-                        content = f.read()
-                    else:
-                        all_lines = f.readlines()
-                        content = ''.join(all_lines[-lines:])
-                return content
-            except Exception as e:
-                logger.error(f"Failed to read log file {log_path}: {e}")
-                return f"Error reading log file: {e}"
-        else:
-            # Fallback to placeholder message
-            if stderr:
-                return f"Stderr logs for job {job_id} (assigned to {job.assigned_node}) - log file not found at {log_path}"
+
+        if not os.path.exists(log_path):
+            # Log file doesn't exist yet
+            if job.status.value == 'pending':
+                return f"Logs not available for job {job_id}. Job is pending and has not started yet."
             else:
-                return f"Stdout logs for job {job_id} (assigned to {job.assigned_node}) - log file not found at {log_path}"
-            
+                return f"Logs not available for job {job_id}. Logs may still be transferring from worker."
+
+        # Read logs from head's storage
+        try:
+            with open(log_path, 'r') as f:
+                if lines is None:
+                    content = f.read()
+                else:
+                    all_lines = f.readlines()
+                    content = ''.join(all_lines[-lines:])
+            return content
+        except Exception as e:
+            logger.error(f"Failed to read log file {log_path}: {e}")
+            return f"Error reading log file: {e}"
+
     except JobNotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         logger.error(f"Error retrieving logs for job {job_id}: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 async def stream_job_logs_route(job_id: str, stderr: bool = False):
@@ -261,18 +245,29 @@ async def register_node_route(request: NodeRegisterRequest) -> dict:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-async def heartbeat_route(node_name: str, request: NodeHeartbeat):
-    """POST /api/v1/nodes/{node_name}/heartbeat - Send heartbeat"""
+async def heartbeat_route(node_name: str, request: NodeHeartbeat) -> HeartbeatResponse:
+    """POST /api/v1/nodes/{node_name}/heartbeat - Send heartbeat and receive log requests"""
     try:
         # Convert dict stats to GPUStats objects
         gpu_stats = [GPUStats.from_dict(stat) for stat in request.gpu_stats]
         _node_manager.update_heartbeat(node_name, gpu_stats)
-        
+
+        # Process log chunks from worker
+        for log_chunk in request.log_chunks:
+            _log_position_manager.process_chunk(log_chunk)
+
+        # Get log requests for this node
+        log_requests = _log_position_manager.get_requests_for_node(node_name)
+
         # Check if shutdown has been requested for this node
         node = _node_manager.get_node(node_name)
         shutdown_requested = node.shutdown_requested if node else False
-        
-        return {"status": "ok", "shutdown_requested": shutdown_requested}
+
+        return HeartbeatResponse(
+            status="ok",
+            shutdown_requested=shutdown_requested,
+            log_requests=log_requests
+        )
     except NodeNotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:

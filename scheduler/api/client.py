@@ -458,30 +458,35 @@ class SchedulerClient:
     def send_heartbeat(
         self,
         node_name: str,
-        gpu_stats: List[GPUStats]
-    ) -> bool:
+        gpu_stats: List[GPUStats],
+        log_chunks: List = None
+    ):
         """
-        Send heartbeat (worker use only).
+        Send heartbeat with log chunks (worker use only).
 
         Args:
             node_name: Node name
             gpu_stats: GPU statistics
+            log_chunks: List of LogChunk objects to send
 
         Returns:
-            True if shutdown is requested by head node, False otherwise
+            HeartbeatResponse with shutdown_requested and log_requests
 
         Raises:
             ConnectionException: If cannot connect
         """
+        from scheduler.api.schemas import HeartbeatResponse
+
         payload = {
-            "gpu_stats": [stats.to_dict() for stats in gpu_stats]
+            "gpu_stats": [stats.to_dict() for stats in gpu_stats],
+            "log_chunks": [chunk.dict() for chunk in (log_chunks or [])]
         }
 
         try:
             response = self.session.post(f"{self.base_url}/nodes/{node_name}/heartbeat", json=payload, timeout=30)
             response.raise_for_status()
             data = response.json()
-            return data.get("shutdown_requested", False)
+            return HeartbeatResponse(**data)
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to send heartbeat for node {node_name}: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")
@@ -623,6 +628,8 @@ class SchedulerClient:
             env_vars=data.get("env_vars"),
             dependencies=data.get("dependencies"),
             priority=data.get("priority", 0),
+            snapshot_ref=data.get("snapshot_ref"),
+            snapshot_working_dir=data.get("snapshot_working_dir"),
         )
 
     def _node_from_response(self, data: dict) -> Node:
