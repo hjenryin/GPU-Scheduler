@@ -2,7 +2,7 @@ from typing import List
 from textual.screen import Screen
 from textual.app import ComposeResult
 from textual.widgets import Header, Footer, Static, DataTable, Input
-from textual.containers import Container, Horizontal
+from textual.containers import Container, Horizontal, VerticalScroll
 from textual import events
 from scheduler.core import Job  # Import from peer submodule's public API
 from scheduler.tui.utils import format_runtime
@@ -42,15 +42,18 @@ class JobsScreen(Screen):
         """
         yield Header()
         yield Container(
-            Static("JOBS", id="jobs-header"),
-            Horizontal(
-                Static("Filter: ", id="filter-label"),
-                Static("[All Jobs]", id="filter-status"),
-                Static("  Sort: [Submitted]", id="sort-status"),
-                id="filter-bar",
+            VerticalScroll(
+                Static("JOBS", id="jobs-header"),
+                Horizontal(
+                    Static("Filter: ", id="filter-label"),
+                    Static("[All Jobs]", id="filter-status"),
+                    Static("  Sort: [Submitted]", id="sort-status"),
+                    id="filter-bar",
+                ),
+                Input(placeholder="Search jobs (press / to focus)...", id="search-input"),
+                DataTable(id="jobs-table"),
+                id="jobs-scroll"
             ),
-            Input(placeholder="Search jobs (press / to focus)...", id="search-input"),
-            DataTable(id="jobs-table"),
             id="jobs-container",
         )
         yield Footer()

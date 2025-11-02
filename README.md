@@ -248,8 +248,8 @@ This is a **coordination system**, not an enforcement system. It works well when
 - ✅ **Environment variables**: Pass custom env vars to jobs
 - ✅ **Working directory**: Execute jobs in specified directory
 - ✅ **Script arguments**: Pass arguments to job scripts
-- ✅ **Log streaming**: Real-time log viewing with `--log-to-driver`
-- ✅ **Async submission**: Fire-and-forget with `--async`
+- ✅ **Async by default**: Fire-and-forget submission, use `--block` to wait and stream logs
+- ✅ **Log streaming**: Real-time log viewing in block mode with stderr on failure
 
 ### GPU Monitoring
 
@@ -386,10 +386,10 @@ scheduler submit-batch --sequential --req 2 pipeline.txt
 
 ```bash
 # Preprocess
-JOB1=$(scheduler submit --req 1 --name "preprocess" --async preprocess.py | grep "Job ID" | awk '{print $3}')
+JOB1=$(scheduler submit --req 1 --name "preprocess" preprocess.py | grep "Job ID" | awk '{print $3}')
 
 # Train (depends on preprocess)
-JOB2=$(scheduler submit --req 4 --depends-on $JOB1 --name "train" --async train.py | grep "Job ID" | awk '{print $3}')
+JOB2=$(scheduler submit --req 4 --depends-on $JOB1 --name "train" train.py | grep "Job ID" | awk '{print $3}')
 
 # Evaluate (depends on train)
 scheduler submit --req 1 --depends-on $JOB2 --name "eval" eval.py

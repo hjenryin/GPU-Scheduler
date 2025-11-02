@@ -54,12 +54,12 @@ class TestSubmitCommand:
 
         try:
             with patch('scheduler.cli.submit.click.echo', autospec=True):
-                # Use async_submit to avoid waiting loop
+                # Default is async mode (block=False)
                 result = submit_command(
                     command=["python", temp_script],
                     req="2",
                     name="test_job",
-                    async_submit=True
+                    block=False
                 )
                 assert result == 0
                 mock_client.submit_job.assert_called_once()
@@ -84,7 +84,7 @@ class TestSubmitCommand:
 
         try:
             with patch('scheduler.cli.submit.click.echo', autospec=True):
-                # Use async_submit to avoid waiting loop
+                # Use block=False (default async mode)
                 result = submit_command(
                     command=["python", temp_script, "arg1", "arg2"],
                     req="4",
@@ -93,7 +93,7 @@ class TestSubmitCommand:
                     priority=5,
                     env=["KEY1=value1", "KEY2=value2"],
                     working_dir="/tmp/work",
-                    async_submit=True
+                    block=False
                 )
                 assert result == 0
                 # Verify all parameters passed through
@@ -151,7 +151,7 @@ class TestSubmitCommand:
     @patch('scheduler.cli.submit.load_config', autospec=True)
     @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
     def test_submit_async_mode(self, mock_client_class, mock_load_config):
-        """Test async submission mode"""
+        """Test async submission mode (default)"""
         mock_job = Mock(spec_set=Job)
         mock_job.job_id = "job_123"
         mock_job.status.value = "pending"
@@ -168,17 +168,17 @@ class TestSubmitCommand:
             with patch('scheduler.cli.submit.click.echo', autospec=True):
                 result = submit_command(
                     command=["python", temp_script],
-                    async_submit=True
+                    block=False  # Default async mode
                 )
                 assert result == 0
-                mock_client.get_job.assert_not_called()  # Should not poll in async mode
+                mock_client.stream_job_logs.assert_not_called()  # Should not stream in async mode
         finally:
             os.unlink(temp_script)
 
     @patch('scheduler.cli.submit.load_config', autospec=True)
     @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
     def test_submit_wait_for_completion(self, mock_client_class, mock_load_config):
-        """Test waiting for job completion"""
+        """Test waiting for job completion with block mode"""
         mock_completed_job = Mock(spec_set=Job)
         mock_completed_job.job_id = "job_123"
         mock_completed_job.status.value = "completed"
@@ -186,11 +186,13 @@ class TestSubmitCommand:
         mock_completed_job.error_message = None
 
         mock_pending_job = Mock(spec_set=Job)
+        mock_pending_job.job_id = "job_123"
         mock_pending_job.status.value = "running"
 
         mock_client = Mock(spec_set=SchedulerClient)
         mock_client.submit_job.return_value = mock_pending_job
-        mock_client.get_job.side_effect = [mock_pending_job, mock_completed_job]
+        mock_client.stream_job_logs.return_value = iter(["log line 1\n", "log line 2\n"])
+        mock_client.get_job.return_value = mock_completed_job
         mock_client_class.return_value = mock_client
 
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.py') as f:
@@ -198,17 +200,17 @@ class TestSubmitCommand:
             temp_script = f.name
 
         try:
-            with patch('scheduler.cli.submit.click.echo', autospec=True), \
-                 patch('scheduler.cli.submit.time.sleep', autospec=True):
-                result = submit_command(command=["python", temp_script])
+            with patch('scheduler.cli.submit.click.echo', autospec=True):
+                result = submit_command(command=["python", temp_script], block=True)
                 assert result == 0  # Completed successfully
+                mock_client.stream_job_logs.assert_called_once()
         finally:
             os.unlink(temp_script)
 
     @patch('scheduler.cli.submit.load_config', autospec=True)
     @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
     def test_submit_wait_for_failure(self, mock_client_class, mock_load_config):
-        """Test waiting for job failure"""
+        """Test waiting for job failure with block mode"""
         mock_failed_job = Mock(spec_set=Job)
         mock_failed_job.job_id = "job_123"
         mock_failed_job.status.value = "failed"
@@ -216,11 +218,14 @@ class TestSubmitCommand:
         mock_failed_job.error_message = "Error occurred"
 
         mock_pending_job = Mock(spec_set=Job)
+        mock_pending_job.job_id = "job_123"
         mock_pending_job.status.value = "running"
 
         mock_client = Mock(spec_set=SchedulerClient)
         mock_client.submit_job.return_value = mock_pending_job
-        mock_client.get_job.side_effect = [mock_pending_job, mock_failed_job]
+        mock_client.stream_job_logs.return_value = iter(["log line 1\n"])
+        mock_client.get_job.return_value = mock_failed_job
+        mock_client.get_job_logs.return_value = "stderr content"
         mock_client_class.return_value = mock_client
 
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.py') as f:
@@ -228,10 +233,11 @@ class TestSubmitCommand:
             temp_script = f.name
 
         try:
-            with patch('scheduler.cli.submit.click.echo', autospec=True), \
-                 patch('scheduler.cli.submit.time.sleep', autospec=True):
-                result = submit_command(command=["python", temp_script])
+            with patch('scheduler.cli.submit.click.echo', autospec=True):
+                result = submit_command(command=["python", temp_script], block=True)
                 assert result == 1  # Failed
+                # Should fetch stderr on failure
+                mock_client.get_job_logs.assert_called_with(mock_failed_job.job_id, stderr=True)
         finally:
             os.unlink(temp_script)
 
@@ -250,7 +256,7 @@ class TestSubmitCommand:
         with patch('scheduler.cli.submit.click.echo', autospec=True):
             result = submit_command(
                 command=["python", "train.py", "--epochs", "10", "--lr", "0.01"],
-                async_submit=True
+                block=False
             )
             assert result == 0
             call_kwargs = mock_client.submit_job.call_args[1]
@@ -272,7 +278,7 @@ class TestSubmitCommand:
         with patch('scheduler.cli.submit.click.echo', autospec=True):
             result = submit_command(
                 command=["bash", "run.sh", "arg1", "arg2"],
-                async_submit=True
+                block=False
             )
             assert result == 0
             call_kwargs = mock_client.submit_job.call_args[1]
@@ -294,7 +300,7 @@ class TestSubmitCommand:
         with patch('scheduler.cli.submit.click.echo', autospec=True):
             result = submit_command(
                 command=["./myexec", "--option", "value", "--flag"],
-                async_submit=True
+                block=False
             )
             assert result == 0
             call_kwargs = mock_client.submit_job.call_args[1]
@@ -319,7 +325,7 @@ class TestSubmitCommand:
             result = submit_command(
                 command=["cmd", "--aaa=1", "-d", "--async2", "-f", "--ff", "file.txt", 
                          "--req=1", "-D", "--name", "2", "-g", "--env", "--name", "3"],
-                async_submit=True
+                block=False
             )
             assert result == 0
             call_kwargs = mock_client.submit_job.call_args[1]

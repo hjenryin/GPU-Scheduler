@@ -34,13 +34,16 @@ class ClusterScreen(Screen):
         """
         yield Header()
         yield Container(
-            Static("", id="cluster-summary"),
-            Static("NODE STATUS", id="node-header"),
-            DataTable(id="node-table"),
-            Static("GPU UTILIZATION", id="gpu-header"),
-            VerticalScroll(Static("", id="gpu-bars"), id="gpu-scroll"),
-            Static("ACTIVE JOBS", id="job-header"),
-            DataTable(id="job-table"),
+            VerticalScroll(
+                Static("", id="cluster-summary"),
+                Static("NODE STATUS", id="node-header"),
+                DataTable(id="node-table"),
+                Static("GPU UTILIZATION", id="gpu-header"),
+                Static("", id="gpu-bars"),
+                Static("ACTIVE JOBS", id="job-header"),
+                DataTable(id="job-table"),
+                id="cluster-scroll"
+            ),
             id="cluster-container",
         )
         yield Footer()

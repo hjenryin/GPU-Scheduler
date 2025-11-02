@@ -15,8 +15,7 @@ def submit_command(
     priority: int = 0,
     env: List[str] = None,
     working_dir: Optional[str] = None,
-    async_submit: bool = False,
-    log_to_driver: bool = False
+    block: bool = False
 ) -> int:
     """
     Submit a new job to the scheduler.
@@ -29,8 +28,7 @@ def submit_command(
         priority: Job priority
         env: List of "KEY=VALUE" environment variables
         working_dir: Working directory for job
-        async_submit: If True, return immediately after submission
-        log_to_driver: If True, stream logs to stdout
+        block: If True, wait for job completion and stream logs
 
     Returns:
         Exit code (0 for success)
@@ -87,33 +85,43 @@ def submit_command(
         click.echo(f"Job ID: {job.job_id}")
         click.echo(f"Status: {job.status.value}")
         click.echo(f"Requirements: {req}")
-        click.echo(f"\nView status: scheduler status (then press 'J' and search for job)")
-
-        if log_to_driver:
-            click.echo(f"\nStreaming logs (Ctrl+C to stop)...")
+        
+        if not block:
+            # Default async mode - return immediately
+            click.echo(f"\nView status: scheduler status (then press 'J' and search for job)")
+            click.echo(f"View logs: scheduler logs {job.job_id}")
+            return 0
+        
+        # Block mode - wait for completion and stream logs
+        click.echo(f"\nWaiting for job to complete and streaming logs (Ctrl+C to stop)...")
+        
+        try:
+            for line in client.stream_job_logs(job.job_id):
+                click.echo(line, nl=False)
+        except KeyboardInterrupt:
+            click.echo("\n\nStopped streaming logs (job still running)")
+            return 130
+        
+        # Get final job status
+        job = client.get_job(job.job_id)
+        click.echo(f"\n\nJob {job.status.value}")
+        if job.exit_code is not None:
+            click.echo(f"Exit code: {job.exit_code}")
+        
+        # If job failed, fetch and print stderr
+        if job.status.value == 'failed':
             try:
-                for line in client.stream_job_logs(job.job_id):
-                    click.echo(line)
-            except KeyboardInterrupt:
-                click.echo("\nStopped streaming logs")
-
-        elif not async_submit:
-            click.echo(f"\nWaiting for job to complete...")
-            while True:
-                job = client.get_job(job.job_id)
-                if job.status.value in ['completed', 'failed', 'cancelled']:
-                    break
-                time.sleep(2)
-
-            click.echo(f"\nJob {job.status.value}")
-            if job.exit_code is not None:
-                click.echo(f"Exit code: {job.exit_code}")
+                stderr = client.get_job_logs(job.job_id, stderr=True)
+                if stderr:
+                    click.echo(f"\n=== STDERR ===")
+                    click.echo(stderr)
+            except Exception as e:
+                click.echo(f"Could not fetch stderr: {e}")
+            
             if job.error_message:
-                click.echo(f"Error: {job.error_message}")
-
-            return 0 if job.status.value == 'completed' else 1
-
-        return 0
+                click.echo(f"\nError: {job.error_message}")
+        
+        return 0 if job.status.value == 'completed' else 1
 
     except ValidationException as e:
         click.echo(f"Validation error: {e}")

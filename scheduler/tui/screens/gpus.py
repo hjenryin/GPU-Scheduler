@@ -28,10 +28,13 @@ class GPUsScreen(Screen):
         """
         yield Header()
         yield Container(
-            Static("GPU OVERVIEW", id="gpu-overview-header"),
-            Static("", id="gpu-summary"),
-            Static("ALL GPUs", id="all-gpus-header"),
-            VerticalScroll(DataTable(id="gpus-table"), id="gpus-scroll"),
+            VerticalScroll(
+                Static("GPU OVERVIEW", id="gpu-overview-header"),
+                Static("", id="gpu-summary"),
+                Static("ALL GPUs", id="all-gpus-header"),
+                DataTable(id="gpus-table"),
+                id="gpus-scroll"
+            ),
             id="gpus-container",
         )
         yield Footer()

@@ -497,8 +497,7 @@ The `COMMAND` can be any executable command with its arguments. The scheduler wi
 | `--priority` | int | `0` | Job priority (higher = more important) |
 | `--env` | list | none | Environment variables (KEY=VALUE format, can be repeated) |
 | `--working-dir` | path | current dir | Working directory for job execution |
-| `--async` | flag | false | Submit and return immediately without waiting |
-| `--log-to-driver` | flag | false | Stream logs to stdout in real-time |
+| `--block` | flag | false | Wait for job completion and stream logs (stderr printed if job fails) |
 
 **Resource Requirement Format (`--req`):**
 
@@ -538,11 +537,11 @@ scheduler submit --req 4 \
                  --env DATASET_PATH=/data/bert \
                  python train.py --model bert-large
 
-# Submit and stream logs
-scheduler submit --req 1 --log-to-driver python train.py
+# Submit and wait for completion (block mode) with log streaming
+scheduler submit --req 1 --block python train.py
 
-# Submit asynchronously
-scheduler submit --req 2 --async python train.py
+# Submit asynchronously (default - returns immediately)
+scheduler submit --req 2 python train.py
 
 # Complex command with multiple arguments
 scheduler submit --req 2 python train.py \
@@ -560,8 +559,12 @@ Job submitted successfully!
 Job ID: job_abc123def456
 Status: pending
 Requirements: 2 GPUs on any node
+
 View status: scheduler status (then press 'J' and search for job)
+View logs: scheduler logs job_abc123def456
 ```
+
+**Note**: By default, `scheduler submit` returns immediately after submitting the job (async mode). Use `--block` to wait for completion and stream logs.
 
 **Automatic Workspace Snapshots:**
 
@@ -602,7 +605,7 @@ snapshot_data_type_limits:
 **Job ID Assignment:**
 The command returns the job ID which can be captured:
 ```bash
-JOB_ID=$(scheduler submit --req 2 --async train.py | grep "Job ID" | awk '{print $3}')
+JOB_ID=$(scheduler submit --req 2 train.py | grep "Job ID" | awk '{print $3}')
 echo $JOB_ID  # job_abc123def456
 ```
 
@@ -656,12 +659,13 @@ Blank lines are ignored.
 | `--priority` | int | `0` | Job priority (applied to all jobs) |
 | `--env` | list | none | Environment variables (KEY=VALUE format, applied to all jobs) |
 | `--working-dir` | path | current dir | Working directory (applied to all jobs) |
-| `--async` | flag | false | Submit and return immediately without waiting for last job |
-| `--log-to-driver` | flag | false | Stream logs from the last job to stdout |
+| `--block` | flag | false | Wait for last job completion and stream its logs (stderr printed if job fails) |
 | `--sequential` | flag | false | **Each job depends on the previous job** (creates job chain) |
 
 **Behavior:**
 
+- **Default Mode**: All jobs are submitted and returns immediately (async)
+- **Block Mode (`--block`)**: Waits for the last job to complete and streams its logs
 - **Non-Sequential Mode (default)**: All jobs are submitted independently and can run in parallel
 - **Sequential Mode (`--sequential`)**: Jobs are submitted as a dependency chain:
   - Job 2 depends on Job 1
@@ -1106,20 +1110,18 @@ scheduler start --head
 
 ```bash
 # Stage 1: Preprocess data (1 GPU on any node)
-JOB1=$(scheduler submit --req 1 --name "preprocess" --async preprocess.py | grep "Job ID" | awk '{print $3}')
+JOB1=$(scheduler submit --req 1 --name "preprocess" preprocess.py | grep "Job ID" | awk '{print $3}')
 
 # Stage 2: Train model (4 GPUs, depends on stage 1, prefer gpu1)
 JOB2=$(scheduler submit --req gpu1:4,gpu2:4 \
                         --depends-on $JOB1 \
                         --name "train" \
-                        --async \
                         train.py | grep "Job ID" | awk '{print $3}')
 
 # Stage 3: Evaluate (1 GPU, depends on stage 2)
 JOB3=$(scheduler submit --req 1 \
                         --depends-on $JOB2 \
                         --name "eval" \
-                        --async \
                         eval.py | grep "Job ID" | awk '{print $3}')
 
 # Monitor all stages interactively

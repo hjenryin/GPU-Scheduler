@@ -96,10 +96,9 @@ def stop(all_nodes):
 @click.option('--priority', type=int, default=0, help='Priority')
 @click.option('--env', multiple=True, help='Environment variables (KEY=VALUE)')
 @click.option('--working-dir', help='Working directory for job')
-@click.option('--async', 'async_submit', is_flag=True, help='Submit async')
-@click.option('--log-to-driver', is_flag=True, help='Stream logs')
+@click.option('--block', is_flag=True, help='Wait for job completion and stream logs')
 @click.pass_context
-def submit(ctx, req, depends_on, name, priority, env, working_dir, async_submit, log_to_driver):
+def submit(ctx, req, depends_on, name, priority, env, working_dir, block):
     """Submit a job
 
     COMMAND can be any command with arguments, e.g.:
@@ -108,6 +107,9 @@ def submit(ctx, req, depends_on, name, priority, env, working_dir, async_submit,
     scheduler submit python train.py --epochs 10
     scheduler submit bash run.sh arg1 arg2
     scheduler submit ./myexec --option value
+    
+    By default, returns immediately after submission (async mode).
+    Use --block to wait for completion and stream logs.
     """
     try:
         # Get command from context args (everything after the options)
@@ -120,8 +122,7 @@ def submit(ctx, req, depends_on, name, priority, env, working_dir, async_submit,
             priority=priority,
             env=list(env) if env else None,
             working_dir=working_dir,
-            async_submit=async_submit,
-            log_to_driver=log_to_driver
+            block=block
         )
         sys.exit(code)
     except KeyboardInterrupt:
@@ -140,11 +141,14 @@ def submit(ctx, req, depends_on, name, priority, env, working_dir, async_submit,
 @click.option('--priority', type=int, default=0, help='Priority')
 @click.option('--env', multiple=True, help='Environment variables (KEY=VALUE)')
 @click.option('--working-dir', help='Working directory for job')
-@click.option('--async', 'async_submit', is_flag=True, help='Submit async')
-@click.option('--log-to-driver', is_flag=True, help='Stream logs')
+@click.option('--block', is_flag=True, help='Wait for last job completion and stream logs')
 @click.option('--sequential', is_flag=True, help='Each job depends on previous job')
-def submit_batch(script_list, req, depends_on, name, priority, env, working_dir, async_submit, log_to_driver, sequential):
-    """Submit multiple jobs from a file"""
+def submit_batch(script_list, req, depends_on, name, priority, env, working_dir, block, sequential):
+    """Submit multiple jobs from a file
+    
+    By default, returns immediately after submitting all jobs (async mode).
+    Use --block to wait for the last job completion and stream its logs.
+    """
     try:
             code = submit_batch_command(
             script_list=script_list,
@@ -154,8 +158,7 @@ def submit_batch(script_list, req, depends_on, name, priority, env, working_dir,
             priority=priority,
             env=list(env) if env else None,
             working_dir=working_dir,
-            async_submit=async_submit,
-            log_to_driver=log_to_driver,
+            block=block,
             sequential=sequential
         )
             sys.exit(code)
