@@ -394,7 +394,7 @@ class TestJobLogs:
 
         mock_response = Mock(spec=requests.Response)
         mock_response.status_code = 200
-        mock_response.text = "Log line 1\nLog line 2\nLog line 3"
+        mock_response.json.return_value = "Log line 1\nLog line 2\nLog line 3"
 
         with patch.object(client.session, 'get', return_value=mock_response):
             logs = client.get_job_logs("job_123")
@@ -410,7 +410,7 @@ class TestJobLogs:
 
         mock_response = Mock(spec=requests.Response)
         mock_response.status_code = 200
-        mock_response.text = "Error log"
+        mock_response.json.return_value = "Error log"
 
         with patch.object(client.session, 'get', return_value=mock_response) as mock_get:
             client.get_job_logs("job_123", lines=50, stderr=True)

@@ -323,7 +323,8 @@ class SchedulerClient:
             if response.status_code == 404:
                 raise JobNotFoundException(f"Job {job_id} not found")
             response.raise_for_status()
-            return response.text
+            # API returns JSON-encoded string, decode it
+            return response.json()
         except JobNotFoundException:
             raise
         except requests.exceptions.RequestException as e:
