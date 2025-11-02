@@ -98,27 +98,18 @@ class JobExecutor:
                         logger.warning(f"Job working_dir {job.working_dir} is outside snapshot root {job.snapshot_working_dir}, using worktree root")
                         working_dir = worktree_path
                     
-                    # Reconstruct script path relative to worktree
-                    # Script might be in subdirectories, so preserve relative structure
-                    try:
-                        # Get script path relative to original working dir
-                        rel_script_path = os.path.relpath(job.script, job.snapshot_working_dir)
-                        # Reconstruct in worktree
-                        script_path = os.path.join(worktree_path, rel_script_path)
-                    except ValueError:
-                        # Script is outside working dir (absolute path?), use basename
-                        script_basename = os.path.basename(job.script)
-                        script_path = os.path.join(worktree_path, script_basename)
+                    # Use script as-is (commands from PATH or relative paths work from correct working directory)
+                    script_path = job.script
                     
                     logger.info(f"Job {job.job_id} will execute in worktree: {working_dir}")
-                    logger.info(f"Job {job.job_id} script path in worktree: {script_path}")
+                    logger.info(f"Job {job.job_id} script: {script_path}")
                 else:
                     logger.warning(f"Failed to restore snapshot for job {job.job_id}, using original working directory")
                     working_dir = job.working_dir or os.path.dirname(os.path.abspath(job.script))
                     script_path = job.script
             else:
                 # No snapshot, use original working directory
-                working_dir = job.working_dir or os.path.dirname(os.path.abspath(job.script))
+                working_dir = job.working_dir
                 script_path = job.script
                 logger.info(f"Job {job.job_id} has no snapshot, using original working directory")
 
