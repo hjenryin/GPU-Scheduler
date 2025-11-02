@@ -1000,6 +1000,87 @@ snapshot_always_include_extensions: ['.py', '.sh', '.yaml', '.json', '.txt', '.m
 snapshot_exclude_patterns: ['__pycache__', '.git', '.scheduler-git', '*.pyc']
 ```
 
+### Git Snapshot Configuration
+
+The scheduler automatically creates git-based snapshots of your workspace when submitting jobs. This ensures jobs run with the exact files that existed at submission time.
+
+#### Snapshot Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `snapshot_max_file_size` | int | 1048576 (1 MB) | Maximum size for individual files (bytes) |
+| `snapshot_max_files_per_folder` | int | 1000 | Maximum files allowed in a single folder |
+| `snapshot_data_type_limits` | dict | See below | Size limits for specific file extensions |
+| `snapshot_always_include_extensions` | list | See below | File extensions always included |
+| `snapshot_exclude_patterns` | list | See below | Patterns to always exclude |
+
+#### Default Data Type Limits
+
+```yaml
+snapshot_data_type_limits:
+  .npy: 10485760   # 10 MB for numpy arrays
+  .pkl: 5242880    # 5 MB for pickle files
+  .json: 2097152   # 2 MB for JSON files
+  .csv: 5242880    # 5 MB for CSV files
+```
+
+#### Default Always Include Extensions
+
+```yaml
+snapshot_always_include_extensions: ['.py', '.sh', '.yaml', '.json', '.txt', '.md', '.toml', '.ini', '.cfg', '.conf', '.env']
+```
+
+#### Default Exclude Patterns
+
+```yaml
+snapshot_exclude_patterns: ['__pycache__', '.git', '.scheduler-git', '*.pyc']
+```
+
+#### Include/Exclude Files
+
+You can control which files are included or excluded from snapshots using special files in your workspace root:
+
+**Exclude files with `.scheduler_snapshot_ignore`:**
+```bash
+# Exclude large data files
+*.npy
+*.h5
+data/large_dataset/
+models/checkpoints/*.pt
+
+# Exclude temporary files
+*.tmp
+*.log
+cache/
+```
+
+**Force include files with `.scheduler_snapshot_include`:**
+```bash
+# Always include these files, regardless of size/type limits
+models/final_model.pkl
+data/important_dataset.npy
+config/production_config.yaml
+logs/experiment_results/**/*.json
+```
+
+Files listed in `.scheduler_snapshot_include` bypass all filtering and are always included in snapshots, even if they exceed size limits or match exclude patterns.
+
+#### File Format
+
+Both `.scheduler_snapshot_ignore` and `.scheduler_snapshot_include` use the same format as `.gitignore`:
+
+- One pattern per line
+- Lines starting with `#` are comments
+- Empty lines are ignored
+- Patterns support glob syntax including `**` for recursive matching
+
+#### Tuning Guidelines
+
+- **Small code/config files**: Keep defaults (1 MB) for code and config files
+- **Data files**: Set higher limits for data types your workflows commonly use
+- **Model checkpoints**: Either exclude from snapshots or store in shared locations
+- **Large datasets**: Keep in external storage and reference via absolute paths
+
 ---
 
 ## Environment Variables

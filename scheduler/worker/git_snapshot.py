@@ -27,6 +27,10 @@ class GitSnapshotManager:
     - Each job gets its own branch in the shadow repo
     - Jobs execute in isolated git worktrees
     
+    File inclusion can be controlled via:
+    - .scheduler_snapshot_ignore: Files to exclude (same format as .gitignore)
+    - .scheduler_snapshot_include: Files to always include (bypasses all filters)
+    
     This approach provides complete isolation from the user's workflow while
     being disk-efficient through git's delta compression.
     """
@@ -92,6 +96,53 @@ class GitSnapshotManager:
 
         except Exception as e:
             logger.warning(f"Failed to read .scheduler_snapshot_ignore: {e}")
+
+        return patterns
+    
+    def _parse_scheduler_snapshot_include(self, working_dir: str) -> Set[str]:
+        """Parse .scheduler_snapshot_include file in working directory
+
+        The .scheduler_snapshot_include file uses the same format as .gitignore:
+        - One pattern per line
+        - Lines starting with # are comments
+        - Empty lines are ignored
+        - Patterns can be:
+          - Specific file paths (e.g., 'data/model.pkl')
+          - File patterns (e.g., '*.safetensors')
+          - Directory patterns (e.g., 'models/**')
+
+        Files matching these patterns will be included in snapshots regardless of:
+        - Size limits
+        - File type restrictions
+        - Git exclude patterns
+
+        Args:
+            working_dir: The working directory to search for .scheduler_snapshot_include
+
+        Returns:
+            Set of patterns to always include, empty set if file doesn't exist
+        """
+        include_file = os.path.join(working_dir, '.scheduler_snapshot_include')
+        patterns = set()
+
+        if not os.path.exists(include_file):
+            logger.debug(f"No .scheduler_snapshot_include found in {working_dir}")
+            return patterns
+
+        try:
+            with open(include_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    # Skip empty lines and comments
+                    if not line or line.startswith('#'):
+                        continue
+                    patterns.add(line)
+
+            logger.info(f"Loaded {len(patterns)} patterns from .scheduler_snapshot_include")
+            logger.debug(f"Include patterns: {patterns}")
+
+        except Exception as e:
+            logger.warning(f"Failed to read .scheduler_snapshot_include: {e}")
 
         return patterns
     
@@ -277,7 +328,8 @@ class GitSnapshotManager:
         """Collect list of files to include in snapshot
 
         Uses git ls-files to get all untracked/unignored files, automatically
-        respecting .scheduler-git/info/exclude patterns.
+        respecting .scheduler-git/info/exclude patterns. Additionally includes
+        files specified in .scheduler_snapshot_include regardless of size/type limits.
 
         Args:
             working_dir: Working directory to scan
@@ -285,9 +337,39 @@ class GitSnapshotManager:
         Returns:
             List of relative file paths to include
         """
-        files_to_include = []
+        files_to_include = set()  # Use set to avoid duplicates
         git_dir = self._get_shadow_repo_path(working_dir)
 
+        # First, collect files from .scheduler_snapshot_include (bypass all filters)
+        include_patterns = self._parse_scheduler_snapshot_include(working_dir)
+        if include_patterns:
+            logger.debug(f"Processing {len(include_patterns)} include patterns")
+            
+            for pattern in include_patterns:
+                try:
+                    # Convert gitignore-style patterns to glob patterns
+                    # Handle ** for recursive matching
+                    if '**' in pattern:
+                        glob_pattern = pattern
+                    else:
+                        # For non-recursive patterns, search from working directory
+                        glob_pattern = pattern
+                    
+                    # Use glob to find matching files
+                    import glob
+                    matches = glob.glob(os.path.join(working_dir, glob_pattern), recursive=True)
+                    
+                    for match in matches:
+                        if os.path.isfile(match):
+                            # Get relative path
+                            rel_path = os.path.relpath(match, working_dir)
+                            files_to_include.add(rel_path)
+                            logger.debug(f"Included file from pattern '{pattern}': {rel_path}")
+                
+                except Exception as e:
+                    logger.warning(f"Error processing include pattern '{pattern}': {e}")
+
+        # Now collect files using git ls-files (with normal filtering)
         try:
             # Use git ls-files to get all files, excluding those in info/exclude
             # --others: show untracked files
@@ -304,20 +386,24 @@ class GitSnapshotManager:
                 check=True
             )
 
-            all_files = result.stdout.strip().split('\n') if result.stdout.strip() else []
-            logger.debug(f"git ls-files found {len(all_files)} unignored files")
+            git_files = result.stdout.strip().split('\n') if result.stdout.strip() else []
+            logger.debug(f"git ls-files found {len(git_files)} unignored files")
 
-            # Apply size limits and folder limits
+            # Apply size limits and folder limits to git files
             folder_file_counts: Dict[str, int] = {}
 
-            # Count files per folder
-            for rel_path in all_files:
+            # Count files per folder (only for git files, not included files)
+            for rel_path in git_files:
                 file_path = os.path.join(working_dir, rel_path)
                 folder = os.path.dirname(file_path)
                 folder_file_counts[folder] = folder_file_counts.get(folder, 0) + 1
 
-            # Filter files by size and folder limits
-            for rel_path in all_files:
+            # Filter git files by size and folder limits
+            for rel_path in git_files:
+                # Skip if already included (no need to check again)
+                if rel_path in files_to_include:
+                    continue
+                    
                 file_path = os.path.join(working_dir, rel_path)
                 folder = os.path.dirname(file_path)
 
@@ -329,17 +415,16 @@ class GitSnapshotManager:
 
                 # Check file size limits
                 if self._should_include_file(file_path, working_dir):
-                    files_to_include.append(rel_path)
-
-            logger.debug(f"Collected {len(files_to_include)} files to snapshot from {working_dir}")
-            return files_to_include
+                    files_to_include.add(rel_path)
 
         except subprocess.CalledProcessError as e:
             logger.error(f"git ls-files failed: {e.stderr}")
-            return []
         except Exception as e:
             logger.error(f"Error collecting files from {working_dir}: {e}")
-            return []
+
+        final_files = list(files_to_include)
+        logger.debug(f"Collected {len(final_files)} files to snapshot from {working_dir}")
+        return final_files
     
     def _find_workspace_root(self, path: str) -> str:
         """Find the workspace root by searching for .git or .scheduler-git
@@ -404,10 +489,13 @@ class GitSnapshotManager:
         This creates a snapshot by:
         1. Finding the workspace root (by searching for .git or .scheduler-git)
         2. Ensuring shadow repo exists (workspace_root/.scheduler-git as git dir)
-        3. Using git --git-dir and --work-tree to add files directly from workspace_root
-        4. Creating a commit without checking out (using git write-tree and commit-tree)
-        5. Creating a branch pointing to the commit
-        6. Returning the commit SHA and workspace root
+        3. Collecting files to snapshot:
+           - Files from .scheduler_snapshot_include (bypasses all filters)
+           - Other files respecting size limits and exclude patterns
+        4. Using git --git-dir and --work-tree to add files directly from workspace_root
+        5. Creating a commit without checking out (using git write-tree and commit-tree)
+        6. Creating a branch pointing to the commit
+        7. Returning the commit SHA and workspace root
         
         Args:
             job_id: Unique job identifier

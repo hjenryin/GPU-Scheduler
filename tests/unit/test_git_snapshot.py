@@ -120,6 +120,88 @@ class TestFileSelection:
         assert 'src/model.py' in files
 
 
+class TestIncludePatterns:
+    """Test .scheduler_snapshot_include functionality"""
+    
+    def test_parse_include_file_basic(self, git_manager, temp_work_dir):
+        """Test parsing basic include patterns"""
+        include_file = os.path.join(temp_work_dir, '.scheduler_snapshot_include')
+        with open(include_file, 'w') as f:
+            f.write('large_model.pkl\n')
+            f.write('# This is a comment\n')
+            f.write('data/*.csv\n')
+            f.write('\n')  # Empty line
+        
+        patterns = git_manager._parse_scheduler_snapshot_include(temp_work_dir)
+        assert 'large_model.pkl' in patterns
+        assert 'data/*.csv' in patterns
+        assert len(patterns) == 2  # Comment and empty line ignored
+    
+    def test_parse_include_file_no_file(self, git_manager, temp_work_dir):
+        """Test parsing when include file doesn't exist"""
+        patterns = git_manager._parse_scheduler_snapshot_include(temp_work_dir)
+        assert patterns == set()
+    
+    def test_include_bypasses_size_limits(self, git_manager, temp_work_dir):
+        """Test that included files bypass size limits"""
+        # Create a large file that would normally be excluded
+        large_file = os.path.join(temp_work_dir, 'large_model.pkl')
+        with open(large_file, 'wb') as f:
+            f.write(b'x' * (25 * 1024 * 1024))  # 25 MB - exceeds default limit
+        
+        # Create include file
+        include_file = os.path.join(temp_work_dir, '.scheduler_snapshot_include')
+        with open(include_file, 'w') as f:
+            f.write('large_model.pkl\n')
+        
+        # Collect files - large file should be included
+        files = git_manager._collect_files_to_snapshot(temp_work_dir)
+        assert 'large_model.pkl' in files
+    
+    def test_include_glob_patterns(self, git_manager, temp_work_dir):
+        """Test that glob patterns in include file work"""
+        # Create test files
+        os.makedirs(os.path.join(temp_work_dir, 'models'), exist_ok=True)
+        with open(os.path.join(temp_work_dir, 'models', 'model1.pkl'), 'w') as f:
+            f.write('model1')
+        with open(os.path.join(temp_work_dir, 'models', 'model2.pkl'), 'w') as f:
+            f.write('model2')
+        with open(os.path.join(temp_work_dir, 'models', 'config.txt'), 'w') as f:
+            f.write('config')
+        
+        # Create include file with glob pattern
+        include_file = os.path.join(temp_work_dir, '.scheduler_snapshot_include')
+        with open(include_file, 'w') as f:
+            f.write('models/*.pkl\n')
+        
+        # Collect files - should include both .pkl files
+        files = git_manager._collect_files_to_snapshot(temp_work_dir)
+        assert 'models/model1.pkl' in files
+        assert 'models/model2.pkl' in files
+        # Should not include .txt file
+        assert 'models/config.txt' not in files
+    
+    def test_include_recursive_patterns(self, git_manager, temp_work_dir):
+        """Test recursive glob patterns (**/) in include file"""
+        # Create nested structure
+        os.makedirs(os.path.join(temp_work_dir, 'data', 'train'), exist_ok=True)
+        os.makedirs(os.path.join(temp_work_dir, 'data', 'test'), exist_ok=True)
+        with open(os.path.join(temp_work_dir, 'data', 'train', 'train.npy'), 'w') as f:
+            f.write('train data')
+        with open(os.path.join(temp_work_dir, 'data', 'test', 'test.npy'), 'w') as f:
+            f.write('test data')
+        
+        # Create include file with recursive pattern
+        include_file = os.path.join(temp_work_dir, '.scheduler_snapshot_include')
+        with open(include_file, 'w') as f:
+            f.write('data/**/*.npy\n')
+        
+        # Collect files - should include both files
+        files = git_manager._collect_files_to_snapshot(temp_work_dir)
+        assert 'data/train/train.npy' in files
+        assert 'data/test/test.npy' in files
+
+
 class TestCreateSnapshot:
     """Test create_snapshot method"""
     
