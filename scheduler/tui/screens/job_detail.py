@@ -1,25 +1,33 @@
 from textual.screen import Screen
 from textual.app import ComposeResult
-from textual.widgets import Header, Footer, Static, Button
+from textual.widgets import Header, Footer, Static, Button, TextArea
 from textual.containers import Container, Horizontal, VerticalScroll
 from scheduler.core import Job  # Import from peer submodule's public API
 from scheduler.tui.utils import format_runtime
+from rich.text import Text
 
 
 def process_log_escape_sequences(logs: str) -> str:
     """
     Process escape sequences in log strings to render them properly.
-    
+
     Args:
         logs: Raw log string that may contain literal escape sequences
-        
+
     Returns:
         Processed log string with escape sequences converted to actual characters
     """
     if not logs:
         return logs
     # Replace literal \n with actual newlines and handle other escape sequences
-    return logs.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
+    # Also handle literal ANSI escape sequences like \\u001b -> \u001b
+    processed = logs.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
+    # Decode unicode escape sequences (e.g., \u001b[91m -> actual ANSI codes)
+    try:
+        processed = processed.encode().decode('unicode_escape')
+    except:
+        pass  # If decoding fails, keep the original
+    return processed
 
 
 class JobDetailScreen(Screen):
@@ -58,7 +66,15 @@ class JobDetailScreen(Screen):
                 Static("Job Configuration", id="job-config-header"),
                 Static("", id="job-config"),
                 Static("Logs Preview (last 20 lines)", id="logs-header"),
-                Static("Loading logs...", id="logs-preview"),
+                Container(
+                    TextArea(
+                        "",
+                        id="logs-preview",
+                        read_only=True,
+                        show_line_numbers=False,
+                    ),
+                    id="logs-container",
+                ),
                 Horizontal(
                     Button("View Full Logs (l)", id="logs-button", variant="primary"),
                     Button("Cancel Job (c)", id="cancel-button", variant="error"),
@@ -73,6 +89,11 @@ class JobDetailScreen(Screen):
 
     def on_mount(self):
         """Fetch job data when screen is mounted."""
+        # Set height for the logs container programmatically
+        logs_container = self.query_one("#logs-container", Container)
+        logs_container.styles.height = 13  # 13 lines height
+        logs_container.styles.border = ("solid", "cyan")
+
         # Get the client from the app
         if hasattr(self.app, "client"):
             try:
@@ -85,15 +106,15 @@ class JobDetailScreen(Screen):
                         self.job_id, lines=20, stderr=False
                     )
                     # Process logs to handle escape sequences properly
+                    log_widget = self.query_one("#logs-preview", TextArea)
                     if logs:
                         processed_logs = process_log_escape_sequences(logs)
-                        self.query_one("#logs-preview", Static).update(processed_logs)
+                        log_widget.load_text(processed_logs)
                     else:
-                        self.query_one("#logs-preview", Static).update("No logs available yet.")
+                        log_widget.load_text("No logs available yet.")
                 except Exception as e:
-                    self.query_one("#logs-preview", Static).update(
-                        f"Could not fetch logs: {e}"
-                    )
+                    log_widget = self.query_one("#logs-preview", TextArea)
+                    log_widget.load_text(f"Could not fetch logs: {e}")
             except Exception as e:
                 self.query_one("#job-metadata", Static).update(
                     f"Error loading job: {e}"
@@ -183,37 +204,53 @@ class JobDetailScreen(Screen):
 
     def action_view_logs(self):
         """
-        View full job logs.
+        View full job logs (limited to prevent UI freeze).
 
         Bound to 'l' key.
         """
         if hasattr(self.app, "client"):
             try:
-                # Fetch full logs
+                # Fetch logs with a reasonable limit to prevent UI freeze
+                MAX_LINES = 5000
                 logs = self.app.client.get_job_logs(
-                    self.job_id, lines=None, stderr=False
+                    self.job_id, lines=MAX_LINES, stderr=False
                 )
                 stderr_logs = self.app.client.get_job_logs(
-                    self.job_id, lines=None, stderr=True
+                    self.job_id, lines=MAX_LINES, stderr=True
                 )
 
                 # Process logs to handle escape sequences
                 stdout = logs if logs else "No stdout logs"
                 stderr = stderr_logs if stderr_logs else "No stderr logs"
-                
+
                 # Apply escape sequence processing
                 stdout = process_log_escape_sequences(stdout)
                 stderr = process_log_escape_sequences(stderr)
-                
-                full_logs = "=== STDOUT ===\n" + stdout
-                full_logs += "\n\n=== STDERR ===\n" + stderr
 
-                self.query_one("#logs-preview", Static).update(full_logs)
+                # Count lines to determine if we hit the limit
+                stdout_lines = len(stdout.split('\n')) if stdout != "No stdout logs" else 0
+                stderr_lines = len(stderr.split('\n')) if stderr != "No stderr logs" else 0
+
+                # Clear and update the TextArea widget
+                log_widget = self.query_one("#logs-preview", TextArea)
+
+                # Show line limit hint only if we hit the limit
+                stdout_header = "=== STDOUT ==="
+                if stdout_lines >= MAX_LINES:
+                    stdout_header = f"=== STDOUT (showing last {MAX_LINES} lines) ==="
+
+                stderr_header = "\n=== STDERR ==="
+                if stderr_lines >= MAX_LINES:
+                    stderr_header = f"\n=== STDERR (showing last {MAX_LINES} lines) ==="
+
+                # Combine all logs into a single text
+                full_logs = f"{stdout_header}\n{stdout}{stderr_header}\n{stderr}"
+                log_widget.load_text(full_logs)
+
                 self.query_one("#logs-header", Static).update("Full Logs")
             except Exception as e:
-                self.query_one("#logs-preview", Static).update(
-                    f"Error fetching logs: {e}"
-                )
+                log_widget = self.query_one("#logs-preview", TextArea)
+                log_widget.load_text(f"Error fetching logs: {e}")
 
     def action_cancel_job(self):
         """

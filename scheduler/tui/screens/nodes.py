@@ -2,7 +2,7 @@ from typing import List, Optional
 from textual.screen import Screen
 from textual.app import ComposeResult
 from textual.widgets import Header, Footer, Static, DataTable
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Container, Horizontal, VerticalScroll
 from scheduler.core import Node, Job  # Import from peer submodule's public API
 from scheduler.tui.utils import create_gpu_utilization_bar, format_gpu_memory
 
@@ -38,17 +38,19 @@ class NodesScreen(Screen):
         yield Header()
         yield Container(
             Horizontal(
-                Vertical(
+                VerticalScroll(
                     Static("NODES", id="nodes-list-header"),
                     DataTable(id="nodes-list"),
                     Static("", id="node-detail-info"),
+                    id="nodes-list-scroll",
                 ),
-                Vertical(
+                VerticalScroll(
                     Static("", id="node-detail-header"),
                     Static("GPUs", id="gpu-detail-header"),
                     DataTable(id="gpu-detail-table"),
                     Static("Running Jobs", id="jobs-detail-header"),
                     Static("", id="jobs-detail-list"),
+                    id="node-detail-scroll",
                 ),
                 id="nodes-horizontal",
             ),
