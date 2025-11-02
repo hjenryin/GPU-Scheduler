@@ -12,12 +12,13 @@ from scheduler.head.api_server import APIServer
 
 logger = logging.getLogger(__name__)
 
-# Global orchestrator instance for API access
-_orchestrator_instance: Optional['Orchestrator'] = None
-
 
 class Orchestrator:
-    """Main head node orchestrator"""
+    """Main head node orchestrator with singleton pattern"""
+
+    # Class-level singleton instance
+    _instance: Optional['Orchestrator'] = None
+    _lock = threading.Lock()
 
     def __init__(self, config: Config, singleton=None):
         """
@@ -27,9 +28,10 @@ class Orchestrator:
             config: Configuration instance
             singleton: SingletonDaemon instance for lock management
         """
-        global _orchestrator_instance
-        _orchestrator_instance = self
-        
+        # Store instance at class level (thread-safe)
+        with Orchestrator._lock:
+            Orchestrator._instance = self
+
         self.config = config
         self.singleton = singleton
         self.running = False
@@ -68,6 +70,25 @@ class Orchestrator:
         signal.signal(signal.SIGTERM, self._signal_handler)
 
         logger.info("Orchestrator initialized")
+
+    @classmethod
+    def get_instance(cls) -> Optional['Orchestrator']:
+        """
+        Get the current orchestrator instance.
+
+        Returns:
+            The orchestrator instance, or None if not initialized
+        """
+        with cls._lock:
+            return cls._instance
+
+    @classmethod
+    def clear_instance(cls):
+        """
+        Clear the orchestrator instance. Mainly for testing.
+        """
+        with cls._lock:
+            cls._instance = None
 
     def start(self):
         """

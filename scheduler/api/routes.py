@@ -383,9 +383,10 @@ async def shutdown_cluster_route(graceful_timeout: int = 60, force: bool = False
         
         # Signal orchestrator to shutdown cluster
         # This will be handled by the orchestrator's shutdown_cluster method
-        from scheduler.head import _orchestrator_instance
-        if _orchestrator_instance:
-            _orchestrator_instance.request_cluster_shutdown(graceful_timeout, force)
+        from scheduler.head import Orchestrator
+        orchestrator = Orchestrator.get_instance()
+        if orchestrator:
+            orchestrator.request_cluster_shutdown(graceful_timeout, force)
             logger.info("Cluster shutdown initiated successfully")
             return {
                 "status": "shutdown_initiated",

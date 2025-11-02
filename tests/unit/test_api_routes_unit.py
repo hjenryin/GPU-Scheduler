@@ -609,30 +609,32 @@ class TestShutdownClusterRoute:
     async def test_shutdown_cluster(self, mock_logger, mock_node_manager):
         """Test shutdown cluster route"""
         from scheduler.api.routes import shutdown_cluster_route
+        from scheduler.head import Orchestrator
         from unittest.mock import patch
-        
+
         mock_node_manager.get_connected_nodes.return_value = []
-        
-        # Mock orchestrator instance
-        with patch('scheduler.api.routes._orchestrator_instance', None):
+
+        # Mock orchestrator instance as None
+        with patch.object(Orchestrator, '_instance', None):
             with pytest.raises(HTTPException) as exc_info:
                 await shutdown_cluster_route(graceful_timeout=60, force=False)
-            
+
             assert exc_info.value.status_code == 500
 
     @pytest.mark.asyncio
     async def test_shutdown_cluster_success(self, mock_logger, mock_node_manager):
         """Test successful cluster shutdown"""
         from scheduler.api.routes import shutdown_cluster_route
+        from scheduler.head import Orchestrator
         from unittest.mock import MagicMock, patch
-        
+
         mock_node_manager.get_connected_nodes.return_value = [Mock(), Mock()]
         mock_orchestrator = MagicMock()
         mock_orchestrator.request_cluster_shutdown = MagicMock()
-        
-        with patch('scheduler.head._orchestrator_instance', mock_orchestrator):
+
+        with patch.object(Orchestrator, '_instance', mock_orchestrator):
             result = await shutdown_cluster_route(graceful_timeout=60, force=True)
-            
+
             assert result['status'] == "shutdown_initiated"
             assert result['nodes_count'] == 2
             mock_orchestrator.request_cluster_shutdown.assert_called_once_with(60, True)
