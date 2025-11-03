@@ -618,7 +618,7 @@ class GitSnapshotManager:
                 batch = files_to_snapshot[i:i + BATCH_SIZE]
                 # Add all files in this batch with a single git add call
                 # If batch fails, the entire snapshot creation fails (no fallback)
-                cmd = self._git_base_args(workspace_root, git_dir) + ['add', '--'] + batch
+                cmd = self._git_base_args(workspace_root, git_dir) + ['add', '-f', '--'] + batch
                 subprocess.run(
                     cmd,
                     cwd=workspace_root,

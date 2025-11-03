@@ -13,7 +13,7 @@ DEFAULT_HEARTBEAT_INTERVAL = 10
 DEFAULT_GPU_POLL_INTERVAL = 10
 DEFAULT_GPU_UTIL_THRESHOLD = 10.0
 DEFAULT_GPU_MEM_THRESHOLD = 10.0
-DEFAULT_GPU_STABLE_TIME = 30
+DEFAULT_GPU_STABLE_TIME = 120
 DEFAULT_JOB_STARTUP_GRACE = 120
 
 # Storage defaults
@@ -72,7 +72,7 @@ DEFAULT_SNAPSHOT_DATA_TYPE_LIMITS = {
 
 # File extensions that should always be included in snapshots
 DEFAULT_SNAPSHOT_ALWAYS_INCLUDE_EXTENSIONS = {
-    '.py', '.sh', '.yaml', '.yml', '.json', '.txt', '.md',
+    '.py', '.sh', '.yaml', '.yml', '.json', '.md',
     '.toml', '.ini', '.cfg', '.conf', '.env'
 }
 
@@ -81,7 +81,7 @@ DEFAULT_SNAPSHOT_EXCLUDE_PATTERNS = {
     '__pycache__', '.pytest_cache', '.mypy_cache', '.tox',
     '.egg-info', '.eggs', 'build', 'dist', '.git', '.scheduler-git',
     '*.pyc', '*.pyo', '*.pyd', '.so', '*.dylib',
-    '.coverage', 'htmlcov', '.DS_Store', '*.swp', '*.swo',
+     '.DS_Store', '*.swp', '*.swo',
     '.vscode', '.idea', '*.log', 'wandb', '*.safetensors'
 }
 
