@@ -4,6 +4,7 @@ import os
 import subprocess
 import logging
 from typing import Optional, List, Set, Dict, Tuple
+import fnmatch
 from pathlib import Path
 
 from scheduler.core import Config
@@ -56,6 +57,16 @@ class GitSnapshotManager:
 
         logger.debug(f"GitSnapshotManager initialized (max_file_size={self.max_file_size}, "
                     f"max_files_per_folder={self.max_files_per_folder})")
+
+    def _git_base_args(self, workspace_root: str, git_dir: str) -> List[str]:
+        """Return base git command args that inject a per-invocation safe.directory.
+
+        We use `-c safe.directory=...` so git does not block operations due to
+        dubious ownership checks. This is applied only to git invocations that
+        operate on the shadow repository/work-tree for the scheduler and is
+        supplied per-invocation (not persisted to global config).
+        """
+        return ['git', '-c', f'safe.directory={workspace_root}', f'--git-dir={git_dir}', f'--work-tree={workspace_root}']
 
     def _parse_scheduler_snapshot_ignore(self, working_dir: str) -> Set[str]:
         """Parse .scheduler_snapshot_ignore file in working directory
@@ -373,11 +384,14 @@ class GitSnapshotManager:
         try:
             # Use git ls-files to get all files, excluding those in info/exclude
             # --others: show untracked files
-            # --exclude-standard: use standard exclude files (info/exclude)
-            # -c: also show cached files (for existing snapshots)
+            # We intentionally do NOT pass --exclude-standard here because
+            # workspace .gitignore should not control the scheduler snapshot.
+            # Instead we list all untracked files and apply scheduler-only
+            # excludes (from DEFAULT_SNAPSHOT_EXCLUDE_PATTERNS and
+            # .scheduler_snapshot_ignore) in Python below.
+            cmd = self._git_base_args(working_dir, git_dir) + ['ls-files', '--others']
             result = subprocess.run(
-                ['git', f'--git-dir={git_dir}', f'--work-tree={working_dir}',
-                 'ls-files', '--others', '--exclude-standard'],
+                cmd,
                 cwd=working_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -387,7 +401,46 @@ class GitSnapshotManager:
             )
 
             git_files = result.stdout.strip().split('\n') if result.stdout.strip() else []
-            logger.debug(f"git ls-files found {len(git_files)} unignored files")
+            logger.debug(f"git ls-files found {len(git_files)} unfiltered untracked files")
+
+            # Apply scheduler-only exclude patterns (combine defaults + user)
+            user_patterns = self._parse_scheduler_snapshot_ignore(working_dir)
+            combined_excludes = set(self.exclude_patterns) | set(user_patterns)
+
+            def _matches_exclude(rel_path: str, patterns: Set[str]) -> bool:
+                # Try matching with fnmatch against the relative path and
+                # the basename. Also treat simple directory names as substring
+                # matches to cover common ignore patterns.
+                for pat in patterns:
+                    if not pat:
+                        continue
+                    # Normalize pattern to use forward slashes
+                    p = pat.replace('\\', '/')
+                    if fnmatch.fnmatch(rel_path, p):
+                        return True
+                    if fnmatch.fnmatch(os.path.basename(rel_path), p):
+                        return True
+                    # If pattern looks like a directory name or simple token,
+                    # check whether it's a path segment in rel_path
+                    if '/' not in p and p in rel_path:
+                        return True
+                return False
+
+            # Filter git_files according to scheduler excludes and already-included files
+            filtered_git_files: List[str] = []
+            for rel_path in git_files:
+                if not rel_path:
+                    continue
+                # If explicitly included by .scheduler_snapshot_include, keep it
+                if rel_path in files_to_include:
+                    continue
+                # Skip files that match scheduler-only excludes
+                if _matches_exclude(rel_path, combined_excludes):
+                    logger.debug(f"Excluding {rel_path} due to scheduler exclude patterns")
+                    continue
+                filtered_git_files.append(rel_path)
+
+            logger.debug(f"After scheduler filtering {len(filtered_git_files)} files remain from git ls-files")
 
             # Apply size limits and folder limits to git files
             folder_file_counts: Dict[str, int] = {}
@@ -399,11 +452,11 @@ class GitSnapshotManager:
                 folder_file_counts[folder] = folder_file_counts.get(folder, 0) + 1
 
             # Filter git files by size and folder limits
-            for rel_path in git_files:
+            for rel_path in filtered_git_files:
                 # Skip if already included (no need to check again)
                 if rel_path in files_to_include:
                     continue
-                    
+
                 file_path = os.path.join(working_dir, rel_path)
                 folder = os.path.dirname(file_path)
 
@@ -547,8 +600,9 @@ class GitSnapshotManager:
                              f"Consider creating a .scheduler_snapshot_ignore file to exclude large data files.")
 
             # Reset index to clear any previous state
+            cmd = self._git_base_args(workspace_root, git_dir) + ['reset']
             subprocess.run(
-                ['git', f'--git-dir={git_dir}', f'--work-tree={workspace_root}', 'reset'],
+                cmd,
                 cwd=workspace_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -564,8 +618,9 @@ class GitSnapshotManager:
                 batch = files_to_snapshot[i:i + BATCH_SIZE]
                 # Add all files in this batch with a single git add call
                 # If batch fails, the entire snapshot creation fails (no fallback)
+                cmd = self._git_base_args(workspace_root, git_dir) + ['add', '--'] + batch
                 subprocess.run(
-                    ['git', f'--git-dir={git_dir}', f'--work-tree={workspace_root}', 'add', '--'] + batch,
+                    cmd,
                     cwd=workspace_root,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -576,8 +631,9 @@ class GitSnapshotManager:
                 logger.debug(f"Added batch of {len(batch)} files to git index")
             
             # Write tree (creates tree object from index)
+            cmd = self._git_base_args(workspace_root, git_dir) + ['write-tree']
             result = subprocess.run(
-                ['git', f'--git-dir={git_dir}', 'write-tree'],
+                cmd,
                 cwd=workspace_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -589,8 +645,9 @@ class GitSnapshotManager:
             
             # Get parent commit (if any)
             parent_args = []
+            cmd = self._git_base_args(workspace_root, git_dir) + ['rev-parse', 'HEAD']
             result = subprocess.run(
-                ['git', f'--git-dir={git_dir}', 'rev-parse', 'HEAD'],
+                cmd,
                 cwd=workspace_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -604,8 +661,9 @@ class GitSnapshotManager:
             # Create commit object
             # Note: commit message includes the original working_dir for reference
             commit_message = f"Snapshot for job {job_id}\n\nWorkspace: {workspace_root}\nSubmitted from: {working_dir}\nFiles: {len(files_to_snapshot)}"
+            cmd = self._git_base_args(workspace_root, git_dir) + ['commit-tree', tree_sha] + parent_args + ['-m', commit_message]
             result = subprocess.run(
-                ['git', f'--git-dir={git_dir}', 'commit-tree', tree_sha] + parent_args + ['-m', commit_message],
+                cmd,
                 cwd=workspace_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -616,8 +674,9 @@ class GitSnapshotManager:
             commit_sha = result.stdout.strip()
             
             # Create/update branch to point to this commit
+            cmd = self._git_base_args(workspace_root, git_dir) + ['branch', '-f', branch_name, commit_sha]
             subprocess.run(
-                ['git', f'--git-dir={git_dir}', 'branch', '-f', branch_name, commit_sha],
+                cmd,
                 cwd=workspace_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -666,8 +725,9 @@ class GitSnapshotManager:
                 return False
             
             # Create worktree from the snapshot
+            cmd = self._git_base_args(working_dir, git_dir) + ['worktree', 'add', target_dir, snapshot_ref]
             subprocess.run(
-                ['git', f'--git-dir={git_dir}', 'worktree', 'add', target_dir, snapshot_ref],
+                cmd,
                 cwd=working_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -706,8 +766,9 @@ class GitSnapshotManager:
             # Remove worktree if specified
             if worktree_dir and os.path.exists(worktree_dir):
                 try:
+                    cmd = self._git_base_args(working_dir, git_dir) + ['worktree', 'remove', worktree_dir, '--force']
                     subprocess.run(
-                        ['git', f'--git-dir={git_dir}', 'worktree', 'remove', worktree_dir, '--force'],
+                        cmd,
                         cwd=working_dir,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
