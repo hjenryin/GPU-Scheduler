@@ -374,6 +374,71 @@ class TestCleanupSnapshot:
         git_manager.cleanup_snapshot('job_test', 'abc123', temp_work_dir, '/nonexistent/path')
 
 
+class TestFolderFileLimits:
+    """Test folder file counting and limits"""
+    
+    def test_folder_count_respects_pattern_filtering(self, git_manager, temp_work_dir):
+        """Test that folder file counting only counts files that pass pattern filtering
+        
+        This is a regression test for a bug where:
+        1. git ls-files returned all untracked files
+        2. We counted ALL files in git_files for folder limits
+        3. But we only checked files in filtered_git_files
+        4. Result: folders with many excluded files would hit the limit even for valid files
+        """
+        # Create a folder with many files that should be excluded
+        data_dir = os.path.join(temp_work_dir, 'data')
+        os.makedirs(data_dir, exist_ok=True)
+        
+        # Add many .log files (which are in exclude patterns)
+        for i in range(150):  # More than default max_files_per_folder (100)
+            with open(os.path.join(data_dir, f'log_{i}.log'), 'w') as f:
+                f.write(f'log entry {i}\n')
+        
+        # Add a few .txt files that should be included
+        important_files = []
+        for i in range(5):
+            fname = f'important_{i}.txt'
+            important_files.append(f'data/{fname}')
+            with open(os.path.join(data_dir, fname), 'w') as f:
+                f.write(f'important data {i}\n')
+        
+        # Collect files - important .txt files should be included
+        # even though folder has 155 total files (150 .log + 5 .txt)
+        files = git_manager._collect_files_to_snapshot(temp_work_dir)
+        
+        # All important files should be included
+        for important_file in important_files:
+            assert important_file in files, f"{important_file} should be included despite many .log files in folder"
+        
+        # .log files should be excluded
+        assert not any('.log' in f for f in files), "No .log files should be included"
+    
+    def test_folder_limit_applies_to_filtered_files(self, git_manager, temp_work_dir):
+        """Test that folder limit applies to files after pattern filtering
+        
+        Create a folder with exactly max_files_per_folder valid files
+        and verify all are included (no premature limiting).
+        """
+        # Get the max_files_per_folder limit
+        max_files = git_manager.max_files_per_folder
+        
+        # Create a folder with exactly max_files valid Python files
+        scripts_dir = os.path.join(temp_work_dir, 'scripts')
+        os.makedirs(scripts_dir, exist_ok=True)
+        
+        for i in range(max_files):
+            with open(os.path.join(scripts_dir, f'script_{i}.py'), 'w') as f:
+                f.write(f'# script {i}\n')
+        
+        # Collect files - all should be included
+        files = git_manager._collect_files_to_snapshot(temp_work_dir)
+        
+        py_files_in_scripts = [f for f in files if f.startswith('scripts/') and f.endswith('.py')]
+        assert len(py_files_in_scripts) == max_files, \
+            f"Should include all {max_files} Python files in scripts/ folder"
+
+
 class TestIntegration:
     """Integration tests for complete workflow"""
     

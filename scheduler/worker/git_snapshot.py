@@ -445,8 +445,8 @@ class GitSnapshotManager:
             # Apply size limits and folder limits to git files
             folder_file_counts: Dict[str, int] = {}
 
-            # Count files per folder (only for git files, not included files)
-            for rel_path in git_files:
+            # Count files per folder (only for filtered_git_files that passed pattern checks)
+            for rel_path in filtered_git_files:
                 file_path = os.path.join(working_dir, rel_path)
                 folder = os.path.dirname(file_path)
                 folder_file_counts[folder] = folder_file_counts.get(folder, 0) + 1
@@ -600,6 +600,18 @@ class GitSnapshotManager:
                              f"Consider creating a .scheduler_snapshot_ignore file to exclude large data files.")
 
             # Reset index to clear any previous state
+            # Use rm --cached to remove all files from index, then reset
+            # This ensures a completely clean index before adding new files
+            cmd = self._git_base_args(workspace_root, git_dir) + ['rm', '--cached', '-r', '--ignore-unmatch', '.']
+            subprocess.run(
+                cmd,
+                cwd=workspace_root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=30,
+            )
+            
             cmd = self._git_base_args(workspace_root, git_dir) + ['reset']
             subprocess.run(
                 cmd,
