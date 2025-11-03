@@ -1,5 +1,7 @@
 import os
 import time
+import shutil
+import shlex
 from typing import List, Optional
 import click
 
@@ -58,7 +60,8 @@ def submit_batch_command(
     # Parse each line into script and args
     scripts_with_args = []
     for line in lines:
-        parts = line.split()
+        # Use shlex.split so quoted arguments are handled correctly
+        parts = shlex.split(line)
         if parts:
             script = parts[0]
             script_args = parts[1:] if len(parts) > 1 else []
@@ -95,29 +98,23 @@ def submit_batch_command(
         client = SchedulerClient(config=config)
         
         for i, (script, script_args) in enumerate(scripts_with_args):
-            # Validate script exists
-            if not os.path.exists(script):
-                click.echo(f"\n[{i+1}/{len(scripts_with_args)}] Error: Script not found: {script}")
-                failed += 1
-                if sequential:
-                    click.echo("Sequential mode: Stopping batch submission due to error")
-                    break
-                continue
-            
-            # Display script with args if any
-            script_display = f"{os.path.basename(script)}"
-            if script_args:
-                script_display += f" {' '.join(script_args)}"
-            click.echo(f"\n[{i+1}/{len(scripts_with_args)}] Submitting job: {script_display}")
-            
-            # Get absolute script path
-            abs_script = os.path.abspath(script)
-            
+            # Align behavior with `submit` CLI: don't validate script existence here.
+            # Treat the first token as the script/command and remaining tokens as args.
+            # Let the server/worker handle command resolution and errors.
+            command_elements = [script] + (script_args if script_args else [])
+            command_str = ' '.join(command_elements)
+            click.echo(f"\n[{i+1}/{len(scripts_with_args)}] Submitting job: {command_str}")
+
+            # If the script looks like a filesystem path (contains a directory component),
+            # convert it to an absolute path so the server receives the correct path. If it's
+            # a bare command name, leave it as-is for resolution on the worker.
+            abs_script = os.path.abspath(script) if os.path.dirname(script) else script
+
             # Determine dependencies
             job_depends_on = depends_on.copy() if depends_on else []
             if sequential and previous_job_id:
                 job_depends_on.append(previous_job_id)
-            
+
             try:
                 # Submit job
                 job = client.submit_job(
@@ -130,18 +127,18 @@ def submit_batch_command(
                     dependencies=job_depends_on if job_depends_on else None,
                     priority=priority,
                 )
-                
+
                 click.echo(f"\nJob submitted successfully!")
                 click.echo(f"Job ID: {job.job_id}")
                 click.echo(f"Status: {job.status.value}")
                 click.echo(f"Requirements: {req}")
                 if job_depends_on:
                     click.echo(f"Dependencies: {', '.join(job_depends_on)}")
-                
+
                 succeeded += 1
                 submitted_jobs.append(job)
                 previous_job_id = job.job_id
-                
+
             except ValidationException as e:
                 click.echo(f"Validation error: {e}")
                 failed += 1

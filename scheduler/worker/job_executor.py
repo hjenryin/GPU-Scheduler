@@ -111,7 +111,7 @@ class JobExecutor:
                 # No snapshot, use original working directory
                 working_dir = job.working_dir
                 script_path = job.script
-                logger.info(f"Job {job.job_id} has no snapshot, using original working directory")
+                logger.info(f"Job {job.job_id} has no snapshot, using original working directory: {working_dir}")
 
             # Create log file paths
             stdout_log = self.file_handler.get_job_log_path(job.job_id, stderr=False)
