@@ -839,9 +839,10 @@ class GitSnapshotManager:
                             # Parse worktree list and find ones for this job
                             lines = result.stdout.strip().split('\n')
                             worktree_path = None
+                            worktree_prefix = 'worktree '
                             for line in lines:
-                                if line.startswith('worktree '):
-                                    worktree_path = line[9:]  # Remove 'worktree ' prefix
+                                if line.startswith(worktree_prefix):
+                                    worktree_path = line[len(worktree_prefix):]
                                 elif line.startswith('branch ') and branch_name in line:
                                     # Found a worktree for this job, remove it
                                     if worktree_path:

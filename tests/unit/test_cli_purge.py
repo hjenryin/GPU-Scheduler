@@ -1,9 +1,10 @@
 """Unit tests for scheduler.cli.purge module"""
 import pytest
-from datetime import datetime, timedelta
+from datetime import timedelta
 from unittest.mock import patch, Mock
 from scheduler.cli.purge import purge_command
 from scheduler.core.exceptions import ConnectionException, JobNotFoundException, ValidationException
+from scheduler.core import parse_time_duration
 from scheduler.api import SchedulerClient
 
 
@@ -18,11 +19,11 @@ class TestPurgeCommand:
         mock_client.purge_jobs.return_value = {"purged_count": 5}
         mock_client_class.return_value = mock_client
 
-        with patch('scheduler.cli.purge.click.echo', autospec=True) as mock_echo:
+        with patch('scheduler.cli.purge.click.echo', autospec=True):
             result = purge_command("7d")
             assert result == 0
             mock_client.purge_jobs.assert_called_once()
-            
+
             # Check that before_time was passed
             call_args = mock_client.purge_jobs.call_args
             assert 'before_time' in call_args.kwargs
@@ -67,7 +68,7 @@ class TestPurgeCommand:
         mock_client.purge_job.return_value = {"status": "purge_initiated"}
         mock_client_class.return_value = mock_client
 
-        with patch('scheduler.cli.purge.click.echo', autospec=True) as mock_echo:
+        with patch('scheduler.cli.purge.click.echo', autospec=True):
             result = purge_command("job_abc123")
             assert result == 0
             mock_client.purge_job.assert_called_once_with("job_abc123")
@@ -114,21 +115,19 @@ class TestPurgeCommand:
 
     def test_time_duration_parsing(self):
         """Test various time duration formats"""
-        from scheduler.core import parse_time_duration
-        
         # Test valid formats
         assert parse_time_duration("7d") == timedelta(days=7)
         assert parse_time_duration("3w") == timedelta(weeks=3)
         assert parse_time_duration("24h") == timedelta(hours=24)
         assert parse_time_duration("30m") == timedelta(minutes=30)
         assert parse_time_duration("60s") == timedelta(seconds=60)
-        
+
         # Test invalid formats
         with pytest.raises(ValidationException):
             parse_time_duration("7x")  # Invalid unit
-        
+
         with pytest.raises(ValidationException):
             parse_time_duration("abc")  # No number
-        
+
         with pytest.raises(ValidationException):
             parse_time_duration("")  # Empty string

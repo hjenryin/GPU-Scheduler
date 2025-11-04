@@ -1,4 +1,5 @@
 import logging
+import os
 import socket
 import signal
 import threading
@@ -11,6 +12,7 @@ from scheduler.worker.job_executor import JobExecutor
 from scheduler.worker.heartbeat import HeartbeatSender
 from scheduler.worker.file_handler import FileHandler
 from scheduler.worker.log_reader import LogChunkReader
+from scheduler.worker.git_snapshot import GitSnapshotManager
 from scheduler.api import SchedulerClient
 
 logger = logging.getLogger(__name__)
@@ -285,29 +287,27 @@ class WorkerDaemon:
         """
         try:
             logger.info(f"Processing purge request for job {job_id}")
-            
+
             # Clean up logs
-            import os
             log_dir = os.path.expanduser(self.config.worker.log_dir)
-            
+
             for log_type in ['stdout', 'stderr']:
                 log_file = os.path.join(log_dir, f"{job_id}.{log_type}.log")
                 if os.path.exists(log_file):
                     os.remove(log_file)
                     logger.info(f"Removed log file: {log_file}")
-            
+
             # Clean up git snapshot
-            from scheduler.worker import GitSnapshotManager
             git_manager = GitSnapshotManager(self.config)
-            
+
             # Purge all snapshots for this job
             try:
                 git_manager.purge_job_snapshots(job_id)
                 logger.info(f"Cleaned up git snapshots for job {job_id}")
             except Exception as e:
                 logger.warning(f"Failed to clean up git snapshots for job {job_id}: {e}")
-            
+
             logger.info(f"Successfully purged job {job_id}")
-            
+
         except Exception as e:
             logger.error(f"Error purging job {job_id}: {e}")
