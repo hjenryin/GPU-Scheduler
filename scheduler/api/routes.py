@@ -73,6 +73,14 @@ def create_app(
     async def get_job_logs(job_id: str, lines: Optional[int] = None, stderr: bool = False):
         return await get_job_logs_route(job_id, lines, stderr)
 
+    @app.post(f"{constants.API_BASE_PATH}/jobs/{{job_id}}/purge")
+    async def purge_job(job_id: str):
+        return await purge_job_route(job_id)
+
+    @app.post(f"{constants.API_BASE_PATH}/jobs/purge")
+    async def purge_jobs(request: dict):
+        return await purge_jobs_route(request)
+
     # Node routes
     @app.post(f"{constants.API_BASE_PATH}/nodes/register")
     async def register_node(request: NodeRegisterRequest):
@@ -259,6 +267,9 @@ async def heartbeat_route(node_name: str, request: NodeHeartbeat) -> HeartbeatRe
         # Get log requests for this node
         log_requests = _log_position_manager.get_requests_for_node(node_name)
 
+        # Get purge job IDs for this node
+        purge_job_ids = _job_manager.get_purge_jobs_for_node(node_name)
+
         # Check if shutdown has been requested for this node
         node = _node_manager.get_node(node_name)
         shutdown_requested = node.shutdown_requested if node else False
@@ -266,7 +277,8 @@ async def heartbeat_route(node_name: str, request: NodeHeartbeat) -> HeartbeatRe
         return HeartbeatResponse(
             status="ok",
             shutdown_requested=shutdown_requested,
-            log_requests=log_requests
+            log_requests=log_requests,
+            purge_job_ids=purge_job_ids
         )
     except NodeNotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -402,3 +414,61 @@ async def shutdown_cluster_route(graceful_timeout: int = 60, force: bool = False
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to initiate cluster shutdown: {e}"
         )
+
+
+async def purge_job_route(job_id: str) -> dict:
+    """
+    POST /api/v1/jobs/{job_id}/purge - Purge a specific job
+    
+    Args:
+        job_id: Job ID to purge
+    
+    Returns:
+        Confirmation of purge initiation
+    """
+    try:
+        _job_manager.purge_job(job_id)
+        logger.info(f"Job {job_id} marked for purging")
+        return {
+            "status": "purge_initiated",
+            "job_id": job_id
+        }
+    except JobNotFoundException as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error purging job {job_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+async def purge_jobs_route(request: dict) -> dict:
+    """
+    POST /api/v1/jobs/purge - Purge jobs based on criteria
+    
+    Args:
+        request: Dict with 'before_time' (ISO format) and 'status_filter' (list)
+    
+    Returns:
+        Response with purged_count
+    """
+    try:
+        from datetime import datetime
+        
+        before_time = None
+        if 'before_time' in request:
+            before_time = datetime.fromisoformat(request['before_time'])
+        
+        status_filter = request.get('status_filter', None)
+        
+        purged_count = _job_manager.purge_jobs_by_criteria(
+            before_time=before_time,
+            status_filter=status_filter
+        )
+        
+        logger.info(f"Marked {purged_count} jobs for purging")
+        return {
+            "status": "purge_initiated",
+            "purged_count": purged_count
+        }
+    except Exception as e:
+        logger.error(f"Error purging jobs: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

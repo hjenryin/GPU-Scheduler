@@ -116,6 +116,7 @@ class HeartbeatResponse(BaseModel):
     status: str
     shutdown_requested: bool
     log_requests: List[LogRequest] = []
+    purge_job_ids: List[str] = []  # Job IDs to purge on worker
 
 
 class GPUResponse(BaseModel):

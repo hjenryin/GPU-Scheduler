@@ -799,3 +799,72 @@ class GitSnapshotManager:
             
         except Exception as e:
             logger.warning(f"Error during cleanup for job {job_id}: {e}")
+
+    def purge_job_snapshots(self, job_id: str) -> None:
+        """Purge all git snapshots and worktrees for a job
+        
+        This is more aggressive than cleanup_snapshot - it finds and removes
+        all branches and worktrees associated with the job across all repos.
+        
+        Args:
+            job_id: Unique job identifier to purge
+        """
+        try:
+            # Find all shadow repos in the temp directory
+            temp_dir = os.path.expanduser(self.config.worker.temp_dir)
+            if not os.path.exists(temp_dir):
+                return
+            
+            branch_name = f"job-{job_id}"
+            
+            # Scan for .scheduler-git directories
+            for root, dirs, files in os.walk(temp_dir):
+                if '.scheduler-git' in dirs:
+                    git_dir = os.path.join(root, '.scheduler-git')
+                    working_dir = root
+                    
+                    try:
+                        # List and remove all worktrees for this job
+                        cmd = self._git_base_args(working_dir, git_dir) + ['worktree', 'list', '--porcelain']
+                        result = subprocess.run(
+                            cmd,
+                            cwd=working_dir,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            timeout=10,
+                            text=True
+                        )
+                        
+                        if result.returncode == 0:
+                            # Parse worktree list and find ones for this job
+                            lines = result.stdout.strip().split('\n')
+                            worktree_path = None
+                            for line in lines:
+                                if line.startswith('worktree '):
+                                    worktree_path = line[9:]  # Remove 'worktree ' prefix
+                                elif line.startswith('branch ') and branch_name in line:
+                                    # Found a worktree for this job, remove it
+                                    if worktree_path:
+                                        rm_cmd = self._git_base_args(working_dir, git_dir) + ['worktree', 'remove', worktree_path, '--force']
+                                        subprocess.run(rm_cmd, cwd=working_dir, timeout=10, check=False)
+                                        logger.info(f"Removed worktree {worktree_path} for job {job_id}")
+                        
+                        # Delete the branch
+                        del_cmd = self._git_base_args(working_dir, git_dir) + ['branch', '-D', branch_name]
+                        result = subprocess.run(
+                            del_cmd,
+                            cwd=working_dir,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            timeout=10
+                        )
+                        if result.returncode == 0:
+                            logger.info(f"Deleted branch {branch_name} for job {job_id} in {working_dir}")
+                        
+                    except Exception as e:
+                        logger.warning(f"Error purging snapshots in {working_dir} for job {job_id}: {e}")
+            
+            logger.info(f"Purge completed for job {job_id}")
+            
+        except Exception as e:
+            logger.warning(f"Error during purge for job {job_id}: {e}")
