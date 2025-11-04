@@ -1,9 +1,11 @@
-from typing import List, Optional
 import click
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from scheduler.api import SchedulerClient
-from scheduler.core import load_config, ConnectionException, JobNotFoundException, ValidationException, parse_time_duration
+from scheduler.core import (
+    load_config, ConnectionException, JobNotFoundException,
+    ValidationException, parse_time_duration
+)
 
 
 def purge_command(
@@ -52,34 +54,37 @@ def purge_command(
             duration = parse_time_duration(target)
             # Calculate cutoff time
             cutoff_time = datetime.now() - duration
-            
-            click.echo(f"Purging jobs older than {target} (before {cutoff_time.strftime('%Y-%m-%d %H:%M:%S')})...")
+
+            click.echo(
+                f"Purging jobs older than {target} "
+                f"(before {cutoff_time.strftime('%Y-%m-%d %H:%M:%S')})..."
+            )
             click.echo(f"Status filter: {', '.join(status_filter)}")
-            
+
             result = client.purge_jobs(
                 before_time=cutoff_time,
                 status_filter=status_filter
             )
-            
+
             purged_count = result.get('purged_count', 0)
             if purged_count > 0:
                 click.echo(f"✓ Successfully marked {purged_count} job(s) for purging")
-                click.echo(f"  Jobs will be cleaned up on workers during next heartbeat")
+                click.echo("  Jobs will be cleaned up on workers during next heartbeat")
             else:
                 click.echo("No jobs found matching the criteria")
-            
+
             return 0
 
         except ValidationException:
             # Not a time duration, try as job_id
             job_id = target
-            
+
             click.echo(f"Purging job: {job_id}...")
-            
+
             try:
                 result = client.purge_job(job_id)
                 click.echo(f"✓ Successfully marked job {job_id} for purging")
-                click.echo(f"  Job will be cleaned up on worker during next heartbeat")
+                click.echo("  Job will be cleaned up on worker during next heartbeat")
                 return 0
             except JobNotFoundException:
                 click.echo(f"❌ Job not found: {job_id}")

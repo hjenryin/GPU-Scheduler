@@ -218,7 +218,7 @@ def find_available_port(start_port: int = 8000, max_attempts: int = 100, host: s
     for port in range(start_port, start_port + max_attempts):
         if is_port_available(port, host):
             return port
-    
+
     raise PermissionDeniedException(
         f"No available port found in range {start_port}-{start_port + max_attempts - 1}"
     )
