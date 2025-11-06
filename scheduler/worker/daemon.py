@@ -4,7 +4,7 @@ import socket
 import signal
 import threading
 import time
-from typing import Optional
+from typing import Optional, List
 
 from scheduler.core import Config, ConnectionException, get_local_ip
 from scheduler.worker.gpu_monitor import GPUMonitor
@@ -107,8 +107,8 @@ class WorkerDaemon:
         # Start GPU monitoring
         self.gpu_monitor.start_monitoring()
 
-        # Set purge callback for heartbeat sender
-        self.heartbeat_sender.set_purge_callback(self._handle_purge_request)
+        # Set cleanup callback for heartbeat sender
+        self.heartbeat_sender.set_cleanup_callback(self._handle_cleanup_request)
 
         # Start heartbeat sender
         self.heartbeat_sender.start()
@@ -277,17 +277,52 @@ class WorkerDaemon:
         if signum == signal.SIGINT:
             raise KeyboardInterrupt()
 
-    def _handle_purge_request(self, job_id: str):
+    def _handle_cleanup_request(self, active_job_ids: List[str]):
         """
-        Handle a purge request for a job.
-        Cleans up logs and git snapshots for the job.
+        Handle cleanup request from head node.
+        Keeps only jobs in active_job_ids list, purges all others.
+
+        Args:
+            active_job_ids: List of job IDs to keep (all others will be purged)
+        """
+        try:
+            logger.debug(f"Processing cleanup request. Active jobs: {active_job_ids}")
+
+            # Get log directory
+            log_dir = os.path.expanduser(self.config.worker.log_dir)
+            if not os.path.exists(log_dir):
+                return
+
+            # Find all job IDs with log files
+            log_job_ids = set()
+            for filename in os.listdir(log_dir):
+                if filename.endswith('.log'):
+                    # Extract job_id from filename (format: job_id.stdout.log or job_id.stderr.log)
+                    parts = filename.rsplit('.', 2)
+                    if len(parts) == 3:
+                        log_job_ids.add(parts[0])
+
+            # Determine which jobs to purge (present locally but not in active list)
+            jobs_to_purge = log_job_ids - set(active_job_ids)
+
+            if jobs_to_purge:
+                logger.info(f"Purging {len(jobs_to_purge)} inactive jobs: {jobs_to_purge}")
+
+            # Purge each job not in active list
+            for job_id in jobs_to_purge:
+                self._purge_job_files(job_id)
+
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
+
+    def _purge_job_files(self, job_id: str):
+        """
+        Purge files for a specific job.
 
         Args:
             job_id: Job ID to purge
         """
         try:
-            logger.info(f"Processing purge request for job {job_id}")
-
             # Clean up logs
             log_dir = os.path.expanduser(self.config.worker.log_dir)
 
@@ -300,7 +335,6 @@ class WorkerDaemon:
             # Clean up git snapshot
             git_manager = GitSnapshotManager(self.config)
 
-            # Purge all snapshots for this job
             try:
                 git_manager.purge_job_snapshots(job_id)
                 logger.info(f"Cleaned up git snapshots for job {job_id}")

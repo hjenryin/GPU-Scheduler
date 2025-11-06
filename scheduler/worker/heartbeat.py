@@ -51,8 +51,8 @@ class HeartbeatSender:
         # Store pending log requests from head
         self.pending_log_requests: List[LogRequest] = []
 
-        # Callback for purge notifications
-        self.purge_callback = None
+        # Callback for cleanup notifications (gets active job IDs to keep)
+        self.cleanup_callback = None
 
         logger.info(f"HeartbeatSender initialized for node {node_name} -> {head_address}")
 
@@ -105,11 +105,15 @@ class HeartbeatSender:
             # Store log requests from response for next heartbeat
             self.pending_log_requests = response.log_requests
 
-            # Handle purge requests
-            if response.purge_job_ids and self.purge_callback:
+            # Handle cleanup - tell worker which jobs to keep (purge all others)
+            if hasattr(response, 'active_job_ids') and self.cleanup_callback:
+                self.cleanup_callback(response.active_job_ids)
+            # Fallback for backward compatibility with old purge_job_ids
+            elif hasattr(response, 'purge_job_ids') and response.purge_job_ids and self.cleanup_callback:
+                # Old style - just purge specific jobs
                 for job_id in response.purge_job_ids:
                     logger.info(f"Received purge request for job {job_id}")
-                    self.purge_callback(job_id)
+                    self.cleanup_callback([])  # Empty keep list means purge the ones specified
 
             if response.shutdown_requested:
                 logger.info(f"Shutdown requested by head node for {self.node_name}")
@@ -157,14 +161,22 @@ class HeartbeatSender:
 
         logger.info("Heartbeat loop stopped")
 
-    def set_purge_callback(self, callback):
+    def set_cleanup_callback(self, callback):
         """
-        Set the callback function to be called when purge requests are received.
+        Set the callback function to be called for job cleanup.
 
         Args:
-            callback: Function that takes a job_id as argument
+            callback: Function that takes a list of active job IDs to keep.
+                     Worker should clean up any jobs not in this list.
         """
-        self.purge_callback = callback
+        self.cleanup_callback = callback
+
+    def set_purge_callback(self, callback):
+        """
+        Deprecated: Use set_cleanup_callback instead.
+        Maintained for backward compatibility.
+        """
+        self.set_cleanup_callback(callback)
 
     def is_shutdown_requested(self) -> bool:
         """
