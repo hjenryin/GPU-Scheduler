@@ -48,7 +48,7 @@ def submit_batch_command(
     # Read scripts from file
     try:
         with open(script_list, 'r') as f:
-            lines = [line.strip() for line in f if line.strip()]
+            lines = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
     except IOError as e:
         click.echo(f"Error: Cannot read script list file: {e}")
         return 1

@@ -44,11 +44,11 @@ class TestSubmitBatchCommand:
         mock_job = Mock(spec_set=Job)
         mock_job.job_id = "job_123"
         mock_job.status.value = "pending"
-        
+
         mock_client = Mock(spec_set=SchedulerClient)
         mock_client.submit_job.return_value = mock_job
         mock_client_class.return_value = mock_client
-        
+
         # Create test scripts
         test_scripts = []
         for i in range(2):
@@ -73,6 +73,49 @@ class TestSubmitBatchCommand:
                 )
                 assert result == 0
                 # Should only call submit_job twice (blank lines ignored)
+                assert mock_client.submit_job.call_count == 2
+        finally:
+            os.unlink(script_list_file)
+            for script in test_scripts:
+                os.unlink(script)
+
+    @patch('scheduler.cli.submit_batch.load_config', autospec=True)
+    @patch('scheduler.cli.submit_batch.SchedulerClient', autospec=True)
+    def test_submit_batch_file_with_comments(self, mock_client_class, mock_load_config):
+        """Test submitting with a file that has comment lines"""
+        # Create mock job
+        mock_job = Mock(spec_set=Job)
+        mock_job.job_id = "job_123"
+        mock_job.status.value = "pending"
+
+        mock_client = Mock(spec_set=SchedulerClient)
+        mock_client.submit_job.return_value = mock_job
+        mock_client_class.return_value = mock_client
+
+        # Create test scripts
+        test_scripts = []
+        for i in range(2):
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.py') as f:
+                f.write(f"print('test {i}')")
+                test_scripts.append(f.name)
+
+        # Create script list file with comments
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+            f.write("# This is a comment\n")
+            f.write(f"{test_scripts[0]}\n")
+            f.write("  # This is an indented comment\n")
+            f.write(f"{test_scripts[1]}\n")
+            f.write("# Another comment at the end\n")
+            script_list_file = f.name
+
+        try:
+            with patch('scheduler.cli.submit_batch.click.echo'):
+                result = submit_batch_command(
+                    script_list=script_list_file,
+                    req="1"
+                )
+                assert result == 0
+                # Should only call submit_job twice (comment lines ignored)
                 assert mock_client.submit_job.call_count == 2
         finally:
             os.unlink(script_list_file)
