@@ -267,8 +267,8 @@ async def heartbeat_route(node_name: str, request: NodeHeartbeat) -> HeartbeatRe
         # Get log requests for this node
         log_requests = _log_position_manager.get_requests_for_node(node_name)
 
-        # Get purge job IDs for this node
-        purge_job_ids = _job_manager.get_purge_jobs_for_node(node_name)
+        # Get active job IDs for this node (worker will purge jobs not in this list)
+        active_job_ids = _job_manager.get_active_jobs_for_node(node_name)
 
         # Check if shutdown has been requested for this node
         node = _node_manager.get_node(node_name)
@@ -278,7 +278,7 @@ async def heartbeat_route(node_name: str, request: NodeHeartbeat) -> HeartbeatRe
             status="ok",
             shutdown_requested=shutdown_requested,
             log_requests=log_requests,
-            purge_job_ids=purge_job_ids
+            active_job_ids=active_job_ids
         )
     except NodeNotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
