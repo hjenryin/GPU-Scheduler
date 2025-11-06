@@ -70,8 +70,8 @@ def create_app(
         return await cancel_job_route(job_id)
 
     @app.get(f"{constants.API_BASE_PATH}/jobs/{{job_id}}/logs")
-    async def get_job_logs(job_id: str, lines: Optional[int] = None, stderr: bool = False):
-        return await get_job_logs_route(job_id, lines, stderr)
+    async def get_job_logs(job_id: str, lines: Optional[int] = None, stderr: bool = False, stream: bool = False):
+        return await get_job_logs_route(job_id, lines, stderr, stream)
 
     @app.post(f"{constants.API_BASE_PATH}/jobs/{{job_id}}/purge")
     async def purge_job(job_id: str):
@@ -187,25 +187,82 @@ async def cancel_job_route(job_id: str):
 async def get_job_logs_route(
     job_id: str,
     lines: Optional[int] = None,
-    stderr: bool = False
-) -> str:
+    stderr: bool = False,
+    stream: bool = False
+):
     """GET /api/v1/jobs/{job_id}/logs - Get job logs from head's storage"""
+    import os
+    import asyncio
+    from scheduler.core import load_config
+
     try:
         # Verify job exists
         job = _job_manager.get_job(job_id)
         if not job:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {job_id} not found")
 
-        # Read from head's log storage (logs are streamed from workers via heartbeat)
-        import os
-        from scheduler.core import load_config
-
+        # Get log file path
         config = load_config()
         log_dir = os.path.expanduser(config.worker.log_dir)
         suffix = 'stderr' if stderr else 'stdout'
         log_filename = f"{job_id}.{suffix}.log"
         log_path = os.path.join(log_dir, log_filename)
 
+        # Handle streaming mode
+        if stream:
+            async def log_stream_generator():
+                """Generator that yields log lines as they become available"""
+                position = 0
+
+                while True:
+                    # Re-check job status
+                    current_job = _job_manager.get_job(job_id)
+                    if not current_job:
+                        break
+
+                    job_finished = current_job.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]
+
+                    # Check if log file exists
+                    if os.path.exists(log_path):
+                        try:
+                            with open(log_path, 'r') as f:
+                                # Seek to last read position
+                                f.seek(position)
+                                # Read new content
+                                new_content = f.read()
+                                if new_content:
+                                    # Yield each line
+                                    for line in new_content.splitlines(keepends=True):
+                                        yield line
+                                    # Update position
+                                    position = f.tell()
+                        except Exception as e:
+                            logger.error(f"Error reading log file {log_path}: {e}")
+                            yield f"Error reading log file: {e}\n"
+                            break
+
+                    # If job is finished and we've read everything, stop streaming
+                    if job_finished:
+                        # One final read to catch any remaining logs
+                        await asyncio.sleep(0.5)
+                        if os.path.exists(log_path):
+                            try:
+                                with open(log_path, 'r') as f:
+                                    f.seek(position)
+                                    final_content = f.read()
+                                    if final_content:
+                                        for line in final_content.splitlines(keepends=True):
+                                            yield line
+                            except Exception as e:
+                                logger.error(f"Error reading final log content: {e}")
+                        break
+
+                    # Wait before next poll
+                    await asyncio.sleep(0.5)
+
+            return StreamingResponse(log_stream_generator(), media_type="text/plain")
+
+        # Non-streaming mode (original behavior)
         if not os.path.exists(log_path):
             # Log file doesn't exist yet
             if job.status.value == 'pending':
@@ -231,12 +288,6 @@ async def get_job_logs_route(
     except Exception as e:
         logger.error(f"Error retrieving logs for job {job_id}: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
-async def stream_job_logs_route(job_id: str, stderr: bool = False):
-    """GET /api/v1/jobs/{job_id}/logs/stream - Stream job logs (WebSocket)"""
-    # This would use WebSocket - simplified for now
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Log streaming not yet implemented")
 
 
 async def register_node_route(request: NodeRegisterRequest) -> dict:

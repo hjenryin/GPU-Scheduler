@@ -10,7 +10,6 @@ from scheduler.api.routes import (
     list_jobs_route,
     cancel_job_route,
     get_job_logs_route,
-    stream_job_logs_route,
     register_node_route,
     heartbeat_route,
     list_nodes_route,
@@ -307,18 +306,6 @@ class TestGetJobLogsRoute:
             await get_job_logs_route("nonexistent")
         
         assert exc_info.value.status_code == 500  # Route catches and returns 500
-
-
-class TestStreamJobLogsRoute:
-    """Tests for stream_job_logs_route"""
-
-    @pytest.mark.asyncio
-    async def test_stream_job_logs_not_implemented(self):
-        """Test that streaming logs is not yet implemented"""
-        with pytest.raises(HTTPException) as exc_info:
-            await stream_job_logs_route("job_123")
-        
-        assert exc_info.value.status_code == 501
 
 
 class TestRegisterNodeRoute:
