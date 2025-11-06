@@ -324,7 +324,7 @@ class JobManager:
         status_enums = []
         for status_str in status_filter:
             try:
-                status_enums.append(JobStatus(status_str.upper()))
+                status_enums.append(JobStatus(status_str.lower()))
             except ValueError:
                 logger.warning(f"Invalid status filter: {status_str}")
 
