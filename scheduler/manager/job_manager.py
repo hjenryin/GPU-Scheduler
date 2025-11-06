@@ -26,6 +26,7 @@ class JobManager:
         self.persistence = persistence
         self.config = config
         self.jobs: Dict[str, Job] = {}
+        self.pending_purge_jobs: Set[str] = set()  # Jobs marked for purging
 
         # Load existing jobs from storage
         self._load_jobs()
@@ -282,3 +283,101 @@ class JobManager:
 
         self.persistence.save_job(job)
         logger.info(f"Job {job_id} cancelled")
+
+    def purge_job(self, job_id: str):
+        """
+        Mark a specific job for purging.
+
+        Args:
+            job_id: Job ID to purge
+
+        Raises:
+            JobNotFoundException: If job not found
+        """
+        job = self.jobs.get(job_id)
+        if not job:
+            raise JobNotFoundException(f"Job {job_id} not found")
+
+        # Add to pending purge set
+        self.pending_purge_jobs.add(job_id)
+        logger.info(f"Job {job_id} marked for purging")
+
+    def purge_jobs_by_criteria(
+        self,
+        before_time: Optional[datetime] = None,
+        status_filter: Optional[List[str]] = None
+    ) -> int:
+        """
+        Mark jobs for purging based on time and status criteria.
+
+        Args:
+            before_time: Purge jobs completed/failed/cancelled before this time
+            status_filter: List of status values to purge (e.g., ['failed', 'completed', 'cancelled'])
+
+        Returns:
+            Number of jobs marked for purging
+        """
+        if not status_filter:
+            status_filter = ['failed', 'completed', 'cancelled']
+
+        # Convert string status to JobStatus
+        status_enums = []
+        for status_str in status_filter:
+            try:
+                status_enums.append(JobStatus(status_str.upper()))
+            except ValueError:
+                logger.warning(f"Invalid status filter: {status_str}")
+
+        purged_count = 0
+        for job in self.jobs.values():
+            # Check status
+            if job.status not in status_enums:
+                continue
+
+            # Check time
+            if before_time:
+                if job.completed_at and job.completed_at < before_time:
+                    self.pending_purge_jobs.add(job.job_id)
+                    purged_count += 1
+                    logger.info(f"Job {job.job_id} marked for purging (completed {job.completed_at})")
+            else:
+                # No time filter, purge all jobs matching status
+                self.pending_purge_jobs.add(job.job_id)
+                purged_count += 1
+                logger.info(f"Job {job.job_id} marked for purging")
+
+        return purged_count
+
+    def get_purge_jobs_for_node(self, node_name: str) -> List[str]:
+        """
+        Get list of job IDs to purge for a specific node.
+
+        Args:
+            node_name: Node name
+
+        Returns:
+            List of job IDs that should be purged on this node
+        """
+        jobs_to_purge = []
+        for job_id in self.pending_purge_jobs:
+            job = self.jobs.get(job_id)
+            if job and job.assigned_node == node_name:
+                jobs_to_purge.append(job_id)
+        return jobs_to_purge
+
+    def confirm_job_purged(self, job_id: str):
+        """
+        Confirm that a job has been purged from a worker.
+        This removes the job from the pending purge set and from storage.
+
+        Args:
+            job_id: Job ID that was purged
+        """
+        # Remove from pending purge set
+        self.pending_purge_jobs.discard(job_id)
+
+        # Delete from storage
+        if job_id in self.jobs:
+            self.persistence.delete_job(job_id)
+            del self.jobs[job_id]
+            logger.info(f"Job {job_id} purged from storage")

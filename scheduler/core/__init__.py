@@ -36,6 +36,7 @@ from scheduler.core.utils import (
     get_local_ip,
     ensure_dir_exists,
     parse_address,
+    parse_time_duration,
 )
 
 from scheduler.core.constants import (
@@ -88,6 +89,7 @@ __all__ = [
     # Utils
     "parse_requirements",
     "parse_address",
+    "parse_time_duration",
     "format_duration",
     "format_timestamp",
     "format_bytes",

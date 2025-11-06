@@ -10,6 +10,7 @@ from scheduler.cli.logs import logs_command
 from scheduler.cli.cancel import cancel_command
 from scheduler.cli.config import config_command
 from scheduler.cli.status import status_command
+from scheduler.cli.purge import purge_command
 
 
 @click.group()
@@ -264,6 +265,42 @@ def status():
     try:
             code = status_command()
             sys.exit(code)
+    except KeyboardInterrupt:
+        click.echo("\nInterrupted")
+        sys.exit(130)
+    except Exception as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument('target')
+@click.option('--failed', is_flag=True, help='Only purge failed jobs')
+@click.option('--completed', is_flag=True, help='Only purge completed jobs')
+@click.option('--cancelled', is_flag=True, help='Only purge cancelled jobs')
+def purge(target, failed, completed, cancelled):
+    """Purge jobs by time or job ID
+    
+    TARGET can be either:
+    - A time duration: 7d, 3w, 24h, 30m (days, weeks, hours, minutes)
+    - A specific job ID
+    
+    Examples:
+    
+    \b
+    scheduler purge 7d              # Purge all terminal jobs older than 7 days
+    scheduler purge 3w --failed     # Purge failed jobs older than 3 weeks
+    scheduler purge 24h --completed # Purge completed jobs older than 24 hours
+    scheduler purge job_abc123      # Purge specific job
+    """
+    try:
+        code = purge_command(
+            target=target,
+            failed=failed,
+            completed=completed,
+            cancelled=cancelled
+        )
+        sys.exit(code)
     except KeyboardInterrupt:
         click.echo("\nInterrupted")
         sys.exit(130)

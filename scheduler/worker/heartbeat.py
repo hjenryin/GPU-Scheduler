@@ -51,6 +51,9 @@ class HeartbeatSender:
         # Store pending log requests from head
         self.pending_log_requests: List[LogRequest] = []
 
+        # Callback for purge notifications
+        self.purge_callback = None
+
         logger.info(f"HeartbeatSender initialized for node {node_name} -> {head_address}")
 
     def start(self):
@@ -102,6 +105,12 @@ class HeartbeatSender:
             # Store log requests from response for next heartbeat
             self.pending_log_requests = response.log_requests
 
+            # Handle purge requests
+            if response.purge_job_ids and self.purge_callback:
+                for job_id in response.purge_job_ids:
+                    logger.info(f"Received purge request for job {job_id}")
+                    self.purge_callback(job_id)
+
             if response.shutdown_requested:
                 logger.info(f"Shutdown requested by head node for {self.node_name}")
                 return True
@@ -147,6 +156,15 @@ class HeartbeatSender:
             time.sleep(self.heartbeat_interval)
 
         logger.info("Heartbeat loop stopped")
+
+    def set_purge_callback(self, callback):
+        """
+        Set the callback function to be called when purge requests are received.
+
+        Args:
+            callback: Function that takes a job_id as argument
+        """
+        self.purge_callback = callback
 
     def is_shutdown_requested(self) -> bool:
         """

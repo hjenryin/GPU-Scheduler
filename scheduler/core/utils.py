@@ -218,7 +218,7 @@ def find_available_port(start_port: int = 8000, max_attempts: int = 100, host: s
     for port in range(start_port, start_port + max_attempts):
         if is_port_available(port, host):
             return port
-    
+
     raise PermissionDeniedException(
         f"No available port found in range {start_port}-{start_port + max_attempts - 1}"
     )
@@ -297,3 +297,59 @@ def parse_address(address: str) -> Tuple[str, int]:
     else:
         # No port specified, return just the host with a default port (will be determined by caller)
         raise ValidationException(f"Address must include port (format: host:port): {address}")
+
+
+def parse_time_duration(duration_str: str) -> timedelta:
+    """
+    Parse time duration string into timedelta object.
+
+    Args:
+        duration_str: Duration string (e.g., "7d", "3w", "24h", "30m")
+
+    Returns:
+        timedelta object
+
+    Raises:
+        ValidationException: If duration format is invalid
+
+    Examples:
+        parse_time_duration("7d") -> timedelta(days=7)
+        parse_time_duration("3w") -> timedelta(weeks=3)
+        parse_time_duration("24h") -> timedelta(hours=24)
+        parse_time_duration("30m") -> timedelta(minutes=30)
+    """
+    if not duration_str or not duration_str.strip():
+        raise ValidationException("Duration string cannot be empty")
+
+    duration_str = duration_str.strip().lower()
+
+    # Extract number and unit
+    import re
+    match = re.match(r'^(\d+)([wdhms])$', duration_str)
+    if not match:
+        raise ValidationException(
+            f"Invalid duration format: {duration_str}. "
+            "Expected format: <number><unit> where unit is w(weeks), d(days), h(hours), m(minutes), or s(seconds). "
+            "Examples: 7d, 3w, 24h, 30m"
+        )
+
+    value = int(match.group(1))
+    unit = match.group(2)
+
+    if value <= 0:
+        raise ValidationException(f"Duration value must be positive: {value}")
+
+    # Convert to timedelta
+    if unit == 'w':
+        return timedelta(weeks=value)
+    elif unit == 'd':
+        return timedelta(days=value)
+    elif unit == 'h':
+        return timedelta(hours=value)
+    elif unit == 'm':
+        return timedelta(minutes=value)
+    elif unit == 's':
+        return timedelta(seconds=value)
+    else:
+        # Should never reach here due to regex
+        raise ValidationException(f"Invalid duration unit: {unit}")

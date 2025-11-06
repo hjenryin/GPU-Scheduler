@@ -291,6 +291,71 @@ class SchedulerClient:
             logger.error(f"Failed to cancel job {job_id}: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")
 
+    def purge_job(self, job_id: str) -> dict:
+        """
+        Purge a specific job by ID.
+
+        Args:
+            job_id: Job ID to purge
+
+        Returns:
+            Response dict with purge status
+
+        Raises:
+            JobNotFoundException: If job not found
+            ConnectionException: If cannot connect
+        """
+        try:
+            response = self.session.post(
+                f"{self.base_url}/jobs/{job_id}/purge",
+                timeout=30
+            )
+            if response.status_code == 404:
+                raise JobNotFoundException(f"Job {job_id} not found")
+            response.raise_for_status()
+            return response.json()
+        except JobNotFoundException:
+            raise
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to purge job {job_id}: {e}")
+            raise ConnectionException(f"Failed to connect to head node: {e}")
+
+    def purge_jobs(
+        self,
+        before_time: Optional[datetime] = None,
+        status_filter: Optional[List[str]] = None
+    ) -> dict:
+        """
+        Purge jobs based on time and status criteria.
+
+        Args:
+            before_time: Purge jobs completed/failed/cancelled before this time
+            status_filter: List of status values to purge (e.g., ['failed', 'completed', 'cancelled'])
+
+        Returns:
+            Response dict with purged_count
+
+        Raises:
+            ConnectionException: If cannot connect
+        """
+        payload = {}
+        if before_time:
+            payload['before_time'] = before_time.isoformat()
+        if status_filter:
+            payload['status_filter'] = status_filter
+
+        try:
+            response = self.session.post(
+                f"{self.base_url}/jobs/purge",
+                json=payload,
+                timeout=30
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to purge jobs: {e}")
+            raise ConnectionException(f"Failed to connect to head node: {e}")
+
     def get_job_logs(
         self,
         job_id: str,
