@@ -100,11 +100,20 @@ class JobsScreen(Screen):
 
         # Update table
         jobs_table = self.query_one("#jobs-table", DataTable)
-        # Preserve cursor position
+        jobs_scroll = self.query_one("#jobs-scroll", VerticalScroll)
+
+        # Preserve cursor position and scroll position
         try:
             old_cursor = jobs_table.cursor_row if jobs_table.row_count > 0 else 0
         except (TypeError, AttributeError):
             old_cursor = 0
+
+        # Save scroll position
+        try:
+            old_scroll_y = jobs_scroll.scroll_y
+        except (TypeError, AttributeError):
+            old_scroll_y = 0
+
         jobs_table.clear()
         for job in filtered_jobs:
             submitted_time = (
@@ -121,10 +130,17 @@ class JobsScreen(Screen):
                 format_runtime(job.runtime) if hasattr(job, "runtime") else "-",
                 submitted_time,
             )
+
         # Restore cursor position if table has rows
         try:
             if jobs_table.row_count > 0:
                 jobs_table.move_cursor(row=min(old_cursor, jobs_table.row_count - 1))
+        except (TypeError, AttributeError):
+            pass
+
+        # Restore scroll position
+        try:
+            jobs_scroll.scroll_y = old_scroll_y
         except (TypeError, AttributeError):
             pass
 
