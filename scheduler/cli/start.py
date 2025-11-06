@@ -219,7 +219,9 @@ def _start_head_node(config: Config, block: bool) -> int:
         time.sleep(2)
 
         click.echo("\n✓ Cluster ready (head + worker on this machine)")
-        click.echo("Press Ctrl+C to stop...")
+        click.echo("\nTo connect worker nodes from other machines, run:")
+        click.echo(f"  scheduler start --address {socket.gethostname()}:{config.head.port}")
+        click.echo("\nPress Ctrl+C to stop...")
         orchestrator.run()
         # Lock will be released by orchestrator.stop() when run() completes
 
@@ -257,8 +259,10 @@ def _daemonize_head(config: Config, singleton: SingletonDaemon) -> int:
                 click.echo(f"\n✓ Head node started in background (PID: {daemon_pid})")
             except:
                 click.echo(f"\n✓ Head node started in background")
-            
+
             click.echo("Use 'scheduler stop --all' to stop it")
+            click.echo("\nTo connect worker nodes from other machines, run:")
+            click.echo(f"  scheduler start --address {socket.gethostname()}:{config.head.port}")
             return 0
     except OSError as e:
         click.echo(f"Fork failed: {e}")
