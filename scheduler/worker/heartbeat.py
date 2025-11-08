@@ -98,11 +98,18 @@ class HeartbeatSender:
             log_chunks = []
             if self.log_reader:
                 log_chunks = self.log_reader.read_chunks(self.pending_log_requests)
+                if log_chunks:
+                    total_bytes = sum(len(c.stdout_chunk or '') + len(c.stderr_chunk or '') for c in log_chunks)
+                    logger.info(f"Sending {len(log_chunks)} log chunks ({total_bytes} bytes) for jobs: {[c.job_id for c in log_chunks]}")
+            elif self.pending_log_requests:
+                logger.warning(f"Log reader not available but have {len(self.pending_log_requests)} pending log requests")
 
             # Send heartbeat and receive response
             response = self.client.send_heartbeat(self.node_name, gpu_stats, log_chunks)
 
             # Store log requests from response for next heartbeat
+            if response.log_requests:
+                logger.info(f"Received {len(response.log_requests)} log requests from head: {[(r.job_id, r.stdout_pos, r.stderr_pos) for r in response.log_requests]}")
             self.pending_log_requests = response.log_requests
 
             # Handle cleanup - tell worker which jobs to keep (purge all others)

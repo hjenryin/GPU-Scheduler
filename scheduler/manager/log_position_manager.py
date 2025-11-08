@@ -64,12 +64,16 @@ class LogPositionManager:
         jobs = self.job_manager.list_jobs()
         node_jobs = [job for job in jobs if job.assigned_node == node_name]
 
+        if node_jobs:
+            logger.info(f"Found {len(node_jobs)} jobs assigned to node {node_name}: {[j.job_id for j in node_jobs]}")
+
         for job in node_jobs:
             job_id = job.job_id
 
             # Initialize tracking if not already done
             if job_id not in self.positions:
                 self.init_job(job_id)
+                logger.info(f"Initialized log tracking for job {job_id} on node {node_name}")
 
             pos = self.positions[job_id]
 
@@ -89,6 +93,10 @@ class LogPositionManager:
                 stdout_pos=pos.stdout_pos,
                 stderr_pos=pos.stderr_pos
             ))
+            logger.info(f"Requesting logs for job {job_id}: stdout_pos={pos.stdout_pos}, stderr_pos={pos.stderr_pos}")
+
+        if not requests and node_jobs:
+            logger.warning(f"No log requests generated for node {node_name} despite having {len(node_jobs)} assigned jobs")
 
         return requests
 
@@ -141,6 +149,11 @@ class LogPositionManager:
         # Update positions
         pos.stdout_pos = chunk.new_stdout_pos
         pos.stderr_pos = chunk.new_stderr_pos
+
+        # Log successful chunk processing
+        stdout_bytes = len(chunk.stdout_chunk) if chunk.stdout_chunk else 0
+        stderr_bytes = len(chunk.stderr_chunk) if chunk.stderr_chunk else 0
+        logger.info(f"Processed log chunk for job {job_id}: stdout={stdout_bytes}B (pos: {chunk.requested_stdout_pos}->{chunk.new_stdout_pos}), stderr={stderr_bytes}B (pos: {chunk.requested_stderr_pos}->{chunk.new_stderr_pos})")
 
         # Mark EOF if received
         if chunk.eof:

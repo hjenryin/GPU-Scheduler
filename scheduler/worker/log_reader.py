@@ -63,11 +63,17 @@ class LogChunkReader:
         """
         chunks = []
 
+        if requests:
+            logger.info(f"Reading log chunks for {len(requests)} requests: {[(r.job_id, r.stdout_pos, r.stderr_pos) for r in requests]}")
+
         for req in requests:
             try:
                 chunk = self._read_chunk_for_job(req)
                 if chunk:
                     chunks.append(chunk)
+                    stdout_bytes = len(chunk.stdout_chunk) if chunk.stdout_chunk else 0
+                    stderr_bytes = len(chunk.stderr_chunk) if chunk.stderr_chunk else 0
+                    logger.info(f"Read chunk for job {req.job_id}: stdout={stdout_bytes}B, stderr={stderr_bytes}B, eof={chunk.eof}")
             except Exception as e:
                 logger.error(f"Error reading log chunk for job {req.job_id}: {e}")
                 # Send error chunk
