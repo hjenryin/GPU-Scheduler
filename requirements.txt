@@ -3,7 +3,7 @@ uvicorn
 requests
 pydantic
 pyyaml
-textual  
+textual
 click
 nvidia-ml-py  # or pynvml
 psutil

@@ -1,5 +1,6 @@
 from typing import List, Optional
 import logging
+import os
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -11,6 +12,7 @@ from scheduler.api.schemas import (
     NodeRegisterRequest, NodeHeartbeat, HeartbeatResponse, NodeResponse
 )
 from scheduler.core import JobStatus, GPUStats, JobNotFoundException, NodeNotFoundException, constants
+from scheduler.core import load_config
 
 logger = logging.getLogger(__name__)
 

@@ -2,6 +2,9 @@ import logging
 import signal
 import time
 import threading
+import subprocess
+import tempfile
+import os
 from datetime import datetime
 from typing import Optional
 
@@ -39,6 +42,10 @@ class Orchestrator:
         self._cluster_shutdown_timeout = 60
         self._cluster_shutdown_force = False
         self.scheduler_thread: Optional[threading.Thread] = None
+
+        # rsync daemon for log syncing
+        self.rsync_daemon_process: Optional[subprocess.Popen] = None
+        self.rsync_config_file: Optional[str] = None
 
         # Initialize storage backend
         if config.storage.backend == 'sqlite':
@@ -115,6 +122,14 @@ class Orchestrator:
         self.scheduler_thread = threading.Thread(target=self._scheduler_loop, daemon=True)
         self.scheduler_thread.start()
 
+        # Start rsync daemon for log syncing
+        try:
+            self._start_rsync_daemon()
+        except Exception as e:
+            logger.error(f"Failed to start rsync daemon: {e}")
+            # Don't fail orchestrator startup if rsync daemon fails
+            logger.warning("Continuing without rsync daemon - log syncing will not work")
+
         logger.info("Orchestrator started successfully")
 
     def stop(self, graceful: bool = True):
@@ -154,6 +169,9 @@ class Orchestrator:
 
         # Stop API server
         self.api_server.stop()
+
+        # Stop rsync daemon
+        self._stop_rsync_daemon()
 
         logger.info("Orchestrator stopped")
         
@@ -307,6 +325,81 @@ class Orchestrator:
             self.stop(graceful=True)
             
             logger.info("Cluster shutdown completed")
-            
+
         except Exception as e:
             logger.error(f"Error during cluster shutdown: {e}", exc_info=True)
+
+    def _start_rsync_daemon(self):
+        """Start rsync daemon as subprocess for log syncing (no sudo required)."""
+        log_dir = os.path.expanduser(self.config.worker.log_dir)
+        os.makedirs(log_dir, exist_ok=True)
+
+        # Create temporary rsync config file
+        config_content = f"""# rsync daemon config for GPU scheduler log syncing
+[scheduler-logs]
+    path = {log_dir}
+    comment = GPU Scheduler logs
+    read only = no
+    use chroot = no
+    uid = {os.getuid()}
+    gid = {os.getgid()}
+"""
+        # Create temp file that won't be deleted (we need it for daemon lifetime)
+        fd, config_path = tempfile.mkstemp(prefix='rsyncd_', suffix='.conf', text=True)
+        try:
+            with os.fdopen(fd, 'w') as f:
+                f.write(config_content)
+        except:
+            os.close(fd)  # Close if write fails
+            raise
+
+        self.rsync_config_file = config_path
+
+        # Start rsync daemon on port 8873 (no sudo needed for ports > 1024)
+        try:
+            self.rsync_daemon_process = subprocess.Popen(
+                [
+                    'rsync',
+                    '--daemon',
+                    '--no-detach',  # Run in foreground
+                    '--port=8873',   # Custom port (no sudo required)
+                    f'--config={config_path}',
+                    '--log-file=/dev/null'  # Suppress rsync logs
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE
+            )
+            logger.info("rsync daemon started on port 8873 for log syncing")
+        except FileNotFoundError:
+            logger.error("rsync command not found - log syncing will not work")
+            os.remove(config_path)
+            self.rsync_config_file = None
+            raise
+        except Exception as e:
+            logger.error(f"Failed to start rsync daemon: {e}")
+            os.remove(config_path)
+            self.rsync_config_file = None
+            raise
+
+    def _stop_rsync_daemon(self):
+        """Stop rsync daemon subprocess."""
+        if self.rsync_daemon_process:
+            try:
+                logger.info("Stopping rsync daemon...")
+                self.rsync_daemon_process.terminate()
+                try:
+                    self.rsync_daemon_process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    logger.warning("rsync daemon did not stop gracefully, killing it")
+                    self.rsync_daemon_process.kill()
+                    self.rsync_daemon_process.wait()
+                logger.info("rsync daemon stopped")
+            except Exception as e:
+                logger.error(f"Error stopping rsync daemon: {e}")
+
+        # Clean up config file
+        if self.rsync_config_file and os.path.exists(self.rsync_config_file):
+            try:
+                os.remove(self.rsync_config_file)
+            except Exception as e:
+                logger.warning(f"Failed to remove rsync config file: {e}")
