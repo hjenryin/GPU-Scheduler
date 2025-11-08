@@ -7,7 +7,6 @@ textual
 click
 nvidia-ml-py  # or pynvml
 psutil
-pyrsync2  # rsync delta algorithm over HTTP for log syncing
 
 # Development dependencies (optional, for development environment)
 # pytest

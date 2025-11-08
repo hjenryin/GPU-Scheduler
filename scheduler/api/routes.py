@@ -4,7 +4,6 @@ import os
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import StreamingResponse
-import pyrsync2
 
 from scheduler.manager import JobManager, NodeManager
 from scheduler.manager.log_position_manager import LogPositionManager
@@ -113,15 +112,6 @@ def create_app(
     @app.post(f"{constants.API_BASE_PATH}/workers/jobs/{{job_id}}/fail")
     async def fail_job(job_id: str, error_message: str):
         return await fail_job_route(job_id, error_message)
-
-    # Log sync routes (rsync over HTTP)
-    @app.get(f"{constants.API_BASE_PATH}/workers/{{node_name}}/logs/checksums")
-    async def get_log_checksums(node_name: str, filename: str):
-        return await get_log_checksums_route(node_name, filename)
-
-    @app.post(f"{constants.API_BASE_PATH}/workers/{{node_name}}/logs/sync")
-    async def apply_log_delta(node_name: str, request: dict):
-        return await apply_log_delta_route(node_name, request)
 
     # Cluster management routes
     @app.post(f"{constants.API_BASE_PATH}/shutdown/cluster")
@@ -484,117 +474,3 @@ async def purge_jobs_route(request: dict) -> dict:
     except Exception as e:
         logger.error(f"Error purging jobs: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-
-async def get_log_checksums_route(node_name: str, filename: str) -> dict:
-    """
-    GET /api/v1/workers/{node_name}/logs/checksums - Get rsync checksums for log file
-
-    Args:
-        node_name: Worker node name
-        filename: Log filename (e.g., "job-123.stdout.log")
-
-    Returns:
-        Dictionary with checksums list
-    """
-    try:
-        # Verify node exists
-        node = _node_manager.get_node(node_name)
-        if not node:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Node {node_name} not found"
-            )
-
-        # Get log directory
-        config = load_config()
-        log_dir = os.path.expanduser(config.worker.log_dir)
-        log_path = os.path.join(log_dir, filename)
-
-        # Generate checksums from existing file (or empty list if doesn't exist)
-        checksums = []
-        if os.path.exists(log_path) and os.path.getsize(log_path) > 0:
-            with open(log_path, 'rb') as f:
-                checksums = list(pyrsync2.blockchecksums(f))
-
-        logger.debug(f"Generated {len(checksums)} checksums for {filename}")
-        return {"checksums": checksums}
-
-    except Exception as e:
-        logger.error(f"Error generating checksums for {filename}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
-
-
-async def apply_log_delta_route(node_name: str, request: dict) -> dict:
-    """
-    POST /api/v1/workers/{node_name}/logs/sync - Apply rsync delta to update log file
-
-    Args:
-        node_name: Worker node name
-        request: Dict with 'filename' and 'delta' keys
-
-    Returns:
-        Status dictionary
-    """
-    try:
-        # Verify node exists
-        node = _node_manager.get_node(node_name)
-        if not node:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Node {node_name} not found"
-            )
-
-        filename = request.get("filename")
-        delta = request.get("delta")
-
-        if not filename or delta is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Missing 'filename' or 'delta' in request"
-            )
-
-        # Get log directory
-        config = load_config()
-        log_dir = os.path.expanduser(config.worker.log_dir)
-        os.makedirs(log_dir, exist_ok=True)
-
-        log_path = os.path.join(log_dir, filename)
-        temp_path = log_path + ".tmp"
-
-        # Apply delta to create updated file
-        with open(temp_path, 'wb') as output:
-            if os.path.exists(log_path):
-                # Patch existing file
-                with open(log_path, 'rb') as basis:
-                    pyrsync2.patchstream(basis, output, delta)
-            else:
-                # No existing file, delta should contain full content
-                pyrsync2.patchstream(None, output, delta)
-
-        # Atomic rename
-        os.replace(temp_path, log_path)
-
-        file_size = os.path.getsize(log_path)
-        logger.info(f"Applied delta to {filename}, new size: {file_size} bytes")
-
-        return {
-            "status": "synced",
-            "bytes": file_size
-        }
-
-    except Exception as e:
-        logger.error(f"Error applying delta for {filename}: {e}")
-        # Clean up temp file if exists
-        try:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-        except:
-            pass
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )

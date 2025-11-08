@@ -653,62 +653,6 @@ class SchedulerClient:
         except requests.exceptions.RequestException:
             return False
 
-    def get_log_checksums(self, node_name: str, filename: str) -> List:
-        """
-        Get rsync checksums for a log file from head node (worker use only).
-
-        Args:
-            node_name: Worker node name
-            filename: Log filename (e.g., "job-123.stdout.log")
-
-        Returns:
-            List of block checksums from head's version of the file
-
-        Raises:
-            ConnectionException: If cannot connect
-        """
-        params = {"filename": filename}
-
-        try:
-            response = self.session.get(
-                f"{self.base_url}/workers/{node_name}/logs/checksums",
-                params=params,
-                timeout=30
-            )
-            response.raise_for_status()
-            return response.json().get("checksums", [])
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to get log checksums for {filename}: {e}")
-            raise ConnectionException(f"Failed to connect to head node: {e}")
-
-    def apply_log_delta(self, node_name: str, filename: str, delta: List):
-        """
-        Send rsync delta to head node to update log file (worker use only).
-
-        Args:
-            node_name: Worker node name
-            filename: Log filename (e.g., "job-123.stdout.log")
-            delta: rsync delta data from pyrsync2.rsyncdelta()
-
-        Raises:
-            ConnectionException: If cannot connect
-        """
-        payload = {
-            "filename": filename,
-            "delta": delta
-        }
-
-        try:
-            response = self.session.post(
-                f"{self.base_url}/workers/{node_name}/logs/sync",
-                json=payload,
-                timeout=60  # Longer timeout for large deltas
-            )
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to apply log delta for {filename}: {e}")
-            raise ConnectionException(f"Failed to connect to head node: {e}")
-
     def _job_from_response(self, data: dict) -> Job:
         """
         Convert API response to Job object.

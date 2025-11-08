@@ -2,6 +2,7 @@ import logging
 import os
 import socket
 import signal
+import subprocess
 import threading
 import time
 from typing import Optional, List
@@ -12,7 +13,6 @@ from scheduler.worker.job_executor import JobExecutor
 from scheduler.worker.heartbeat import HeartbeatSender
 from scheduler.worker.file_handler import FileHandler
 from scheduler.worker.log_reader import LogChunkReader
-from scheduler.worker.log_syncer import LogSyncer
 from scheduler.worker.git_snapshot import GitSnapshotManager
 from scheduler.api import SchedulerClient
 
@@ -76,8 +76,9 @@ class WorkerDaemon:
         # Initialize client for job operations
         self.client = SchedulerClient(address=self.head_address, config=config)
 
-        # Initialize log syncer (rsync over HTTP)
-        self.log_syncer = LogSyncer(config, self.client, node_name)
+        # Log syncing via rsync
+        self.log_sync_thread: Optional[threading.Thread] = None
+        self.log_dir = os.path.expanduser(config.worker.log_dir)
 
         # Track current job
         self.current_job = None
@@ -117,8 +118,8 @@ class WorkerDaemon:
         # Start heartbeat sender
         self.heartbeat_sender.start()
 
-        # Start log syncer (rsync over HTTP)
-        self.log_syncer.start()
+        # Start log syncing via rsync
+        self._start_log_sync()
 
         self.running = True
         logger.info("Worker daemon started successfully")
@@ -158,8 +159,7 @@ class WorkerDaemon:
         # Stop heartbeat
         self.heartbeat_sender.stop()
 
-        # Stop log syncer
-        self.log_syncer.stop()
+        # Log sync thread will stop when self.running = False (it's already False at this point)
 
         # Stop GPU monitoring
         self.gpu_monitor.stop_monitoring()
@@ -350,3 +350,57 @@ class WorkerDaemon:
 
         except Exception as e:
             logger.error(f"Error purging job {job_id}: {e}")
+
+    def _start_log_sync(self):
+        """Start periodic log syncing to head node via rsync daemon."""
+        def sync_loop():
+            """Background thread that periodically syncs job logs to head node."""
+            # Extract head hostname from address
+            head_host = self.head_address.split(':')[0]
+
+            while self.running:
+                try:
+                    # Only sync job logs (*.log files), not worker daemon logs
+                    # This ensures worker.log and other non-job logs stay local
+                    result = subprocess.run(
+                        [
+                            'rsync',
+                            '-avz',             # Archive, verbose, compress
+                            '--append',         # Append to growing files (perfect for logs)
+                            '--timeout=30',     # Network timeout
+                            '--include=*.log',  # Only sync .log files
+                            '--exclude=worker.log',  # Exclude worker daemon log
+                            '--exclude=*.offset',    # Exclude pygtail offset files (if any)
+                            f'{self.log_dir}/',      # Source (trailing slash = contents)
+                            f'rsync://{head_host}:8873/scheduler-logs/'  # Destination
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=60
+                    )
+
+                    if result.returncode == 0:
+                        # Only log if files were actually transferred
+                        output_lines = result.stdout.strip().split('\n')
+                        if len(output_lines) > 4:  # More than just the summary lines
+                            logger.debug(f"Synced job logs to head node")
+                    else:
+                        # Only log errors, not normal "no changes" scenarios
+                        if result.returncode != 0 and result.stderr:
+                            logger.warning(f"Log sync failed: {result.stderr.strip()}")
+
+                except subprocess.TimeoutExpired:
+                    logger.warning("Log sync timed out")
+                except FileNotFoundError:
+                    logger.error("rsync command not found - log syncing disabled")
+                    break  # Don't keep trying if rsync isn't installed
+                except Exception as e:
+                    logger.error(f"Log sync error: {e}")
+
+                # Sleep for 10 seconds between syncs
+                time.sleep(10)
+
+        # Start sync thread
+        self.log_sync_thread = threading.Thread(target=sync_loop, daemon=True, name="LogSync")
+        self.log_sync_thread.start()
+        logger.info("Log syncing started (rsync to head:8873)")
