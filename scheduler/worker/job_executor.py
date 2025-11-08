@@ -54,11 +54,7 @@ class JobExecutor:
 
             # Add user-specified env vars
             if job.env_vars:
-                logger.info(f"[TRACE] Job {job.job_id}: Adding environment variables: {job.env_vars}")
                 env.update(job.env_vars)
-                logger.info(f"[TRACE] Job {job.job_id}: Final environment: {dict(env)}")
-            else:
-                logger.info(f"[TRACE] Job {job.job_id}: No environment variables specified")
 
             # Determine working directory and script path
             # If job has a snapshot (created by client at submission time), restore it to a worktree
@@ -112,6 +108,9 @@ class JobExecutor:
                 working_dir = job.working_dir
                 script_path = job.script
                 logger.info(f"Job {job.job_id} has no snapshot, using original working directory: {working_dir}")
+
+            # Clean up old log files (older than 24 hours) before starting new job
+            self.file_handler.cleanup_old_logs(max_age_hours=24)
 
             # Create log file paths
             stdout_log = self.file_handler.get_job_log_path(job.job_id, stderr=False)

@@ -152,7 +152,6 @@ class LogChunkReader:
             # Check if file exists
             if not os.path.exists(file_path):
                 # File doesn't exist yet (job may not have started logging)
-                logger.debug(f"Log file doesn't exist yet: {file_path}")
                 return ReadResult(chunk="", new_pos=position, at_eof=True, error=False)
 
             with open(file_path, 'r') as f:
@@ -179,11 +178,6 @@ class LogChunkReader:
 
                 # Check if we're at EOF
                 at_eof = (new_pos >= file_size)
-
-                logger.debug(
-                    f"Read {len(chunk)} bytes from {file_path} at position {position}, "
-                    f"new_pos={new_pos}, file_size={file_size}, at_eof={at_eof}"
-                )
 
                 return ReadResult(
                     chunk=chunk,

@@ -136,15 +136,12 @@ class HeartbeatSender:
             Job if assigned, None if no job available
         """
         try:
-            logger.info(f"[TRACE] Polling for job on node {self.node_name}")
             job = self.client.poll_for_job(self.node_name, timeout=30)
             if job:
-                logger.info(f"[TRACE] Received job assignment: {job.job_id}")
-            else:
-                logger.info("[TRACE] No job received")
+                logger.info(f"Received job assignment: {job.job_id}")
             return job
         except Exception as e:
-            logger.error(f"[TRACE] Failed to poll for job: {e}")
+            logger.error(f"Failed to poll for job: {e}")
             return None
 
     def _heartbeat_loop(self):

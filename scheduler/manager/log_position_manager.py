@@ -47,7 +47,6 @@ class LogPositionManager:
             eof=False,
             consecutive_errors=0
         )
-        logger.debug(f"Initialized log tracking for job {job_id}")
 
     def get_requests_for_node(self, node_name: str) -> List[LogRequest]:
         """
@@ -179,11 +178,6 @@ class LogPositionManager:
 
                     f.write(chunk.stdout_chunk)
                     f.flush()
-
-                logger.debug(
-                    f"Wrote {len(chunk.stdout_chunk)} bytes to stdout log for job {chunk.job_id} "
-                    f"at position {chunk.requested_stdout_pos}"
-                )
             except Exception as e:
                 logger.error(f"Failed to write stdout chunk for job {chunk.job_id}: {e}")
 
@@ -203,11 +197,6 @@ class LogPositionManager:
 
                     f.write(chunk.stderr_chunk)
                     f.flush()
-
-                logger.debug(
-                    f"Wrote {len(chunk.stderr_chunk)} bytes to stderr log for job {chunk.job_id} "
-                    f"at position {chunk.requested_stderr_pos}"
-                )
             except Exception as e:
                 logger.error(f"Failed to write stderr chunk for job {chunk.job_id}: {e}")
 
@@ -220,4 +209,3 @@ class LogPositionManager:
         """
         if job_id in self.positions:
             del self.positions[job_id]
-            logger.debug(f"Cleaned up log tracking for job {job_id}")
