@@ -12,6 +12,7 @@ from scheduler.worker.job_executor import JobExecutor
 from scheduler.worker.heartbeat import HeartbeatSender
 from scheduler.worker.file_handler import FileHandler
 from scheduler.worker.log_reader import LogChunkReader
+from scheduler.worker.log_syncer import LogSyncer
 from scheduler.worker.git_snapshot import GitSnapshotManager
 from scheduler.api import SchedulerClient
 
@@ -75,6 +76,9 @@ class WorkerDaemon:
         # Initialize client for job operations
         self.client = SchedulerClient(address=self.head_address, config=config)
 
+        # Initialize log syncer (rsync over HTTP)
+        self.log_syncer = LogSyncer(config, self.client, node_name)
+
         # Track current job
         self.current_job = None
         self.current_job_pid = None
@@ -113,6 +117,9 @@ class WorkerDaemon:
         # Start heartbeat sender
         self.heartbeat_sender.start()
 
+        # Start log syncer (rsync over HTTP)
+        self.log_syncer.start()
+
         self.running = True
         logger.info("Worker daemon started successfully")
 
@@ -150,6 +157,9 @@ class WorkerDaemon:
 
         # Stop heartbeat
         self.heartbeat_sender.stop()
+
+        # Stop log syncer
+        self.log_syncer.stop()
 
         # Stop GPU monitoring
         self.gpu_monitor.stop_monitoring()
