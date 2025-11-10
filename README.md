@@ -265,7 +265,7 @@ This is a **coordination system**, not an enforcement system. It works well when
 - ✅ **Multi-node support**: Scale across multiple GPU machines
 - ✅ **Automatic node discovery**: Workers auto-register with head
 - ✅ **Heartbeat monitoring**: Detect disconnected nodes
-- ✅ **Graceful shutdown**: Wait for jobs before stopping
+- ✅ **Job-aware shutdown**: Running jobs marked as untracked, pending jobs cancelled
 - ✅ **Port auto-fallback**: Automatically find available ports
 - ✅ **Lock file management**: Prevent duplicate instances
 
@@ -273,7 +273,7 @@ This is a **coordination system**, not an enforcement system. It works well when
 
 - ✅ **Cluster overview**: Nodes, GPUs, jobs at a glance
 - ✅ **Node details**: Per-node GPU utilization and status
-- ✅ **Job list**: Filter by status (pending/running/completed/failed)
+- ✅ **Job list**: Filter by status (pending/running/completed/failed/cancelled/untracked)
 - ✅ **Job details**: Full job information and history
 - ✅ **GPU view**: Detailed per-GPU statistics across cluster
 - ✅ **Real-time updates**: Auto-refresh every 2 seconds

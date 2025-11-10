@@ -312,27 +312,44 @@ class Orchestrator:
         """Worker thread to handle cluster shutdown."""
         try:
             logger.info("Starting cluster shutdown process...")
-            
+
+            # Mark all running jobs as untracked (they'll continue running, just not tracked)
+            running_jobs = self.job_manager.get_running_jobs()
+            logger.info(f"Marking {len(running_jobs)} running jobs as untracked")
+            for job in running_jobs:
+                try:
+                    self.job_manager.untrack_job(job.job_id)
+                except Exception as e:
+                    logger.error(f"Failed to untrack job {job.job_id}: {e}")
+
+            # Cancel all pending jobs
+            pending_jobs = self.job_manager.get_pending_jobs()
+            logger.info(f"Cancelling {len(pending_jobs)} pending jobs")
+            for job in pending_jobs:
+                try:
+                    self.job_manager.cancel_job(job.job_id)
+                except Exception as e:
+                    logger.error(f"Failed to cancel job {job.job_id}: {e}")
+
             # Get all connected nodes
             nodes = self.node_manager.get_connected_nodes()
             logger.info(f"Shutting down {len(nodes)} connected nodes")
-            
+
             # Request shutdown for all worker nodes
-            # Workers will see this flag in their next heartbeat and shutdown gracefully
+            # Workers will see this flag in their next heartbeat and shutdown immediately
             self.node_manager.request_shutdown_all_workers()
             logger.info("Shutdown signal sent to all worker nodes via heartbeat mechanism")
-            
+
             # Give workers time to receive the shutdown signal and stop
             # Workers send heartbeats every 5-10 seconds, so we need to wait at least that long
-            # Add extra time for graceful shutdown (completing current jobs, cleanup, etc.)
-            shutdown_timeout = 15  # 15 seconds should be enough for one heartbeat cycle + cleanup
+            shutdown_timeout = 15  # 15 seconds should be enough for one heartbeat cycle
             logger.info(f"Waiting {shutdown_timeout} seconds for workers to shut down...")
             time.sleep(shutdown_timeout)
-            
+
             # Stop the head node itself
             logger.info("Stopping head node...")
-            self.stop(graceful=True)
-            
+            self.stop(graceful=False)
+
             logger.info("Cluster shutdown completed")
 
         except Exception as e:

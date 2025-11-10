@@ -128,9 +128,10 @@ class WorkerDaemon:
     def stop(self, graceful: bool = True):
         """
         Stop the worker daemon and all components.
+        Jobs are left running when worker stops.
 
         Args:
-            graceful: If True, wait for jobs to complete
+            graceful: Ignored - worker always exits immediately, leaving jobs running
         """
         if not self.running:
             logger.warning("Worker daemon is not running")
@@ -140,22 +141,9 @@ class WorkerDaemon:
 
         self.running = False
 
-        if graceful and self.current_job:
-            # Wait for current job to complete
-            logger.info(f"Waiting for job {self.current_job.job_id} to complete...")
-            timeout = 60  # 60 seconds
-            start_time = time.time()
-
-            is_running = True
-            while time.time() - start_time < timeout:
-                is_running, exit_code = self.job_executor.get_job_status(self.current_job_pid)
-                if not is_running:
-                    break
-                time.sleep(1)
-
-            if is_running:
-                logger.warning("Job did not complete in time, terminating...")
-                self.job_executor.terminate_job(self.current_job_pid)
+        # Don't wait for jobs or terminate them - let them continue running
+        if self.current_job:
+            logger.info(f"Leaving job {self.current_job.job_id} running (untracked)")
 
         # Stop heartbeat
         self.heartbeat_sender.stop()

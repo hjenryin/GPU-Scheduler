@@ -223,8 +223,11 @@ scheduler stop [OPTIONS]
   - Stops the entire cluster (head + all workers on all machines)
   - Can be run from the head node or any worker node
   - When run from head node: directly stops head and local workers
-  - When run from worker node: requests cluster shutdown from head, which signals all workers to shut down gracefully via heartbeat, then stops local worker
-  - Gracefully shuts down all nodes with proper cleanup
+  - When run from worker node: requests cluster shutdown from head, which signals all workers to shut down immediately via heartbeat, then stops local worker
+  - **Job handling during shutdown:**
+    - All running jobs are marked with status `UNTRACKED` (continue running but no longer tracked)
+    - All pending jobs are marked as `CANCELLED`
+    - Workers exit immediately without waiting for jobs to complete
 
 **Examples:**
 
@@ -794,6 +797,36 @@ Batch submission complete:
 
 ## Job Management
 
+### Job Lifecycle and Statuses
+
+Jobs in the scheduler progress through several states during their lifecycle:
+
+| Status | Description | Transitions |
+|--------|-------------|-------------|
+| `PENDING` | Job is waiting for resources to become available | Initial state after submission |
+| `RUNNING` | Job is currently executing on a worker node | From `PENDING` when resources are allocated |
+| `COMPLETED` | Job finished successfully (exit code 0) | From `RUNNING` when job completes successfully |
+| `FAILED` | Job finished with an error (non-zero exit code) | From `RUNNING` when job exits with error |
+| `CANCELLED` | Job was cancelled by user or system | From `PENDING` or `RUNNING` when cancelled |
+| `UNTRACKED` | Job was running when scheduler stopped; continues running but is no longer tracked | From `RUNNING` during scheduler shutdown |
+
+**Key Points:**
+
+- **PENDING**: Jobs wait in queue until a node with sufficient resources becomes available
+- **RUNNING**: Jobs execute with `CUDA_VISIBLE_DEVICES` set to assigned GPUs
+- **COMPLETED/FAILED**: Terminal states - jobs remain in history for review
+- **CANCELLED**: Can be triggered manually via `scheduler cancel` or automatically (e.g., pending jobs during shutdown)
+- **UNTRACKED**: Special state for jobs that continue running after scheduler stops - the job process is not terminated, but the scheduler no longer monitors it
+
+**Scheduler Shutdown Behavior:**
+
+When `scheduler stop --all` is called:
+- All `RUNNING` jobs → `UNTRACKED` (continue running in background)
+- All `PENDING` jobs → `CANCELLED`
+- Workers exit immediately without waiting for job completion
+
+---
+
 ### `scheduler jobs`
 
 List jobs in non-interactive mode (use `scheduler status` for interactive TUI).
@@ -816,7 +849,7 @@ scheduler jobs [OPTIONS] [JOB_ID...]
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `--format` | choice | `table` | Output format: table, json, yaml |
-| `--filter` | choice | `all` | Filter: all, pending, running, completed, failed |
+| `--filter` | choice | `all` | Filter: all, pending, running, completed, failed, cancelled, untracked |
 | `--limit` | int | `50` | Maximum number of jobs to show |
 
 **Examples:**
