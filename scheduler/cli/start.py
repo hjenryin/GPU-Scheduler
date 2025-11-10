@@ -12,19 +12,26 @@ from scheduler.worker import WorkerDaemon, SingletonDaemon
 logger = logging.getLogger(__name__)
 
 
-def _cleanup_daemon_logs(log_dir: str, daemon_prefix: str):
+def _cleanup_daemon_logs(log_dir: str, daemon_prefix: str, max_age_hours: int = 24):
     """
-    Clean up daemon log files (stdout and stderr) before starting daemon.
+    Clean up old log entries from daemon log files before starting daemon.
 
-    This removes existing daemon log files so that each daemon restart starts
-    with fresh logs. This prevents stale log entries from previous runs from
-    accumulating in the files.
+    This filters out log entries older than max_age_hours, keeping only recent
+    entries. This prevents stale log entries from previous runs from accumulating
+    while preserving recent logs.
 
     Args:
         log_dir: Directory containing log files
         daemon_prefix: Prefix for log files (e.g., 'head' or 'worker-nodename')
+        max_age_hours: Maximum age of log entries to keep in hours (default: 24)
     """
-    # Remove both stdout and stderr log files for this daemon
+    import time
+    import re
+    from datetime import datetime, timedelta
+
+    cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
+
+    # Process both stdout and stderr log files for this daemon
     for log_type in ['stdout', 'stderr']:
         log_file = os.path.join(log_dir, f'{daemon_prefix}-{log_type}.log')
 
@@ -32,8 +39,41 @@ def _cleanup_daemon_logs(log_dir: str, daemon_prefix: str):
             continue
 
         try:
-            os.remove(log_file)
-            logger.info(f"Removed old daemon log: {daemon_prefix}-{log_type}.log")
+            # Read the log file and filter out old entries
+            with open(log_file, 'r') as f:
+                lines = f.readlines()
+
+            # Keep only recent log entries
+            recent_lines = []
+            removed_count = 0
+
+            for line in lines:
+                # Try to extract timestamp from log line
+                # Common format: "2025-11-10 12:34:56,123 - ..." or similar
+                timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', line)
+
+                if timestamp_match:
+                    try:
+                        timestamp_str = timestamp_match.group(1)
+                        timestamp = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
+
+                        if timestamp >= cutoff_time:
+                            recent_lines.append(line)
+                        else:
+                            removed_count += 1
+                    except ValueError:
+                        # If we can't parse timestamp, keep the line to be safe
+                        recent_lines.append(line)
+                else:
+                    # No timestamp found - keep the line (might be stack trace continuation, etc.)
+                    recent_lines.append(line)
+
+            # Write back only recent entries if we removed any old ones
+            if removed_count > 0:
+                with open(log_file, 'w') as f:
+                    f.writelines(recent_lines)
+                logger.info(f"Cleaned {removed_count} old log entries from {daemon_prefix}-{log_type}.log")
+
         except OSError as e:
             logger.warning(f"Failed to clean up daemon log {log_file}: {e}")
 
