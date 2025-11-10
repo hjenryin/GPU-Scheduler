@@ -94,7 +94,6 @@ class JobManager:
             working_dir = script_dir if script_dir else os.getcwd()
 
         # Create job
-        logger.info(f"[TRACE] Creating job {job_id} with env_vars: {env_vars}")
         job = Job(
             job_id=job_id,
             name=job_name,
@@ -110,7 +109,6 @@ class JobManager:
             snapshot_ref=snapshot_ref,
             snapshot_working_dir=snapshot_working_dir,
         )
-        logger.info(f"[TRACE] Job {job_id} created with env_vars: {job.env_vars}")
 
         if snapshot_ref:
             logger.info(f"Job {job_id} has snapshot {snapshot_ref} created by client at {snapshot_working_dir}")
@@ -210,14 +208,13 @@ class JobManager:
         if not job:
             raise JobNotFoundException(f"Job {job_id} not found")
 
-        logger.info(f"[TRACE] Starting job {job_id} on node {node_name} with GPUs {gpu_ids}, env_vars: {job.env_vars}")
         job.status = JobStatus.RUNNING
         job.started_at = datetime.now()
         job.assigned_node = node_name
         job.assigned_gpus = gpu_ids
 
         self.persistence.save_job(job)
-        logger.info(f"[TRACE] Job {job_id} marked as RUNNING on {node_name} with GPUs {gpu_ids}")
+        logger.info(f"Job {job_id} started on {node_name} with GPUs {gpu_ids}")
 
     def complete_job(self, job_id: str, exit_code: int):
         """
