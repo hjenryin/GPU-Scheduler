@@ -553,7 +553,7 @@ class Job:
 
 class Node:
     """Worker node representation"""
-    
+
     # Class attributes with defaults (enables create_autospec to work with spec_set)
     node_name: str = None
     address: str = None
@@ -564,6 +564,7 @@ class Node:
     registered_at: Optional[datetime] = None
     grace_period_until: Optional[datetime] = None
     shutdown_requested: bool = False
+    shutdown_acknowledged: bool = False
 
     def __init__(
         self,
@@ -575,7 +576,8 @@ class Node:
         last_heartbeat: Optional[datetime] = None,
         registered_at: Optional[datetime] = None,
         grace_period_until: Optional[datetime] = None,
-        shutdown_requested: bool = False
+        shutdown_requested: bool = False,
+        shutdown_acknowledged: bool = False
     ):
         """
         Initialize node.
@@ -590,6 +592,7 @@ class Node:
             registered_at: Registration timestamp
             grace_period_until: Timestamp until which node is in grace period
             shutdown_requested: Flag indicating if shutdown has been requested for this node
+            shutdown_acknowledged: Flag indicating if worker has received shutdown signal via heartbeat
         """
         self.node_name = node_name
         self.address = address
@@ -600,6 +603,7 @@ class Node:
         self.registered_at = registered_at or datetime.now()
         self.grace_period_until = grace_period_until
         self.shutdown_requested = shutdown_requested
+        self.shutdown_acknowledged = shutdown_acknowledged
 
     def update_heartbeat(self, gpu_stats: List[GPUStats]):
         """Update node heartbeat and GPU statistics.
@@ -684,7 +688,9 @@ class Node:
             'status': self.status.value,
             'last_heartbeat': self.last_heartbeat.isoformat() if self.last_heartbeat else None,
             'registered_at': self.registered_at.isoformat() if self.registered_at else None,
-            'grace_period_until': self.grace_period_until.isoformat() if self.grace_period_until else None
+            'grace_period_until': self.grace_period_until.isoformat() if self.grace_period_until else None,
+            'shutdown_requested': self.shutdown_requested,
+            'shutdown_acknowledged': self.shutdown_acknowledged
         }
 
     @classmethod
@@ -716,6 +722,8 @@ class Node:
             status=status,
             last_heartbeat=last_heartbeat,
             registered_at=registered_at,
-            grace_period_until=grace_period_until
+            grace_period_until=grace_period_until,
+            shutdown_requested=data.get('shutdown_requested', False),
+            shutdown_acknowledged=data.get('shutdown_acknowledged', False)
         )
 

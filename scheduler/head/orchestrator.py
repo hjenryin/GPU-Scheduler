@@ -341,11 +341,34 @@ class Orchestrator:
             self.node_manager.request_shutdown_all_workers()
             logger.info("Shutdown signal sent to all worker nodes via heartbeat mechanism")
 
-            # Give workers time to receive the shutdown signal and stop
-            # Workers send heartbeats every 5 seconds (default), so we need to wait at least that long
-            shutdown_timeout = 10  # 10 seconds is enough for workers to receive signal and stop
-            logger.info(f"Waiting {shutdown_timeout} seconds for workers to shut down...")
-            time.sleep(shutdown_timeout)
+            # Wait for all workers to acknowledge (send heartbeat after shutdown request)
+            # Use 2x heartbeat interval as maximum wait time
+            max_wait = 2 * self.config.worker.heartbeat_interval
+            logger.info(f"Waiting for all workers to acknowledge shutdown (max {max_wait}s)...")
+
+            start_time = time.time()
+            all_acknowledged = False
+
+            while time.time() - start_time < max_wait:
+                # Check if all nodes have acknowledged
+                nodes = self.node_manager.get_connected_nodes()
+                if all(node.shutdown_acknowledged for node in nodes):
+                    elapsed = time.time() - start_time
+                    logger.info(f"All {len(nodes)} workers acknowledged shutdown in {elapsed:.1f}s")
+                    all_acknowledged = True
+                    break
+
+                # Sleep briefly before checking again
+                time.sleep(0.5)
+
+            if not all_acknowledged:
+                # Timeout reached - report which workers didn't acknowledge
+                nodes = self.node_manager.get_connected_nodes()
+                unacknowledged = [n.node_name for n in nodes if not n.shutdown_acknowledged]
+                if unacknowledged:
+                    logger.warning(f"Workers did not acknowledge shutdown: {unacknowledged}")
+                else:
+                    logger.info("All workers acknowledged shutdown")
 
             # Stop the head node itself
             logger.info("Stopping head node...")
