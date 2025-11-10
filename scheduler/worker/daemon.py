@@ -116,13 +116,15 @@ class WorkerDaemon:
         # Set cleanup callback for heartbeat sender
         self.heartbeat_sender.set_cleanup_callback(self._handle_cleanup_request)
 
+        # Set running flag before starting threads to avoid race condition
+        self.running = True
+
         # Start heartbeat sender
         self.heartbeat_sender.start()
 
         # Start log syncing via rsync
         self._start_log_sync()
 
-        self.running = True
         logger.info("Worker daemon started successfully")
 
     def stop(self, graceful: bool = True):

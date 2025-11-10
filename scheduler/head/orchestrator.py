@@ -367,8 +367,6 @@ class Orchestrator:
     comment = GPU Scheduler logs
     read only = no
     use chroot = no
-    uid = {os.getuid()}
-    gid = {os.getgid()}
 """
         # Create temp file that won't be deleted (we need it for daemon lifetime)
         fd, config_path = tempfile.mkstemp(prefix='rsyncd_', suffix='.conf', text=True)

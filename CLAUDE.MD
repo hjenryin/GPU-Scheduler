@@ -1,4 +1,0 @@
-- Run the code from the scheduler conda env. It has everything installed.
-- Please do not consider backward compatibility for new features at this time. The code is still in rapid development.
-- When import files from scheduler, you are only allowed to import from .py files in the same directory, or the interfaced exposed by the __init__.py file in other directories. This only applies to the scheduler codebase, not the test codebase. Use `check_imports.py` to verify your imports.
-- When building test, follow the guideline in `tests/README.md`.

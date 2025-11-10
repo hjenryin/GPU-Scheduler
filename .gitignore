@@ -11,3 +11,4 @@ reports/
 analyze_test_coverage.py
 .scheduler-git/
 .scheduler/
+CLAUDE.MD
