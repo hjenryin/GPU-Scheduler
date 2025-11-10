@@ -93,7 +93,7 @@ def _stop_all_nodes() -> int:
                 try:
                     client.shutdown_cluster(graceful_timeout=60, force=False)
                     click.echo("✓ Shutdown signal sent to all workers")
-                    click.echo("Workers will shut down within 10-20 seconds via heartbeat mechanism")
+                    click.echo("Workers will shut down within 5-10 seconds via heartbeat mechanism")
                 except Exception as e:
                     logger.warning(f"Could not signal workers: {e}")
                     click.echo("⚠ Could not signal workers via API")
@@ -148,7 +148,7 @@ def _stop_all_nodes() -> int:
             success = client.shutdown_cluster(graceful_timeout=60, force=False)
             if success:
                 click.echo("✓ Cluster shutdown initiated successfully")
-                click.echo("Workers will shut down within 10-20 seconds via heartbeat mechanism")
+                click.echo("Workers will shut down within 5-10 seconds via heartbeat mechanism")
                 # Note: The current worker will also stop via the heartbeat mechanism
                 # No need to manually stop it
             else:

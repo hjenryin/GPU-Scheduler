@@ -342,8 +342,8 @@ class Orchestrator:
             logger.info("Shutdown signal sent to all worker nodes via heartbeat mechanism")
 
             # Give workers time to receive the shutdown signal and stop
-            # Workers send heartbeats every 5-10 seconds, so we need to wait at least that long
-            shutdown_timeout = 15  # 15 seconds should be enough for one heartbeat cycle
+            # Workers send heartbeats every 5 seconds (default), so we need to wait at least that long
+            shutdown_timeout = 10  # 10 seconds is enough for workers to receive signal and stop
             logger.info(f"Waiting {shutdown_timeout} seconds for workers to shut down...")
             time.sleep(shutdown_timeout)
 
