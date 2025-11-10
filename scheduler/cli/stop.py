@@ -74,7 +74,7 @@ def _stop_all_nodes() -> int:
         
         if is_head_node:
             # Running from head node - request cluster shutdown via API
-            # This will signal ALL workers (including local ones) to shut down gracefully
+            # This will signal ALL workers (including local ones) to shut down immediately
             click.echo("✓ Shutting down entire cluster...")
             
             # Request cluster shutdown via the API to signal all workers
@@ -96,7 +96,7 @@ def _stop_all_nodes() -> int:
                     click.echo("✓ Shutdown signal sent to all workers")
                     # Give workers time to receive the signal and shut down (15+ seconds)
                     # This matches the timeout in the orchestrator
-                    click.echo("Waiting for workers to shut down gracefully...")
+                    click.echo("Waiting for workers to receive shutdown signal...")
                     time.sleep(16)  # Wait slightly longer than orchestrator's 15s timeout
                 except Exception as e:
                     logger.warning(f"Could not signal workers: {e}")
@@ -152,8 +152,8 @@ def _stop_all_nodes() -> int:
             success = client.shutdown_cluster(graceful_timeout=60, force=False)
             if success:
                 click.echo("✓ Cluster shutdown initiated successfully")
-                click.echo("Waiting for all workers to shut down gracefully...")
-                
+                click.echo("Waiting for all workers to receive shutdown signal...")
+
                 # Wait for workers to receive shutdown signal and stop
                 # This matches the orchestrator's wait time
                 time.sleep(16)  # Wait slightly longer than orchestrator's 15s timeout
@@ -235,8 +235,8 @@ def _stop_daemon(lockfile: str, name: str) -> bool:
 
         click.echo(f"Stopping {name} (PID {pid})...")
         os.kill(pid, signal.SIGTERM)
-        click.echo(f"Sent graceful shutdown signal to {name}")
-        click.echo("(Jobs will complete before shutdown)")
+        click.echo(f"Sent shutdown signal to {name}")
+        click.echo("(Running jobs will be left running and marked as untracked)")
 
         # Clean up lockfile
         try:

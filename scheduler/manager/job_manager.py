@@ -280,6 +280,26 @@ class JobManager:
         self.persistence.save_job(job)
         logger.info(f"Job {job_id} cancelled")
 
+    def untrack_job(self, job_id: str):
+        """
+        Mark a job as untracked (scheduler stopped while job was running).
+
+        Args:
+            job_id: Job ID
+
+        Raises:
+            JobNotFoundException: If job not found
+        """
+        job = self.jobs.get(job_id)
+        if not job:
+            raise JobNotFoundException(f"Job {job_id} not found")
+
+        job.status = JobStatus.UNTRACKED
+        # Don't set completed_at since the job is still running, just untracked
+
+        self.persistence.save_job(job)
+        logger.info(f"Job {job_id} marked as untracked")
+
     def purge_job(self, job_id: str):
         """
         Purge a specific job from the database immediately.

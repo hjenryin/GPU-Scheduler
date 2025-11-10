@@ -18,6 +18,7 @@ class JobStatus(Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    UNTRACKED = "untracked"
 
 
 class NodeStatus(Enum):
