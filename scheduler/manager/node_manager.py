@@ -164,6 +164,16 @@ class NodeManager:
             logger.debug(f"Connected node: {node.node_name}, status: {node.status}, last_heartbeat: {node.last_heartbeat}")
         return connected
 
+    def save_node(self, node: Node):
+        """
+        Save node state to persistence.
+
+        Args:
+            node: Node instance to save
+        """
+        self.persistence.save_node(node)
+        logger.debug(f"Saved node {node.node_name} to persistence")
+
     def check_timeouts(self):
         """
         Check for node heartbeat timeouts and mark as disconnected.
