@@ -75,11 +75,10 @@ def start(head, address, port, node_name, num_gpus, temp_dir, log_dir, block, lo
 
 @cli.command()
 @click.option('--all', 'all_nodes', is_flag=True, help='Stop all nodes in cluster (head only)')
-@click.option('--no-wait', is_flag=True, help='Skip waiting for workers to shut down (faster but less certain)')
-def stop(all_nodes, no_wait):
+def stop(all_nodes):
     """Stop scheduler"""
     try:
-        code = stop_command(all_nodes=all_nodes, no_wait=no_wait)
+        code = stop_command(all_nodes=all_nodes)
         sys.exit(code)
     except KeyboardInterrupt:
         click.echo("\nInterrupted")
