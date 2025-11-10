@@ -382,8 +382,11 @@ class GitSnapshotManager:
 
         # Now collect files using git ls-files (with normal filtering)
         try:
-            # Use git ls-files to get all files, excluding those in info/exclude
+            # Use git ls-files to get all untracked files
             # --others: show untracked files
+            # IMPORTANT: The index must be cleared (via git rm --cached) BEFORE this is called,
+            # otherwise files from previous snapshots won't appear in --others and will be lost.
+            #
             # We intentionally do NOT pass --exclude-standard here because
             # workspace .gitignore should not control the scheduler snapshot.
             # Instead we list all untracked files and apply scheduler-only
@@ -567,10 +570,36 @@ class GitSnapshotManager:
             # Ensure shadow repo exists for this workspace
             self._ensure_shadow_repo(workspace_root)
             git_dir = self._get_shadow_repo_path(workspace_root)  # This IS the git dir
-            
+
             branch_name = f"job-{job_id}"
-            
+
+            # Reset index to clear any previous state BEFORE collecting files
+            # This is critical: we must clear the index before calling git ls-files --others
+            # because --others only shows files NOT in the index. If the index still contains
+            # files from the previous snapshot, they won't appear in --others and will be lost.
+            cmd = self._git_base_args(workspace_root, git_dir) + ['rm', '--cached', '-r', '--ignore-unmatch', '.']
+            subprocess.run(
+                cmd,
+                cwd=workspace_root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=30,
+            )
+
+            cmd = self._git_base_args(workspace_root, git_dir) + ['reset']
+            subprocess.run(
+                cmd,
+                cwd=workspace_root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=10,
+                check=True
+            )
+
             # Collect files to snapshot from workspace root
+            # Now that index is clear, git ls-files --others will show ALL files
             files_to_snapshot = self._collect_files_to_snapshot(workspace_root)
 
             if not files_to_snapshot:
@@ -598,30 +627,6 @@ class GitSnapshotManager:
             if total_size_mb > 100:
                 logger.warning(f"Large snapshot detected: {total_size_mb:.2f} MB. "
                              f"Consider creating a .scheduler_snapshot_ignore file to exclude large data files.")
-
-            # Reset index to clear any previous state
-            # Use rm --cached to remove all files from index, then reset
-            # This ensures a completely clean index before adding new files
-            cmd = self._git_base_args(workspace_root, git_dir) + ['rm', '--cached', '-r', '--ignore-unmatch', '.']
-            subprocess.run(
-                cmd,
-                cwd=workspace_root,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=30,
-            )
-            
-            cmd = self._git_base_args(workspace_root, git_dir) + ['reset']
-            subprocess.run(
-                cmd,
-                cwd=workspace_root,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=10,
-                check=True
-            )
 
             # Add selected files in batches to avoid argument length limits
             # Batch size of 1000 files per git add call for efficiency

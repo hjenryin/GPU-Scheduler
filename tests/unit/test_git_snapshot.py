@@ -97,11 +97,18 @@ class TestFileSelection:
         assert git_manager._should_include_file(yaml_file, temp_work_dir) is True
     
     def test_should_exclude_pycache(self, git_manager, temp_work_dir):
-        """Test that __pycache__ is excluded"""
-        pycache = os.path.join(temp_work_dir, '__pycache__', 'test.pyc')
-        os.makedirs(os.path.dirname(pycache), exist_ok=True)
-        open(pycache, 'w').close()
-        assert git_manager._should_include_file(pycache, temp_work_dir) is False
+        """Test that __pycache__ is excluded via pattern matching"""
+        pycache_dir = os.path.join(temp_work_dir, '__pycache__')
+        os.makedirs(pycache_dir, exist_ok=True)
+        pycache_file = os.path.join(pycache_dir, 'test.pyc')
+        open(pycache_file, 'w').close()
+
+        # Ensure shadow repo exists
+        git_manager._ensure_shadow_repo(temp_work_dir)
+
+        # Collect files - __pycache__ should be excluded
+        files = git_manager._collect_files_to_snapshot(temp_work_dir)
+        assert '__pycache__/test.pyc' not in files, "__pycache__ files should be excluded"
     
     def test_should_exclude_large_files(self, git_manager, temp_work_dir):
         """Test that large files are excluded"""
@@ -113,6 +120,8 @@ class TestFileSelection:
     
     def test_collect_files(self, git_manager, temp_work_dir):
         """Test collecting files from directory"""
+        # Ensure shadow repo exists before collecting files
+        git_manager._ensure_shadow_repo(temp_work_dir)
         files = git_manager._collect_files_to_snapshot(temp_work_dir)
         assert len(files) > 0
         assert 'train.py' in files
@@ -403,6 +412,9 @@ class TestFolderFileLimits:
             with open(os.path.join(data_dir, fname), 'w') as f:
                 f.write(f'important data {i}\n')
         
+        # Ensure shadow repo exists before collecting files
+        git_manager._ensure_shadow_repo(temp_work_dir)
+
         # Collect files - important .txt files should be included
         # even though folder has 155 total files (150 .log + 5 .txt)
         files = git_manager._collect_files_to_snapshot(temp_work_dir)
@@ -431,44 +443,126 @@ class TestFolderFileLimits:
             with open(os.path.join(scripts_dir, f'script_{i}.py'), 'w') as f:
                 f.write(f'# script {i}\n')
         
+        # Ensure shadow repo exists before collecting files
+        git_manager._ensure_shadow_repo(temp_work_dir)
+
         # Collect files - all should be included
         files = git_manager._collect_files_to_snapshot(temp_work_dir)
-        
+
         py_files_in_scripts = [f for f in files if f.startswith('scripts/') and f.endswith('.py')]
         assert len(py_files_in_scripts) == max_files, \
             f"Should include all {max_files} Python files in scripts/ folder"
 
 
+class TestTrackedFiles:
+    """Test that tracked git files are included in snapshots"""
+
+    def test_includes_tracked_files(self, git_manager, temp_work_dir):
+        """Test that files tracked by git are included in snapshots
+
+        This is a regression test for a bug where only untracked files were
+        included in snapshots, causing tracked scripts to be missing when
+        jobs were executed on worker nodes.
+        """
+        # Initialize a real git repository in the temp directory
+        subprocess.run(['git', 'init'], cwd=temp_work_dir, check=True)
+        subprocess.run(['git', 'config', 'user.email', 'test@test.com'], cwd=temp_work_dir, check=True)
+        subprocess.run(['git', 'config', 'user.name', 'Test User'], cwd=temp_work_dir, check=True)
+
+        # Create and track a script file
+        script_file = os.path.join(temp_work_dir, 'eval-23k.sh')
+        with open(script_file, 'w') as f:
+            f.write('#!/bin/bash\necho "Running evaluation"\n')
+
+        # Add and commit the script to git
+        subprocess.run(['git', 'add', 'eval-23k.sh'], cwd=temp_work_dir, check=True)
+        subprocess.run(['git', 'commit', '-m', 'Add evaluation script'], cwd=temp_work_dir, check=True)
+
+        # Create an untracked file too
+        untracked_file = os.path.join(temp_work_dir, 'untracked.py')
+        with open(untracked_file, 'w') as f:
+            f.write('print("untracked")\n')
+
+        # Ensure shadow repo exists before collecting files
+        git_manager._ensure_shadow_repo(temp_work_dir)
+
+        # Collect files for snapshot
+        files = git_manager._collect_files_to_snapshot(temp_work_dir)
+
+        # Both tracked and untracked files should be included
+        assert 'eval-23k.sh' in files, "Tracked script should be included in snapshot"
+        assert 'untracked.py' in files, "Untracked file should be included in snapshot"
+        assert 'train.py' in files, "Original untracked files should still be included"
+
+    def test_snapshot_with_tracked_files_can_be_restored(self, git_manager, temp_work_dir):
+        """Test that snapshots with tracked files can be restored correctly"""
+        # Initialize git repo
+        subprocess.run(['git', 'init'], cwd=temp_work_dir, check=True)
+        subprocess.run(['git', 'config', 'user.email', 'test@test.com'], cwd=temp_work_dir, check=True)
+        subprocess.run(['git', 'config', 'user.name', 'Test User'], cwd=temp_work_dir, check=True)
+
+        # Create and track a script
+        script_file = os.path.join(temp_work_dir, 'run.sh')
+        with open(script_file, 'w') as f:
+            f.write('#!/bin/bash\necho "Running"\n')
+
+        subprocess.run(['git', 'add', 'run.sh'], cwd=temp_work_dir, check=True)
+        subprocess.run(['git', 'commit', '-m', 'Add run script'], cwd=temp_work_dir, check=True)
+
+        # Create snapshot
+        result = git_manager.create_snapshot('job_tracked', temp_work_dir)
+        assert result is not None
+        snapshot_ref, workspace_root = result
+
+        # Restore snapshot
+        restore_dir = tempfile.mkdtemp()
+        try:
+            success = git_manager.restore_snapshot('job_tracked', snapshot_ref, workspace_root, restore_dir)
+            assert success is True
+
+            # Verify tracked script was restored
+            restored_script = os.path.join(restore_dir, 'run.sh')
+            assert os.path.exists(restored_script), "Tracked script should be restored"
+
+            with open(restored_script, 'r') as f:
+                content = f.read()
+            assert 'Running' in content
+
+        finally:
+            # Cleanup
+            git_manager.cleanup_snapshot('job_tracked', snapshot_ref, workspace_root, restore_dir)
+
+
 class TestIntegration:
     """Integration tests for complete workflow"""
-    
+
     def test_complete_workflow(self, git_manager, temp_work_dir):
         """Test complete create -> restore -> cleanup workflow"""
         job_id = 'job_workflow'
-        
+
         # 1. Create snapshot
         result = git_manager.create_snapshot(job_id, temp_work_dir)
         assert result is not None
         snapshot_ref, workspace_root = result
-        
+
         # 2. Restore snapshot
         restore_dir = tempfile.mkdtemp()
         success = git_manager.restore_snapshot(job_id, snapshot_ref, workspace_root, restore_dir)
         assert success is True
-        
+
         # 3. Verify restored files
         assert os.path.exists(os.path.join(restore_dir, 'train.py'))
         with open(os.path.join(restore_dir, 'train.py'), 'r') as f:
             content = f.read()
         assert 'training' in content
-        
+
         # 4. Cleanup
         git_manager.cleanup_snapshot(job_id, snapshot_ref, workspace_root, restore_dir)
-        
+
         # Verify cleanup
         shadow_repo_path = git_manager._get_shadow_repo_path(temp_work_dir)
         git_dir = shadow_repo_path  # .scheduler-git IS the git directory
-        
+
         result = subprocess.run(
             ['git', f'--git-dir={git_dir}', 'worktree', 'list'],
             cwd=temp_work_dir,
