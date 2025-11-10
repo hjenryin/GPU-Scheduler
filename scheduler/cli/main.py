@@ -97,20 +97,18 @@ def stop(all_nodes):
 @click.option('--priority', type=int, default=0, help='Priority')
 @click.option('--env', multiple=True, help='Environment variables (KEY=VALUE)')
 @click.option('--working-dir', help='Working directory for job')
-@click.option('--block', is_flag=True, help='Wait for job completion and stream logs')
 @click.pass_context
-def submit(ctx, req, depends_on, name, priority, env, working_dir, block):
+def submit(ctx, req, depends_on, name, priority, env, working_dir):
     """Submit a job
 
     COMMAND can be any command with arguments, e.g.:
-    
+
     \b
     scheduler submit python train.py --epochs 10
     scheduler submit bash run.sh arg1 arg2
     scheduler submit ./myexec --option value
-    
-    By default, returns immediately after submission (async mode).
-    Use --block to wait for completion and stream logs.
+
+    Returns immediately after submission (async mode).
     """
     try:
         # Get command from context args (everything after the options)
@@ -122,8 +120,7 @@ def submit(ctx, req, depends_on, name, priority, env, working_dir, block):
             name=name,
             priority=priority,
             env=list(env) if env else None,
-            working_dir=working_dir,
-            block=block
+            working_dir=working_dir
         )
         sys.exit(code)
     except KeyboardInterrupt:
@@ -142,13 +139,11 @@ def submit(ctx, req, depends_on, name, priority, env, working_dir, block):
 @click.option('--priority', type=int, default=0, help='Priority')
 @click.option('--env', multiple=True, help='Environment variables (KEY=VALUE)')
 @click.option('--working-dir', help='Working directory for job')
-@click.option('--block', is_flag=True, help='Wait for last job completion and stream logs')
 @click.option('--sequential', is_flag=True, help='Each job depends on previous job')
-def submit_batch(script_list, req, depends_on, name, priority, env, working_dir, block, sequential):
+def submit_batch(script_list, req, depends_on, name, priority, env, working_dir, sequential):
     """Submit multiple jobs from a file
-    
-    By default, returns immediately after submitting all jobs (async mode).
-    Use --block to wait for the last job completion and stream its logs.
+
+    Returns immediately after submitting all jobs (async mode).
     """
     try:
             code = submit_batch_command(
@@ -159,7 +154,6 @@ def submit_batch(script_list, req, depends_on, name, priority, env, working_dir,
             priority=priority,
             env=list(env) if env else None,
             working_dir=working_dir,
-            block=block,
             sequential=sequential
         )
             sys.exit(code)
@@ -196,17 +190,15 @@ def jobs(job_ids, output_format, filter, limit):
 
 @cli.command()
 @click.argument('job_id')
-@click.option('-f', '--follow', is_flag=True, help='Follow logs')
 @click.option('-n', '--lines', type=int, default=100, help='Number of lines')
 @click.option('--timestamps', is_flag=True, help='Show timestamps')
 @click.option('--stderr', is_flag=True, help='Show stderr')
 @click.option('--both', is_flag=True, help='Show both stdout/stderr')
-def logs(job_id, follow, lines, timestamps, stderr, both):
+def logs(job_id, lines, timestamps, stderr, both):
     """View job logs"""
     try:
             code = logs_command(
             job_id=job_id,
-            follow=follow,
             lines=lines,
             timestamps=timestamps,
             stderr=stderr,

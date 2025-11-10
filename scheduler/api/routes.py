@@ -235,12 +235,6 @@ async def get_job_logs_route(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-async def stream_job_logs_route(job_id: str, stderr: bool = False):
-    """GET /api/v1/jobs/{job_id}/logs/stream - Stream job logs (WebSocket)"""
-    # This would use WebSocket - simplified for now
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Log streaming not yet implemented")
-
-
 async def register_node_route(request: NodeRegisterRequest) -> dict:
     """POST /api/v1/nodes/register - Register a worker node"""
     try:
