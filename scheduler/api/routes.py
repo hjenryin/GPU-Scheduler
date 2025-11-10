@@ -8,7 +8,8 @@ from fastapi.responses import StreamingResponse
 from scheduler.manager import JobManager, NodeManager
 from scheduler.api.schemas import (
     JobSubmitRequest, JobResponse, JobListResponse,
-    NodeRegisterRequest, NodeHeartbeat, HeartbeatResponse, NodeResponse
+    NodeRegisterRequest, NodeHeartbeat, HeartbeatResponse, NodeResponse,
+    GPUFreezeRequest
 )
 from scheduler.core import JobStatus, GPUStats, JobNotFoundException, NodeNotFoundException, constants
 from scheduler.core import load_config
@@ -94,6 +95,19 @@ def create_app(
     @app.get(f"{constants.API_BASE_PATH}/nodes/{{node_name}}", response_model=NodeResponse)
     async def get_node(node_name: str):
         return await get_node_route(node_name)
+
+    # GPU freeze/unfreeze routes
+    @app.post(f"{constants.API_BASE_PATH}/nodes/{{node_name}}/gpus/{{gpu_id}}/freeze")
+    async def freeze_gpu(node_name: str, gpu_id: int, request: GPUFreezeRequest):
+        return await freeze_gpu_route(node_name, gpu_id, request)
+
+    @app.post(f"{constants.API_BASE_PATH}/nodes/{{node_name}}/gpus/{{gpu_id}}/unfreeze")
+    async def unfreeze_gpu(node_name: str, gpu_id: int):
+        return await unfreeze_gpu_route(node_name, gpu_id)
+
+    @app.post(f"{constants.API_BASE_PATH}/nodes/gpus/unfreeze")
+    async def unfreeze_all_gpus():
+        return await unfreeze_all_gpus_route()
 
     # Worker routes
     @app.get(f"{constants.API_BASE_PATH}/workers/{{node_name}}/jobs/next")
@@ -426,27 +440,27 @@ async def purge_job_route(job_id: str) -> dict:
 async def purge_jobs_route(request: dict) -> dict:
     """
     POST /api/v1/jobs/purge - Purge jobs based on criteria
-    
+
     Args:
         request: Dict with 'before_time' (ISO format) and 'status_filter' (list)
-    
+
     Returns:
         Response with purged_count
     """
     try:
         from datetime import datetime
-        
+
         before_time = None
         if 'before_time' in request:
             before_time = datetime.fromisoformat(request['before_time'])
-        
+
         status_filter = request.get('status_filter', None)
-        
+
         purged_count = _job_manager.purge_jobs_by_criteria(
             before_time=before_time,
             status_filter=status_filter
         )
-        
+
         logger.info(f"Marked {purged_count} jobs for purging")
         return {
             "status": "purge_initiated",
@@ -455,3 +469,117 @@ async def purge_jobs_route(request: dict) -> dict:
     except Exception as e:
         logger.error(f"Error purging jobs: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+async def freeze_gpu_route(node_name: str, gpu_id: int, request: GPUFreezeRequest) -> dict:
+    """
+    POST /api/v1/nodes/{node_name}/gpus/{gpu_id}/freeze - Freeze a GPU
+
+    Args:
+        node_name: Name of the node
+        gpu_id: GPU ID to freeze
+        request: Freeze request containing duration
+
+    Returns:
+        Confirmation of freeze operation
+    """
+    try:
+        node = _node_manager.get_node(node_name)
+        if not node:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Node {node_name} not found")
+
+        if gpu_id < 0 or gpu_id >= len(node.gpus):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid GPU ID {gpu_id}. Node {node_name} has {len(node.gpus)} GPUs (0-{len(node.gpus)-1})"
+            )
+
+        gpu = node.gpus[gpu_id]
+        gpu.freeze(request.duration_seconds)
+
+        # Save node state to persist freeze
+        _node_manager.save_node(node)
+
+        logger.info(f"GPU {gpu_id} on node {node_name} frozen for {request.duration_seconds} seconds")
+        return {
+            "status": "frozen",
+            "node_name": node_name,
+            "gpu_id": gpu_id,
+            "frozen_until": gpu.frozen_until.isoformat() if gpu.frozen_until else None
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error freezing GPU {gpu_id} on node {node_name}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+async def unfreeze_gpu_route(node_name: str, gpu_id: int) -> dict:
+    """
+    POST /api/v1/nodes/{node_name}/gpus/{gpu_id}/unfreeze - Unfreeze a GPU
+
+    Args:
+        node_name: Name of the node
+        gpu_id: GPU ID to unfreeze
+
+    Returns:
+        Confirmation of unfreeze operation
+    """
+    try:
+        node = _node_manager.get_node(node_name)
+        if not node:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Node {node_name} not found")
+
+        if gpu_id < 0 or gpu_id >= len(node.gpus):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid GPU ID {gpu_id}. Node {node_name} has {len(node.gpus)} GPUs (0-{len(node.gpus)-1})"
+            )
+
+        gpu = node.gpus[gpu_id]
+        gpu.unfreeze()
+
+        # Save node state to persist unfreeze
+        _node_manager.save_node(node)
+
+        logger.info(f"GPU {gpu_id} on node {node_name} unfrozen")
+        return {
+            "status": "unfrozen",
+            "node_name": node_name,
+            "gpu_id": gpu_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error unfreezing GPU {gpu_id} on node {node_name}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+async def unfreeze_all_gpus_route() -> dict:
+    """
+    POST /api/v1/nodes/gpus/unfreeze - Unfreeze all GPUs across all nodes
+
+    Returns:
+        Confirmation with count of unfrozen GPUs
+    """
+    try:
+        nodes = _node_manager.list_nodes()
+        unfrozen_count = 0
+
+        for node in nodes:
+            for gpu in node.gpus:
+                if gpu.is_frozen():
+                    gpu.unfreeze()
+                    unfrozen_count += 1
+
+            # Save node state to persist unfreeze
+            _node_manager.save_node(node)
+
+        logger.info(f"Unfrozen {unfrozen_count} GPUs across all nodes")
+        return {
+            "status": "unfrozen",
+            "unfrozen_count": unfrozen_count
+        }
+    except Exception as e:
+        logger.error(f"Error unfreezing all GPUs: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
