@@ -16,6 +16,9 @@ DEFAULT_GPU_MEM_THRESHOLD = 10.0
 DEFAULT_GPU_STABLE_TIME = 120
 DEFAULT_JOB_STARTUP_GRACE = 120
 
+# Rsync daemon port for log syncing
+RSYNC_PORT = 8873
+
 # Storage defaults
 DEFAULT_STORAGE_BACKEND = "file"
 DEFAULT_DATA_DIR = "~/.scheduler/data"

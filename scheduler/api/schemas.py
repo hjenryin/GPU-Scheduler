@@ -79,6 +79,13 @@ class NodeRegisterRequest(BaseModel):
     num_gpus: int
 
 
+class NodeRegisterResponse(BaseModel):
+    """Node registration response schema"""
+    status: str
+    node_name: str
+    rsync_port: Optional[int] = None  # Port for log syncing, None if unavailable
+
+
 class NodeHeartbeat(BaseModel):
     """Node heartbeat request schema"""
     gpu_stats: List[dict]  # List of GPUStats dicts

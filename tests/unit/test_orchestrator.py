@@ -3,6 +3,7 @@ import pytest
 import signal
 import threading
 import time
+import os
 from unittest.mock import Mock, patch, MagicMock
 
 from scheduler.head.orchestrator import Orchestrator
@@ -283,6 +284,67 @@ class TestOrchestrator:
     def test_do_scheduler_cycle(self, orchestrator):
         """Test _do_scheduler_cycle method"""
         orchestrator._do_scheduler_cycle()
-        
+
         orchestrator.scheduler.schedule_cycle.assert_called_once()
         orchestrator.node_manager.check_timeouts.assert_called_once()
+
+    @patch('scheduler.core.utils.is_port_available')
+    @patch('subprocess.Popen')
+    def test_rsync_daemon_starts_successfully(self, mock_popen, mock_is_port_available, orchestrator):
+        """Test rsync daemon starts successfully when port is available"""
+        mock_is_port_available.return_value = True
+        mock_process = Mock()
+        mock_process.poll.return_value = None  # Process running
+        mock_popen.return_value = mock_process
+
+        orchestrator._start_rsync_daemon()
+
+        # Should set rsync_port
+        assert orchestrator.rsync_port == 8873
+        mock_popen.assert_called_once()
+
+    @patch('scheduler.core.utils.is_port_available')
+    def test_rsync_daemon_port_unavailable(self, mock_is_port_available, orchestrator):
+        """Test rsync daemon handles port unavailable gracefully"""
+        mock_is_port_available.return_value = False
+
+        orchestrator._start_rsync_daemon()
+
+        # Should set rsync_port to None
+        assert orchestrator.rsync_port is None
+
+    @patch('scheduler.core.utils.is_port_available')
+    @patch('tempfile.mkstemp')
+    @patch('subprocess.Popen')
+    def test_rsync_daemon_config_no_uid_gid(self, mock_popen, mock_mkstemp, mock_is_port_available, orchestrator, tmp_path):
+        """Test rsync daemon config does not include uid/gid"""
+        mock_is_port_available.return_value = True
+        mock_process = Mock()
+        mock_process.poll.return_value = None
+        mock_popen.return_value = mock_process
+
+        # Mock mkstemp to return a temp file path
+        config_path = str(tmp_path / 'rsync.conf')
+        mock_mkstemp.return_value = (os.open(config_path, os.O_CREAT | os.O_WRONLY), config_path)
+
+        orchestrator._start_rsync_daemon()
+
+        # Verify config was written without uid/gid
+        with open(config_path, 'r') as f:
+            config_content = f.read()
+
+        assert 'uid' not in config_content
+        assert 'gid' not in config_content
+        assert 'use chroot = no' in config_content
+
+    @patch('scheduler.core.utils.is_port_available')
+    @patch('subprocess.Popen')
+    def test_rsync_daemon_exception_handling(self, mock_popen, mock_is_port_available, orchestrator):
+        """Test rsync daemon handles subprocess exceptions gracefully"""
+        mock_is_port_available.return_value = True
+        mock_popen.side_effect = OSError("Address already in use")
+
+        orchestrator._start_rsync_daemon()
+
+        # Should set rsync_port to None on error
+        assert orchestrator.rsync_port is None

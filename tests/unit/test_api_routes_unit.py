@@ -10,7 +10,6 @@ from scheduler.api.routes import (
     list_jobs_route,
     cancel_job_route,
     get_job_logs_route,
-    stream_job_logs_route,
     register_node_route,
     heartbeat_route,
     list_nodes_route,
@@ -20,9 +19,65 @@ from scheduler.api.routes import (
     fail_job_route,
     shutdown_cluster_route
 )
-from scheduler.api.schemas import JobSubmitRequest, NodeRegisterRequest, NodeHeartbeat
+from scheduler.api.schemas import (
+    JobSubmitRequest, NodeRegisterRequest, NodeHeartbeat,
+    NodeRegisterResponse
+)
 from scheduler.core.models import Job, JobStatus, JobRequirement, Node, NodeStatus, GPUStats
 from scheduler.core.exceptions import JobNotFoundException, NodeNotFoundException
+
+
+class TestNodeRegisterResponseSchema:
+    """Tests for NodeRegisterResponse schema"""
+
+    def test_node_register_response_with_rsync_port(self):
+        """Test NodeRegisterResponse schema with rsync_port"""
+        response = NodeRegisterResponse(
+            status="registered",
+            node_name="node1",
+            rsync_port=8873
+        )
+
+        assert response.status == "registered"
+        assert response.node_name == "node1"
+        assert response.rsync_port == 8873
+
+    def test_node_register_response_without_rsync_port(self):
+        """Test NodeRegisterResponse schema without rsync_port"""
+        response = NodeRegisterResponse(
+            status="registered",
+            node_name="node1"
+        )
+
+        assert response.status == "registered"
+        assert response.node_name == "node1"
+        assert response.rsync_port is None
+
+    def test_node_register_response_with_none_rsync_port(self):
+        """Test NodeRegisterResponse schema with explicitly None rsync_port"""
+        response = NodeRegisterResponse(
+            status="registered",
+            node_name="node1",
+            rsync_port=None
+        )
+
+        assert response.status == "registered"
+        assert response.node_name == "node1"
+        assert response.rsync_port is None
+
+    def test_node_register_response_serialization(self):
+        """Test NodeRegisterResponse serialization"""
+        response = NodeRegisterResponse(
+            status="registered",
+            node_name="node1",
+            rsync_port=8873
+        )
+
+        # Test model_dump (Pydantic v2)
+        data = response.model_dump()
+        assert data['status'] == "registered"
+        assert data['node_name'] == "node1"
+        assert data['rsync_port'] == 8873
 
 
 # Fixture-based mocking with autospec
@@ -309,18 +364,6 @@ class TestGetJobLogsRoute:
         assert exc_info.value.status_code == 500  # Route catches and returns 500
 
 
-class TestStreamJobLogsRoute:
-    """Tests for stream_job_logs_route"""
-
-    @pytest.mark.asyncio
-    async def test_stream_job_logs_not_implemented(self):
-        """Test that streaming logs is not yet implemented"""
-        with pytest.raises(HTTPException) as exc_info:
-            await stream_job_logs_route("job_123")
-        
-        assert exc_info.value.status_code == 501
-
-
 class TestRegisterNodeRoute:
     """Tests for register_node_route"""
 
@@ -331,34 +374,88 @@ class TestRegisterNodeRoute:
         mock_node = create_autospec(Node, instance=True, spec_set=True)
         mock_node.node_name = "node1"
         mock_node_manager.register_node.return_value = mock_node
-        
+
         request = NodeRegisterRequest(
             node_name="node1",
             address="localhost:9000",
             num_gpus=4
         )
-        
+
         result = await register_node_route(request)
-        
-        assert result['status'] == "registered"
-        assert result['node_name'] == "node1"
+
+        assert result.status == "registered"
+        assert result.node_name == "node1"
         mock_node_manager.register_node.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_register_node_error(self, mock_node_manager):
         """Test node registration with error"""
         mock_node_manager.register_node.side_effect = Exception("Registration failed")
-        
+
         request = NodeRegisterRequest(
             node_name="node1",
             address="localhost:9000",
             num_gpus=4
         )
-        
+
         with pytest.raises(HTTPException) as exc_info:
             await register_node_route(request)
-        
+
         assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_register_node_returns_rsync_port(self, mock_node_manager):
+        """Test node registration returns rsync_port from orchestrator"""
+        from scheduler.head import Orchestrator
+
+        # Create a proper mock that respects Node's interface
+        mock_node = create_autospec(Node, instance=True, spec_set=True)
+        mock_node.node_name = "node1"
+        mock_node_manager.register_node.return_value = mock_node
+
+        # Mock orchestrator with rsync_port
+        mock_orchestrator = MagicMock()
+        mock_orchestrator.rsync_port = 8873
+
+        with patch.object(Orchestrator, 'get_instance', return_value=mock_orchestrator):
+            request = NodeRegisterRequest(
+                node_name="node1",
+                address="localhost:9000",
+                num_gpus=4
+            )
+
+            result = await register_node_route(request)
+
+            assert result.status == "registered"
+            assert result.node_name == "node1"
+            assert result.rsync_port == 8873
+
+    @pytest.mark.asyncio
+    async def test_register_node_returns_none_when_rsync_unavailable(self, mock_node_manager):
+        """Test node registration returns None rsync_port when unavailable"""
+        from scheduler.head import Orchestrator
+
+        # Create a proper mock that respects Node's interface
+        mock_node = create_autospec(Node, instance=True, spec_set=True)
+        mock_node.node_name = "node1"
+        mock_node_manager.register_node.return_value = mock_node
+
+        # Mock orchestrator with no rsync_port
+        mock_orchestrator = MagicMock()
+        mock_orchestrator.rsync_port = None
+
+        with patch.object(Orchestrator, 'get_instance', return_value=mock_orchestrator):
+            request = NodeRegisterRequest(
+                node_name="node1",
+                address="localhost:9000",
+                num_gpus=4
+            )
+
+            result = await register_node_route(request)
+
+            assert result.status == "registered"
+            assert result.node_name == "node1"
+            assert result.rsync_port is None
 
 
 class TestHeartbeatRoute:

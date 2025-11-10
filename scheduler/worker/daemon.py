@@ -80,6 +80,7 @@ class WorkerDaemon:
         # Log syncing via rsync
         self.log_sync_thread: Optional[threading.Thread] = None
         self.log_dir = os.path.expanduser(config.worker.log_dir)
+        self.rsync_port: Optional[int] = None  # Learned from head node during registration
 
         # Track current job
         self.current_job = None
@@ -122,8 +123,11 @@ class WorkerDaemon:
         # Start heartbeat sender
         self.heartbeat_sender.start()
 
-        # Start log syncing via rsync
-        self._start_log_sync()
+        # Start log syncing via rsync (only if port is available)
+        if self.rsync_port is not None:
+            self._start_log_sync(self.rsync_port)
+        else:
+            logger.info("Skipping log sync - rsync port not available from head node")
 
         logger.info("Worker daemon started successfully")
 
@@ -209,6 +213,13 @@ class WorkerDaemon:
                 num_gpus=self.num_gpus
             )
             logger.info(f"Successfully registered with head node: {response}")
+
+            # Extract rsync port from registration response
+            self.rsync_port = response.get('rsync_port')
+            if self.rsync_port:
+                logger.info(f"Head node rsync daemon available on port {self.rsync_port}")
+            else:
+                logger.warning("Head node rsync daemon not available - log syncing disabled")
         except Exception as e:
             raise ConnectionException(f"Failed to register with head node: {e}")
 
@@ -337,8 +348,12 @@ class WorkerDaemon:
         except Exception as e:
             logger.error(f"Error purging job {job_id}: {e}")
 
-    def _start_log_sync(self):
-        """Start periodic log syncing to head node via rsync daemon."""
+    def _start_log_sync(self, port: int):
+        """Start periodic log syncing to head node via rsync daemon.
+
+        Args:
+            port: The rsync daemon port on the head node
+        """
         def sync_loop():
             """Background thread that periodically syncs job logs to head node."""
             # Extract head hostname from address
@@ -358,7 +373,7 @@ class WorkerDaemon:
                             '--exclude=worker.log',  # Exclude worker daemon log
                             '--exclude=*.offset',    # Exclude pygtail offset files (if any)
                             f'{self.log_dir}/',      # Source (trailing slash = contents)
-                            f'rsync://{head_host}:8873/scheduler-logs/'  # Destination
+                            f'rsync://{head_host}:{port}/scheduler-logs/'  # Destination
                         ],
                         capture_output=True,
                         text=True,
@@ -389,4 +404,4 @@ class WorkerDaemon:
         # Start sync thread
         self.log_sync_thread = threading.Thread(target=sync_loop, daemon=True, name="LogSync")
         self.log_sync_thread.start()
-        logger.info("Log syncing started (rsync to head:8873)")
+        logger.info(f"Log syncing started (rsync to head:{port})")

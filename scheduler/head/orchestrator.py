@@ -47,6 +47,7 @@ class Orchestrator:
         # rsync daemon for log syncing
         self.rsync_daemon_process: Optional[subprocess.Popen] = None
         self.rsync_config_file: Optional[str] = None
+        self.rsync_port: Optional[int] = None  # Actual port in use, None if unavailable
 
         # Initialize storage backend
         if config.storage.backend == 'sqlite':
@@ -357,6 +358,16 @@ class Orchestrator:
 
     def _start_rsync_daemon(self):
         """Start rsync daemon as subprocess for log syncing (no sudo required)."""
+        from scheduler.core.constants import RSYNC_PORT
+        from scheduler.core.utils import is_port_available
+
+        # Check if port is available
+        if not is_port_available(RSYNC_PORT):
+            logger.error(f"Cannot start rsync daemon: port {RSYNC_PORT} is already in use. "
+                        f"Log syncing will be disabled.")
+            self.rsync_port = None
+            return
+
         log_dir = os.path.expanduser(self.config.worker.log_dir)
         os.makedirs(log_dir, exist_ok=True)
 
@@ -379,31 +390,44 @@ class Orchestrator:
 
         self.rsync_config_file = config_path
 
-        # Start rsync daemon on port 8873 (no sudo needed for ports > 1024)
+        # Start rsync daemon on RSYNC_PORT (no sudo needed for ports > 1024)
         try:
             self.rsync_daemon_process = subprocess.Popen(
                 [
                     'rsync',
                     '--daemon',
                     '--no-detach',  # Run in foreground
-                    '--port=8873',   # Custom port (no sudo required)
+                    f'--port={RSYNC_PORT}',
                     f'--config={config_path}',
                     '--log-file=/dev/null'  # Suppress rsync logs
                 ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE
             )
-            logger.info("rsync daemon started on port 8873 for log syncing")
+            self.rsync_port = RSYNC_PORT
+            logger.info(f"rsync daemon started on port {RSYNC_PORT} for log syncing")
         except FileNotFoundError:
-            logger.error("rsync command not found - log syncing will not work")
+            logger.error("rsync command not found - log syncing will be disabled")
             os.remove(config_path)
             self.rsync_config_file = None
-            raise
+            self.rsync_port = None
+            # Don't raise - allow orchestrator to continue without rsync
+        except OSError as e:
+            if "Address already in use" in str(e):
+                logger.error(f"Cannot bind to port {RSYNC_PORT}: address already in use. "
+                           f"Log syncing will be disabled.")
+            else:
+                logger.error(f"Failed to start rsync daemon: {e}. Log syncing will be disabled.")
+            os.remove(config_path)
+            self.rsync_config_file = None
+            self.rsync_port = None
+            # Don't raise - allow orchestrator to continue without rsync
         except Exception as e:
-            logger.error(f"Failed to start rsync daemon: {e}")
+            logger.error(f"Failed to start rsync daemon: {e}. Log syncing will be disabled.")
             os.remove(config_path)
             self.rsync_config_file = None
-            raise
+            self.rsync_port = None
+            # Don't raise - allow orchestrator to continue without rsync
 
     def _stop_rsync_daemon(self):
         """Stop rsync daemon subprocess."""

@@ -615,3 +615,148 @@ class TestWorkerDaemon:
 
         # Verify cleanup_job was called
         mock_executor_instance.cleanup_job.assert_called_once_with(sample_job)
+
+    @patch("scheduler.worker.daemon.SchedulerClient", autospec=True)
+    @patch("scheduler.worker.daemon.HeartbeatSender", autospec=True)
+    @patch("scheduler.worker.daemon.JobExecutor", autospec=True)
+    @patch("scheduler.worker.daemon.GPUMonitor", autospec=True)
+    @patch("scheduler.worker.daemon.FileHandler", autospec=True)
+    def test_register_with_head_extracts_rsync_port(self, mock_file_handler, mock_gpu_monitor,
+                                                      mock_job_executor, mock_heartbeat, mock_client, test_config):
+        """Test that worker extracts rsync_port from registration response"""
+        mock_monitor_instance = Mock()
+        mock_monitor_instance.detect_gpus.return_value = 2
+        mock_gpu_monitor.return_value = mock_monitor_instance
+
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
+
+        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance.register_node.return_value = {
+            "status": "registered",
+            "node_name": "test-node",
+            "rsync_port": 8873
+        }
+        mock_client.return_value = mock_client_instance
+
+        daemon = WorkerDaemon(test_config, node_name="test-node")
+        daemon.register_with_head()
+
+        assert daemon.rsync_port == 8873
+
+    @patch("scheduler.worker.daemon.SchedulerClient", autospec=True)
+    @patch("scheduler.worker.daemon.HeartbeatSender", autospec=True)
+    @patch("scheduler.worker.daemon.JobExecutor", autospec=True)
+    @patch("scheduler.worker.daemon.GPUMonitor", autospec=True)
+    @patch("scheduler.worker.daemon.FileHandler", autospec=True)
+    def test_register_with_head_handles_no_rsync_port(self, mock_file_handler, mock_gpu_monitor,
+                                                        mock_job_executor, mock_heartbeat, mock_client, test_config):
+        """Test that worker handles registration response without rsync_port"""
+        mock_monitor_instance = Mock()
+        mock_monitor_instance.detect_gpus.return_value = 2
+        mock_gpu_monitor.return_value = mock_monitor_instance
+
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
+
+        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance.register_node.return_value = {
+            "status": "registered",
+            "node_name": "test-node"
+        }
+        mock_client.return_value = mock_client_instance
+
+        daemon = WorkerDaemon(test_config, node_name="test-node")
+        daemon.register_with_head()
+
+        assert daemon.rsync_port is None
+
+    @patch("scheduler.worker.daemon.SchedulerClient", autospec=True)
+    @patch("scheduler.worker.daemon.HeartbeatSender", autospec=True)
+    @patch("scheduler.worker.daemon.JobExecutor", autospec=True)
+    @patch("scheduler.worker.daemon.GPUMonitor", autospec=True)
+    @patch("scheduler.worker.daemon.FileHandler", autospec=True)
+    def test_start_sets_running_before_starting_threads(self, mock_file_handler, mock_gpu_monitor,
+                                                         mock_job_executor, mock_heartbeat, mock_client, test_config):
+        """Test that daemon.running is set to True before starting threads (race condition fix)"""
+        mock_monitor_instance = Mock()
+        mock_monitor_instance.detect_gpus.return_value = 2
+        mock_monitor_instance.start_monitoring = Mock()
+        mock_gpu_monitor.return_value = mock_monitor_instance
+
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
+
+        mock_heartbeat_instance = Mock()
+        mock_heartbeat_instance.start = Mock()
+        mock_heartbeat.return_value = mock_heartbeat_instance
+
+        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance.register_node.return_value = {
+            "status": "registered",
+            "node_name": "test-node",
+            "rsync_port": 8873
+        }
+        mock_client.return_value = mock_client_instance
+
+        daemon = WorkerDaemon(test_config, node_name="test-node")
+
+        running_when_called = []
+
+        def mock_start_log_sync(port):
+            running_when_called.append(daemon.running)
+
+        daemon._start_log_sync = mock_start_log_sync
+        daemon.start()
+
+        assert len(running_when_called) == 1
+        assert running_when_called[0] is True
+
+        daemon.stop(graceful=False)
+
+    @patch("scheduler.worker.daemon.SchedulerClient", autospec=True)
+    @patch("scheduler.worker.daemon.HeartbeatSender", autospec=True)
+    @patch("scheduler.worker.daemon.JobExecutor", autospec=True)
+    @patch("scheduler.worker.daemon.GPUMonitor", autospec=True)
+    @patch("scheduler.worker.daemon.FileHandler", autospec=True)
+    def test_start_log_sync_not_called_when_rsync_port_none(self, mock_file_handler, mock_gpu_monitor,
+                                                              mock_job_executor, mock_heartbeat, mock_client, test_config):
+        """Test that log sync is not started when rsync_port is None"""
+        mock_monitor_instance = Mock()
+        mock_monitor_instance.detect_gpus.return_value = 2
+        mock_monitor_instance.start_monitoring = Mock()
+        mock_gpu_monitor.return_value = mock_monitor_instance
+
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
+
+        mock_heartbeat_instance = Mock()
+        mock_heartbeat_instance.start = Mock()
+        mock_heartbeat.return_value = mock_heartbeat_instance
+
+        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance.register_node.return_value = {
+            "status": "registered",
+            "node_name": "test-node",
+            "rsync_port": None
+        }
+        mock_client.return_value = mock_client_instance
+
+        daemon = WorkerDaemon(test_config, node_name="test-node")
+
+        start_log_sync_called = []
+
+        def mock_start_log_sync(port):
+            start_log_sync_called.append(True)
+
+        daemon._start_log_sync = mock_start_log_sync
+        daemon.start()
+
+        assert len(start_log_sync_called) == 0
+
+        daemon.stop(graceful=False)
+

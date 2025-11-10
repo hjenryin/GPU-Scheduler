@@ -16,6 +16,24 @@ from scheduler.core.utils import (
     parse_address
 )
 from scheduler.core.exceptions import InvalidRequirementException, ValidationException
+from scheduler.core import constants
+
+
+class TestConstants:
+    """Tests for scheduler.core.constants module"""
+
+    def test_rsync_port_defined(self):
+        """Test that RSYNC_PORT constant is defined"""
+        assert hasattr(constants, 'RSYNC_PORT')
+        assert constants.RSYNC_PORT == 8873
+
+    def test_rsync_port_is_integer(self):
+        """Test that RSYNC_PORT is an integer"""
+        assert isinstance(constants.RSYNC_PORT, int)
+
+    def test_rsync_port_in_valid_range(self):
+        """Test that RSYNC_PORT is in valid port range"""
+        assert 1024 <= constants.RSYNC_PORT <= 65535
 
 
 class TestParseRequirements:

@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from scheduler.manager import JobManager, NodeManager
 from scheduler.api.schemas import (
     JobSubmitRequest, JobResponse, JobListResponse,
-    NodeRegisterRequest, NodeHeartbeat, HeartbeatResponse, NodeResponse,
+    NodeRegisterRequest, NodeRegisterResponse, NodeHeartbeat, HeartbeatResponse, NodeResponse,
     GPUFreezeRequest
 )
 from scheduler.core import JobStatus, GPUStats, JobNotFoundException, NodeNotFoundException, constants
@@ -80,7 +80,7 @@ def create_app(
         return await purge_jobs_route(request)
 
     # Node routes
-    @app.post(f"{constants.API_BASE_PATH}/nodes/register")
+    @app.post(f"{constants.API_BASE_PATH}/nodes/register", response_model=NodeRegisterResponse)
     async def register_node(request: NodeRegisterRequest):
         return await register_node_route(request)
 
@@ -244,7 +244,7 @@ async def get_job_logs_route(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-async def register_node_route(request: NodeRegisterRequest) -> dict:
+async def register_node_route(request: NodeRegisterRequest) -> NodeRegisterResponse:
     """POST /api/v1/nodes/register - Register a worker node"""
     try:
         node = _node_manager.register_node(
@@ -252,7 +252,17 @@ async def register_node_route(request: NodeRegisterRequest) -> dict:
             address=request.address,
             num_gpus=request.num_gpus
         )
-        return {"status": "registered", "node_name": node.node_name}
+
+        # Get rsync port from orchestrator
+        from scheduler.head import Orchestrator
+        orchestrator = Orchestrator.get_instance()
+        rsync_port = orchestrator.rsync_port if orchestrator else None
+
+        return NodeRegisterResponse(
+            status="registered",
+            node_name=node.node_name,
+            rsync_port=rsync_port
+        )
     except Exception as e:
         logger.error(f"Error registering node: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
