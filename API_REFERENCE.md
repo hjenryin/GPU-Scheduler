@@ -15,10 +15,11 @@ Last Updated: 2025-10-28
 4. [Cluster Status](#cluster-status)
 5. [Job Submission](#job-submission)
 6. [Job Management](#job-management)
-7. [Configuration](#configuration)
-8. [Environment Variables](#environment-variables)
-9. [Python API](#python-api)
-10. [HTTP API Reference (Advanced)](#api-endpoint-reference-advanced)
+7. [GPU Freeze/Unfreeze](#gpu-freezeunfreeze)
+8. [Configuration](#configuration)
+9. [Environment Variables](#environment-variables)
+10. [Python API](#python-api)
+11. [HTTP API Reference (Advanced)](#api-endpoint-reference-advanced)
 
 ---
 
@@ -952,6 +953,91 @@ scheduler cancel job_abc123 job_def456 job_ghi789
 
 ---
 
+## GPU Freeze/Unfreeze
+
+### `scheduler freeze`
+
+Temporarily freeze a GPU to prevent jobs from being scheduled on it.
+
+**Usage:**
+```bash
+scheduler freeze TARGET DURATION
+```
+
+**Requirement**: A worker must be running on your machine (or head address must be configured) to connect to the scheduler cluster.
+
+**Positional Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `TARGET` | GPU target in format `node:GPUx` or `node:x` (e.g., `node1:GPU0` or `node1:0`) |
+| `DURATION` | Duration to freeze in format `<number><unit>` where unit is s/m/h/d/w |
+
+**Duration Units:**
+- `s` - seconds
+- `m` - minutes
+- `h` - hours
+- `d` - days
+- `w` - weeks
+
+**Examples:**
+```bash
+# Freeze GPU 0 on node1 for 12 hours
+scheduler freeze node1:GPU0 12h
+
+# Freeze GPU 0 on node1 for 30 minutes
+scheduler freeze node1:0 30m
+
+# Freeze GPU 1 on gpu2 for 2 days
+scheduler freeze gpu2:GPU1 2d
+
+# Freeze GPU 3 on node1 for 1 week
+scheduler freeze node1:3 1w
+```
+
+**Behavior:**
+- Frozen GPUs show status "Frozen" in TUI
+- No jobs will be scheduled on frozen GPUs regardless of utilization
+- Freeze state persists across scheduler restarts
+- Freeze automatically expires after the specified duration
+- Can manually unfreeze before expiration using `scheduler unfreeze`
+
+---
+
+### `scheduler unfreeze`
+
+Unfreeze one or all GPUs to allow job scheduling again.
+
+**Usage:**
+```bash
+scheduler unfreeze [TARGET]
+```
+
+**Requirement**: A worker must be running on your machine (or head address must be configured) to connect to the scheduler cluster.
+
+**Positional Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `TARGET` | (Optional) GPU target in format `node:GPUx` or `node:x`. If omitted, unfreezes all GPUs. |
+
+**Examples:**
+```bash
+# Unfreeze specific GPU
+scheduler unfreeze node1:GPU0
+scheduler unfreeze node1:0
+
+# Unfreeze all GPUs across all nodes
+scheduler unfreeze
+```
+
+**Behavior:**
+- Unfrozen GPUs become available for job scheduling immediately
+- If unfreezing all GPUs, displays count of unfrozen GPUs
+- Unfreeze state persists across scheduler restarts
+
+---
+
 ## Configuration
 
 ### `scheduler config`
@@ -1325,6 +1411,9 @@ See the [Python API section in README.md](README.md#python-api) for:
 - `stream_job_logs()` - Stream logs in real-time
 - `list_nodes()` - List all nodes
 - `get_node()` - Get node details
+- `freeze_gpu()` - Freeze a specific GPU
+- `unfreeze_gpu()` - Unfreeze a specific GPU
+- `unfreeze_all_gpus()` - Unfreeze all GPUs across all nodes
 - `health_check()` - Check head node health
 
 ### Example: Submit and Monitor
@@ -1374,6 +1463,19 @@ For direct HTTP API access:
   - Body: `{"gpu_stats": [{"gpu_id": 0, "util": 5, "mem_used": 1024, "mem_total": 16384, "temp": 45, "power": 50}]}`
 - `GET /nodes` - List all nodes
 - `GET /nodes/{node_name}` - Get node details
+
+### GPU Management Endpoints
+
+- `POST /nodes/{node_name}/gpus/{gpu_id}/freeze` - Freeze a specific GPU
+  - Body: `{"duration_seconds": 43200}`
+  - Response: `{"status": "frozen", "node_name": "node1", "gpu_id": 0, "frozen_until": "2025-10-29T22:30:00"}`
+  - Description: Prevents job scheduling on the specified GPU for the given duration
+- `POST /nodes/{node_name}/gpus/{gpu_id}/unfreeze` - Unfreeze a specific GPU
+  - Response: `{"status": "unfrozen", "node_name": "node1", "gpu_id": 0}`
+  - Description: Allows job scheduling on the GPU again
+- `POST /nodes/gpus/unfreeze` - Unfreeze all GPUs across all nodes
+  - Response: `{"status": "unfrozen", "unfrozen_count": 5}`
+  - Description: Unfreezes all frozen GPUs in the cluster
 
 ### Worker Endpoints
 

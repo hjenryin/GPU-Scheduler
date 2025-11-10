@@ -11,6 +11,8 @@ from scheduler.cli.cancel import cancel_command
 from scheduler.cli.config import config_command
 from scheduler.cli.status import status_command
 from scheduler.cli.purge import purge_command
+from scheduler.cli.freeze import freeze_command
+from scheduler.cli.unfreeze import unfreeze_command
 
 
 @click.group()
@@ -272,13 +274,13 @@ def status():
 @click.option('--cancelled', is_flag=True, help='Only purge cancelled jobs')
 def purge(target, failed, completed, cancelled):
     """Purge jobs by time or job ID
-    
+
     TARGET can be either:
     - A time duration: 7d, 3w, 24h, 30m (days, weeks, hours, minutes)
     - A specific job ID
-    
+
     Examples:
-    
+
     \b
     scheduler purge 7d              # Purge all terminal jobs older than 7 days
     scheduler purge 3w --failed     # Purge failed jobs older than 3 weeks
@@ -292,6 +294,63 @@ def purge(target, failed, completed, cancelled):
             completed=completed,
             cancelled=cancelled
         )
+        sys.exit(code)
+    except KeyboardInterrupt:
+        click.echo("\nInterrupted")
+        sys.exit(130)
+    except Exception as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument('target')
+@click.argument('duration')
+def freeze(target, duration):
+    """Freeze a GPU for a specified duration
+
+    Prevents jobs from being scheduled on the specified GPU.
+
+    TARGET format: node:GPUx or node:x (e.g., "node1:GPU0" or "node1:0")
+    DURATION format: <number><unit> where unit is s/m/h/d/w
+
+    Examples:
+
+    \b
+    scheduler freeze node1:GPU0 12h    # Freeze GPU 0 on node1 for 12 hours
+    scheduler freeze node1:0 30m       # Freeze GPU 0 on node1 for 30 minutes
+    scheduler freeze gpu2:GPU1 2d      # Freeze GPU 1 on gpu2 for 2 days
+    """
+    try:
+        code = freeze_command(target=target, duration=duration)
+        sys.exit(code)
+    except KeyboardInterrupt:
+        click.echo("\nInterrupted")
+        sys.exit(130)
+    except Exception as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument('target', required=False)
+def unfreeze(target):
+    """Unfreeze GPU(s)
+
+    Allows jobs to be scheduled on the specified GPU(s) again.
+
+    TARGET format: node:GPUx or node:x (e.g., "node1:GPU0" or "node1:0")
+    If no target is specified, unfreezes all GPUs.
+
+    Examples:
+
+    \b
+    scheduler unfreeze node1:GPU0      # Unfreeze GPU 0 on node1
+    scheduler unfreeze node1:0         # Unfreeze GPU 0 on node1
+    scheduler unfreeze                 # Unfreeze all GPUs
+    """
+    try:
+        code = unfreeze_command(target=target)
         sys.exit(code)
     except KeyboardInterrupt:
         click.echo("\nInterrupted")

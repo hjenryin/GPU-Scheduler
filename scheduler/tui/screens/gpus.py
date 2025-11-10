@@ -73,7 +73,12 @@ class GPUsScreen(Screen):
             len(node.get_free_gpus(util_threshold, mem_threshold, stable_time))
             for node in active_nodes
         )
-        in_use_gpus = total_gpus - free_gpus
+        # Count frozen GPUs
+        frozen_gpus = sum(
+            sum(1 for gpu in node.gpus if gpu.is_frozen())
+            for node in active_nodes
+        )
+        in_use_gpus = total_gpus - free_gpus - frozen_gpus
 
         # Calculate average utilization (only for active nodes)
         all_utils = []
@@ -92,7 +97,7 @@ class GPUsScreen(Screen):
 
         summary = (
             f"Total GPUs: {total_gpus} | Free: {free_gpus} | "
-            f"In Use: {in_use_gpus} | "
+            f"In Use: {in_use_gpus} | Frozen: {frozen_gpus} | "
             f"Avg Utilization: {avg_util:.1f}%\n"
             f"Memory: {format_gpu_memory(used_memory)} / "
             f"{format_gpu_memory(total_memory)} "
@@ -111,22 +116,27 @@ class GPUsScreen(Screen):
 
         for node in active_nodes:
             for gpu in node.gpus:
-                # Check if GPU is free using the same logic as get_free_gpus
-                # A GPU is only truly "Free" if it meets utilization/memory
-                # thresholds AND is stable
-                is_free = gpu.stats.is_free(util_threshold, mem_threshold)
-                is_stable = gpu.is_stable(stable_time)
-
-                if is_free and is_stable:
-                    status = "Free"
+                # Check if GPU is frozen first
+                if gpu.is_frozen():
+                    status = "Frozen"
                     job_id = "-"
-                elif gpu.stats.running_job_id is not None:
-                    status = "In Use"
-                    job_id = gpu.stats.running_job_id
                 else:
-                    # GPU has no job but is not yet stable or above thresholds
-                    status = "Waiting"
-                    job_id = "-"
+                    # Check if GPU is free using the same logic as get_free_gpus
+                    # A GPU is only truly "Free" if it meets utilization/memory
+                    # thresholds AND is stable
+                    is_free = gpu.stats.is_free(util_threshold, mem_threshold)
+                    is_stable = gpu.is_stable(stable_time)
+
+                    if is_free and is_stable:
+                        status = "Free"
+                        job_id = "-"
+                    elif gpu.stats.running_job_id is not None:
+                        status = "In Use"
+                        job_id = gpu.stats.running_job_id
+                    else:
+                        # GPU has no job but is not yet stable or above thresholds
+                        status = "Waiting"
+                        job_id = "-"
 
                 gpu_table.add_row(
                     node.node_name,

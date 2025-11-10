@@ -91,6 +91,11 @@ class HeartbeatResponse(BaseModel):
     active_job_ids: List[str] = []  # Job IDs to keep on worker (purge all others)
 
 
+class GPUFreezeRequest(BaseModel):
+    """GPU freeze request schema"""
+    duration_seconds: int  # Duration to freeze GPU in seconds
+
+
 class GPUResponse(BaseModel):
     """GPU response schema"""
     gpu_id: int
@@ -102,6 +107,7 @@ class GPUResponse(BaseModel):
     power_limit: Optional[int] = None
     running_job_id: Optional[str] = None
     stable_since: Optional[str] = None
+    frozen_until: Optional[str] = None
 
 
 class NodeResponse(BaseModel):
@@ -127,7 +133,8 @@ class NodeResponse(BaseModel):
                 power_draw=gpu.stats.power_draw,
                 power_limit=gpu.stats.power_limit,
                 running_job_id=gpu.stats.running_job_id,
-                stable_since=gpu.stable_since.isoformat() if gpu.stable_since else None
+                stable_since=gpu.stable_since.isoformat() if gpu.stable_since else None,
+                frozen_until=gpu.frozen_until.isoformat() if gpu.frozen_until else None
             )
             for gpu in node.gpus
         ]

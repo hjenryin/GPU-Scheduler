@@ -706,11 +706,13 @@ class SchedulerClient:
                 )
 
                 stable_since = datetime.fromisoformat(gpu_data["stable_since"]) if gpu_data.get("stable_since") else None
+                frozen_until = datetime.fromisoformat(gpu_data["frozen_until"]) if gpu_data.get("frozen_until") else None
 
                 gpu = GPU(
                     gpu_id=gpu_data["gpu_id"],
                     stats=stats,
-                    stable_since=stable_since
+                    stable_since=stable_since,
+                    frozen_until=frozen_until
                 )
                 node.gpus.append(gpu)
 
@@ -753,4 +755,89 @@ class SchedulerClient:
                 
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to request cluster shutdown: {e}")
+            raise ConnectionException(f"Failed to connect to head node: {e}")
+
+    def freeze_gpu(self, node_name: str, gpu_id: int, duration_seconds: int) -> dict:
+        """
+        Freeze a specific GPU for a duration.
+
+        Args:
+            node_name: Name of the node
+            gpu_id: GPU ID to freeze
+            duration_seconds: Duration to freeze GPU in seconds
+
+        Returns:
+            Response dict with freeze status
+
+        Raises:
+            NodeNotFoundException: If node not found
+            ConnectionException: If cannot connect
+        """
+        payload = {"duration_seconds": duration_seconds}
+
+        try:
+            response = self.session.post(
+                f"{self.base_url}/nodes/{node_name}/gpus/{gpu_id}/freeze",
+                json=payload,
+                timeout=30
+            )
+            if response.status_code == 404:
+                raise NodeNotFoundException(f"Node {node_name} not found")
+            response.raise_for_status()
+            return response.json()
+        except NodeNotFoundException:
+            raise
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to freeze GPU {gpu_id} on node {node_name}: {e}")
+            raise ConnectionException(f"Failed to connect to head node: {e}")
+
+    def unfreeze_gpu(self, node_name: str, gpu_id: int) -> dict:
+        """
+        Unfreeze a specific GPU.
+
+        Args:
+            node_name: Name of the node
+            gpu_id: GPU ID to unfreeze
+
+        Returns:
+            Response dict with unfreeze status
+
+        Raises:
+            NodeNotFoundException: If node not found
+            ConnectionException: If cannot connect
+        """
+        try:
+            response = self.session.post(
+                f"{self.base_url}/nodes/{node_name}/gpus/{gpu_id}/unfreeze",
+                timeout=30
+            )
+            if response.status_code == 404:
+                raise NodeNotFoundException(f"Node {node_name} not found")
+            response.raise_for_status()
+            return response.json()
+        except NodeNotFoundException:
+            raise
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to unfreeze GPU {gpu_id} on node {node_name}: {e}")
+            raise ConnectionException(f"Failed to connect to head node: {e}")
+
+    def unfreeze_all_gpus(self) -> dict:
+        """
+        Unfreeze all GPUs across all nodes.
+
+        Returns:
+            Response dict with count of unfrozen GPUs
+
+        Raises:
+            ConnectionException: If cannot connect
+        """
+        try:
+            response = self.session.post(
+                f"{self.base_url}/nodes/gpus/unfreeze",
+                timeout=30
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to unfreeze all GPUs: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")

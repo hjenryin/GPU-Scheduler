@@ -97,7 +97,12 @@ class ClusterScreen(Screen):
             len(node.get_free_gpus(util_threshold, mem_threshold, stable_time))
             for node in active_nodes_list
         )
-        in_use_gpus = total_gpus - free_gpus
+        # Count frozen GPUs
+        frozen_gpus = sum(
+            sum(1 for gpu in node.gpus if gpu.is_frozen())
+            for node in active_nodes_list
+        )
+        in_use_gpus = total_gpus - free_gpus - frozen_gpus
 
         pending_jobs = len([j for j in jobs if j.status.value == "pending"])
         running_jobs = len([j for j in jobs if j.status.value == "running"])
@@ -107,7 +112,7 @@ class ClusterScreen(Screen):
         summary = (
             f"Nodes: {active_nodes} active | "
             f"GPUs: {total_gpus} total, {free_gpus} free, "
-            f"{in_use_gpus} in use\n"
+            f"{in_use_gpus} in use, {frozen_gpus} frozen\n"
             f"Jobs: {pending_jobs} pending, {running_jobs} running, "
             f"{completed_jobs} completed, {failed_jobs} failed"
         )
@@ -154,16 +159,20 @@ class ClusterScreen(Screen):
             logger.info(f"Node {node.node_name}: {len(node.gpus)} GPUs")
             gpu_line = f"{node.node_name}: "
 
-            # Separate GPUs into used and free
+            # Separate GPUs into used, free, and frozen
             used_gpus = []
             free_gpus = []
+            frozen_gpus = []
             for gpu in node.gpus:
-                is_free = gpu.stats.is_free(util_threshold, mem_threshold)
-                is_stable = gpu.is_stable(stable_time)
-                if is_free and is_stable:
-                    free_gpus.append(gpu.gpu_id)
+                if gpu.is_frozen():
+                    frozen_gpus.append(gpu.gpu_id)
                 else:
-                    used_gpus.append((gpu.gpu_id, gpu.stats.utilization))
+                    is_free = gpu.stats.is_free(util_threshold, mem_threshold)
+                    is_stable = gpu.is_stable(stable_time)
+                    if is_free and is_stable:
+                        free_gpus.append(gpu.gpu_id)
+                    else:
+                        used_gpus.append((gpu.gpu_id, gpu.stats.utilization))
 
             # Display used GPUs with utilization
             if used_gpus:
@@ -182,6 +191,17 @@ class ClusterScreen(Screen):
                 else:
                     # For many free GPUs, show range or count
                     gpu_line += f"{len(free_gpus)} GPUs free"
+
+            # Display frozen GPUs
+            if frozen_gpus:
+                if used_gpus or free_gpus:
+                    gpu_line += "; "
+                if len(frozen_gpus) == 1:
+                    gpu_line += f"GPU{frozen_gpus[0]} frozen"
+                elif len(frozen_gpus) <= 3:
+                    gpu_line += ", ".join([f"GPU{gid}" for gid in frozen_gpus]) + " frozen"
+                else:
+                    gpu_line += f"{len(frozen_gpus)} GPUs frozen"
 
             gpu_status_text += gpu_line + "\n"
         logger.info(f"GPU status text length: {len(gpu_status_text)}")

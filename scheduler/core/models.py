@@ -127,17 +127,19 @@ class GPUStats:
 
 class GPU:
     """GPU resource representation"""
-    
+
     # Class attributes with defaults (enables create_autospec to work with spec_set)
     gpu_id: int = 0
     stats: GPUStats = None
     stable_since: Optional[datetime] = None
+    frozen_until: Optional[datetime] = None
 
     def __init__(
         self,
         gpu_id: int,
         stats: GPUStats,
-        stable_since: Optional[datetime] = None
+        stable_since: Optional[datetime] = None,
+        frozen_until: Optional[datetime] = None
     ):
         """
         Initialize GPU.
@@ -146,10 +148,12 @@ class GPU:
             gpu_id: GPU index
             stats: Current GPU statistics
             stable_since: Timestamp when GPU became stable (below threshold)
+            frozen_until: Timestamp until which GPU is frozen (no jobs can run)
         """
         self.gpu_id = gpu_id
         self.stats = stats
         self.stable_since = stable_since
+        self.frozen_until = frozen_until
 
     def update_stats(self, stats: GPUStats, util_threshold: float, mem_threshold: float):
         """Update GPU statistics and stability tracking.
@@ -194,6 +198,30 @@ class GPU:
         logger.debug(f"GPU {self.gpu_id}: is_stable={is_stable} (elapsed={elapsed:.2f}s, required={stable_time}s)")
         return is_stable
 
+    def is_frozen(self) -> bool:
+        """Check if GPU is currently frozen.
+
+        Returns:
+            True if GPU is frozen (frozen_until is in the future)
+        """
+        if self.frozen_until is None:
+            return False
+        return datetime.now() < self.frozen_until
+
+    def freeze(self, duration_seconds: int):
+        """Freeze GPU for a specified duration.
+
+        Args:
+            duration_seconds: Duration to freeze GPU in seconds
+        """
+        self.frozen_until = datetime.now() + timedelta(seconds=duration_seconds)
+        logger.info(f"GPU {self.gpu_id}: Frozen until {self.frozen_until}")
+
+    def unfreeze(self):
+        """Unfreeze GPU immediately."""
+        self.frozen_until = None
+        logger.info(f"GPU {self.gpu_id}: Unfrozen")
+
     def to_dict(self) -> dict:
         """Convert to dictionary representation.
 
@@ -203,7 +231,8 @@ class GPU:
         return {
             'gpu_id': self.gpu_id,
             'stats': self.stats.to_dict(),
-            'stable_since': self.stable_since.isoformat() if self.stable_since else None
+            'stable_since': self.stable_since.isoformat() if self.stable_since else None,
+            'frozen_until': self.frozen_until.isoformat() if self.frozen_until else None
         }
 
     @classmethod
@@ -220,10 +249,15 @@ class GPU:
         if data.get('stable_since'):
             stable_since = datetime.fromisoformat(data['stable_since'])
 
+        frozen_until = None
+        if data.get('frozen_until'):
+            frozen_until = datetime.fromisoformat(data['frozen_until'])
+
         return cls(
             gpu_id=data['gpu_id'],
             stats=GPUStats.from_dict(data['stats']),
-            stable_since=stable_since
+            stable_since=stable_since,
+            frozen_until=frozen_until
         )
 
 
@@ -597,10 +631,16 @@ class Node:
             stable_time: Required stable time in seconds
 
         Returns:
-            List of GPU IDs that are free and stable (based on actual usage)
+            List of GPU IDs that are free, stable, and not frozen (based on actual usage)
         """
         free_gpus = []
         for gpu in self.gpus:
+            # Check if GPU is frozen
+            is_frozen = gpu.is_frozen()
+            if is_frozen:
+                logger.debug(f"GPU {gpu.gpu_id}: frozen until {gpu.frozen_until}, skipping")
+                continue
+
             # Check if GPU has low usage and is stable
             # We rely purely on actual GPU monitoring, not internal job tracking
             is_free = gpu.stats.is_free(util_threshold, mem_threshold)

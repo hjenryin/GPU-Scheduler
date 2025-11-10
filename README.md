@@ -238,6 +238,8 @@ This is a **coordination system**, not an enforcement system. It works well when
 | `scheduler jobs` | List jobs (non-interactive) | [→ Docs](API_REFERENCE.md#scheduler-jobs) |
 | `scheduler logs` | View job logs | [→ Docs](API_REFERENCE.md#scheduler-logs) |
 | `scheduler cancel` | Cancel jobs | [→ Docs](API_REFERENCE.md#scheduler-cancel) |
+| `scheduler freeze` | Freeze GPUs temporarily | [→ Docs](API_REFERENCE.md#gpu-freeze-unfreeze) |
+| `scheduler unfreeze` | Unfreeze GPUs | [→ Docs](API_REFERENCE.md#gpu-freeze-unfreeze) |
 | `scheduler config` | Manage configuration | [→ Docs](API_REFERENCE.md#configuration) |
 
 ### Job Management
@@ -259,6 +261,7 @@ This is a **coordination system**, not an enforcement system. It works well when
 - ✅ **Power consumption**: Current power draw per GPU
 - ✅ **Stability detection**: Configurable thresholds and stable time
 - ✅ **Grace periods**: Prevent over-scheduling during job initialization
+- ✅ **GPU freezing**: Temporarily prevent job scheduling on specific GPUs
 
 ### Cluster Management
 
@@ -310,6 +313,7 @@ logs = client.get_job_logs(job.job_id)
 - `cancel_job()` - Cancel jobs
 - `get_job_logs()` / `stream_job_logs()` - View logs
 - `list_nodes()` / `get_node()` - Query nodes
+- `freeze_gpu()` / `unfreeze_gpu()` / `unfreeze_all_gpus()` - Manage GPU freezing
 - `health_check()` - Check head node status
 - `shutdown_cluster()` - Programmatic cluster shutdown
 
