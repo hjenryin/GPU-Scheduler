@@ -20,8 +20,8 @@ def _cleanup_daemon_logs(log_dir: str, daemon_prefix: str, max_age_hours: int = 
     entries. This prevents stale log entries from previous runs from accumulating
     while preserving recent logs.
 
-    Since logs are always generated in chronological order, we can efficiently
-    find the first recent entry and keep everything from that point onward.
+    Since logs are always generated in chronological order, we use binary search
+    to efficiently find the first recent entry in O(log n) time.
 
     Args:
         log_dir: Directory containing log files
@@ -33,6 +33,18 @@ def _cleanup_daemon_logs(log_dir: str, daemon_prefix: str, max_age_hours: int = 
 
     cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
 
+    def extract_timestamp(line: str):
+        """Extract and parse timestamp from log line."""
+        # Common format: "2025-11-10 12:34:56,123 - ..." or similar
+        timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', line)
+        if timestamp_match:
+            try:
+                timestamp_str = timestamp_match.group(1)
+                return datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                pass
+        return None
+
     # Process both stdout and stderr log files for this daemon
     for log_type in ['stdout', 'stderr']:
         log_file = os.path.join(log_dir, f'{daemon_prefix}-{log_type}.log')
@@ -41,47 +53,43 @@ def _cleanup_daemon_logs(log_dir: str, daemon_prefix: str, max_age_hours: int = 
             continue
 
         try:
-            # Read the log file line by line to find first recent entry
+            # Read the log file
             with open(log_file, 'r') as f:
                 lines = f.readlines()
 
             if not lines:
                 continue
 
-            # Find the index of the first line with timestamp >= cutoff_time
+            # Binary search to find first line with timestamp >= cutoff_time
+            left, right = 0, len(lines) - 1
             first_recent_idx = None
-            removed_count = 0
 
-            for idx, line in enumerate(lines):
-                # Try to extract timestamp from log line
-                # Common format: "2025-11-10 12:34:56,123 - ..." or similar
-                timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', line)
+            while left <= right:
+                mid = (left + right) // 2
+                timestamp = extract_timestamp(lines[mid])
 
-                if timestamp_match:
-                    try:
-                        timestamp_str = timestamp_match.group(1)
-                        timestamp = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
+                if timestamp is None:
+                    # No timestamp, search left side to find timestamped entries
+                    right = mid - 1
+                    continue
 
-                        if timestamp >= cutoff_time:
-                            # Found first recent entry - keep from here onward
-                            first_recent_idx = idx
-                            removed_count = idx
-                            break
-                    except ValueError:
-                        # Can't parse timestamp, assume it might be recent
-                        first_recent_idx = idx
-                        removed_count = idx
-                        break
+                if timestamp >= cutoff_time:
+                    # This line is recent, but there might be earlier recent lines
+                    first_recent_idx = mid
+                    right = mid - 1
+                else:
+                    # This line is old, search right side
+                    left = mid + 1
 
             # If no recent entries found, remove entire file
             if first_recent_idx is None:
                 os.remove(log_file)
                 logger.info(f"Removed {daemon_prefix}-{log_type}.log (all entries older than {max_age_hours}h)")
-            elif removed_count > 0:
+            elif first_recent_idx > 0:
                 # Write back only recent entries
                 with open(log_file, 'w') as f:
                     f.writelines(lines[first_recent_idx:])
-                logger.info(f"Cleaned {removed_count} old log entries from {daemon_prefix}-{log_type}.log")
+                logger.info(f"Cleaned {first_recent_idx} old log entries from {daemon_prefix}-{log_type}.log")
 
         except OSError as e:
             logger.warning(f"Failed to clean up daemon log {log_file}: {e}")
