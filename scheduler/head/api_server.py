@@ -6,7 +6,6 @@ import uvicorn
 from fastapi import FastAPI
 
 from scheduler.manager import JobManager, NodeManager
-from scheduler.manager.log_position_manager import LogPositionManager
 from scheduler.core import Config, PermissionDeniedException
 from scheduler.api import create_app
 
@@ -34,15 +33,12 @@ class APIServer:
         self.node_manager = node_manager
         self.config = config
 
-        # Create log position manager
-        self.log_position_manager = LogPositionManager(config, job_manager)
-
         # Get server configuration
         self.host = '0.0.0.0'
         self.port = config.head.port
 
         # Create FastAPI app
-        self.app = create_app(job_manager, node_manager, self.log_position_manager)
+        self.app = create_app(job_manager, node_manager)
 
         # Server state
         self.server: Optional[uvicorn.Server] = None

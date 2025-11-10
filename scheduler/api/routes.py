@@ -6,7 +6,6 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import StreamingResponse
 
 from scheduler.manager import JobManager, NodeManager
-from scheduler.manager.log_position_manager import LogPositionManager
 from scheduler.api.schemas import (
     JobSubmitRequest, JobResponse, JobListResponse,
     NodeRegisterRequest, NodeHeartbeat, HeartbeatResponse, NodeResponse
@@ -19,13 +18,11 @@ logger = logging.getLogger(__name__)
 # Global references (will be set by create_app)
 _job_manager: Optional[JobManager] = None
 _node_manager: Optional[NodeManager] = None
-_log_position_manager: Optional[LogPositionManager] = None
 
 
 def create_app(
     job_manager: JobManager,
-    node_manager: NodeManager,
-    log_position_manager: LogPositionManager
+    node_manager: NodeManager
 ) -> FastAPI:
     """
     Create FastAPI application with all routes.
@@ -33,15 +30,13 @@ def create_app(
     Args:
         job_manager: JobManager instance
         node_manager: NodeManager instance
-        log_position_manager: LogPositionManager instance
 
     Returns:
         FastAPI application
     """
-    global _job_manager, _node_manager, _log_position_manager
+    global _job_manager, _node_manager
     _job_manager = job_manager
     _node_manager = node_manager
-    _log_position_manager = log_position_manager
 
     app = FastAPI(
         title="GPU Scheduler API",
@@ -235,12 +230,6 @@ async def get_job_logs_route(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-async def stream_job_logs_route(job_id: str, stderr: bool = False):
-    """GET /api/v1/jobs/{job_id}/logs/stream - Stream job logs (WebSocket)"""
-    # This would use WebSocket - simplified for now
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Log streaming not yet implemented")
-
-
 async def register_node_route(request: NodeRegisterRequest) -> dict:
     """POST /api/v1/nodes/register - Register a worker node"""
     try:
@@ -262,13 +251,6 @@ async def heartbeat_route(node_name: str, request: NodeHeartbeat) -> HeartbeatRe
         gpu_stats = [GPUStats.from_dict(stat) for stat in request.gpu_stats]
         _node_manager.update_heartbeat(node_name, gpu_stats)
 
-        # Process log chunks from worker
-        for log_chunk in request.log_chunks:
-            _log_position_manager.process_chunk(log_chunk)
-
-        # Get log requests for this node
-        log_requests = _log_position_manager.get_requests_for_node(node_name)
-
         # Get active job IDs for this node (worker will purge jobs not in this list)
         active_job_ids = _job_manager.get_active_jobs_for_node(node_name)
 
@@ -279,7 +261,6 @@ async def heartbeat_route(node_name: str, request: NodeHeartbeat) -> HeartbeatRe
         return HeartbeatResponse(
             status="ok",
             shutdown_requested=shutdown_requested,
-            log_requests=log_requests,
             active_job_ids=active_job_ids
         )
     except NodeNotFoundException as e:

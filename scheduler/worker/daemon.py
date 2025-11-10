@@ -12,7 +12,6 @@ from scheduler.worker.gpu_monitor import GPUMonitor
 from scheduler.worker.job_executor import JobExecutor
 from scheduler.worker.heartbeat import HeartbeatSender
 from scheduler.worker.file_handler import FileHandler
-from scheduler.worker.log_reader import LogChunkReader
 from scheduler.worker.git_snapshot import GitSnapshotManager
 from scheduler.api import SchedulerClient
 
@@ -61,16 +60,18 @@ class WorkerDaemon:
         # Initialize file handler
         self.file_handler = FileHandler(config)
 
-        # Initialize log chunk reader for streaming logs to head
-        self.log_reader = LogChunkReader(config, self.file_handler)
+        # Cleanup old logs on startup (older than 24 hours)
+        logger.info("Cleaning up old log files on startup...")
+        removed_count = self.file_handler.cleanup_old_logs(max_age_hours=24)
+        if removed_count > 0:
+            logger.info(f"Cleaned up {removed_count} old log files on startup")
 
         # Initialize heartbeat sender
         self.heartbeat_sender = HeartbeatSender(
             node_name=node_name,
             head_address=self.head_address,
             gpu_monitor=self.gpu_monitor,
-            config=config,
-            log_reader=self.log_reader
+            config=config
         )
 
         # Initialize client for job operations
@@ -240,9 +241,6 @@ class WorkerDaemon:
                 is_running, exit_code = self.job_executor.get_job_status(pid)
 
                 if not is_running:
-                    # Mark job as finished in log reader (will send EOF when all logs sent)
-                    self.log_reader.mark_job_finished(job.job_id)
-
                     # Job completed - cleanup resources
                     self.job_executor.cleanup_job(job)
 
@@ -262,8 +260,6 @@ class WorkerDaemon:
 
         except Exception as e:
             logger.error(f"Error executing job {job.job_id}: {e}")
-            # Mark job as finished in log reader
-            self.log_reader.mark_job_finished(job.job_id)
             # Cleanup resources on error
             if self.current_job:
                 self.job_executor.cleanup_job(self.current_job)

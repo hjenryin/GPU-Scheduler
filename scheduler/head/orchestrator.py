@@ -12,6 +12,7 @@ from scheduler.core import Config, PermissionDeniedException
 from scheduler.storage import FileBackend, SQLiteBackend
 from scheduler.manager import PersistenceManager, JobManager, NodeManager, Scheduler
 from scheduler.head.api_server import APIServer
+from scheduler.worker.file_handler import FileHandler
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,14 @@ class Orchestrator:
 
         # Initialize API server
         self.api_server = APIServer(self.job_manager, self.node_manager, config)
+
+        # Cleanup old logs on startup (older than 24 hours)
+        # Head node cleans up logs in case it's also running a worker
+        logger.info("Cleaning up old log files on startup...")
+        file_handler = FileHandler(config)
+        removed_count = file_handler.cleanup_old_logs(max_age_hours=24)
+        if removed_count > 0:
+            logger.info(f"Cleaned up {removed_count} old log files on startup")
 
         # Setup signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)

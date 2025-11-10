@@ -396,49 +396,6 @@ class SchedulerClient:
             logger.error(f"Failed to get logs for job {job_id}: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")
 
-    def stream_job_logs(
-        self,
-        job_id: str,
-        stderr: bool = False
-    ) -> Iterator[str]:
-        """
-        Stream job logs in real-time.
-
-        Args:
-            job_id: Job ID
-            stderr: If True, stream stderr
-
-        Yields:
-            Log lines as they arrive
-
-        Raises:
-            JobNotFoundException: If job not found
-            ConnectionException: If cannot connect
-        """
-        params = {"stream": "true"}
-        if stderr:
-            params["stderr"] = "true"
-
-        try:
-            response = self.session.get(
-                f"{self.base_url}/jobs/{job_id}/logs",
-                params=params,
-                stream=True,
-                timeout=None  # No timeout for streaming
-            )
-            if response.status_code == 404:
-                raise JobNotFoundException(f"Job {job_id} not found")
-            response.raise_for_status()
-
-            for line in response.iter_lines(decode_unicode=True):
-                if line:
-                    yield line
-        except JobNotFoundException:
-            raise
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to stream logs for job {job_id}: {e}")
-            raise ConnectionException(f"Failed to connect to head node: {e}")
-
     def list_nodes(self) -> List[Node]:
         """
         List all nodes.
@@ -524,19 +481,17 @@ class SchedulerClient:
     def send_heartbeat(
         self,
         node_name: str,
-        gpu_stats: List[GPUStats],
-        log_chunks: List = None
+        gpu_stats: List[GPUStats]
     ):
         """
-        Send heartbeat with log chunks (worker use only).
+        Send heartbeat (worker use only).
 
         Args:
             node_name: Node name
             gpu_stats: GPU statistics
-            log_chunks: List of LogChunk objects to send
 
         Returns:
-            HeartbeatResponse with shutdown_requested and log_requests
+            HeartbeatResponse with shutdown_requested and active_job_ids
 
         Raises:
             ConnectionException: If cannot connect
@@ -544,8 +499,7 @@ class SchedulerClient:
         from scheduler.api.schemas import HeartbeatResponse
 
         payload = {
-            "gpu_stats": [stats.to_dict() for stats in gpu_stats],
-            "log_chunks": [chunk.dict() for chunk in (log_chunks or [])]
+            "gpu_stats": [stats.to_dict() for stats in gpu_stats]
         }
 
         try:

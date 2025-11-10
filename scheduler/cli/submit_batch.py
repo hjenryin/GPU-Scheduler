@@ -17,7 +17,6 @@ def submit_batch_command(
     priority: int = 0,
     env: List[str] = None,
     working_dir: Optional[str] = None,
-    block: bool = False,
     sequential: bool = False
 ) -> int:
     """
@@ -31,7 +30,6 @@ def submit_batch_command(
         priority: Job priority (applied to all jobs)
         env: List of "KEY=VALUE" environment variables (applied to all jobs)
         working_dir: Working directory for jobs (applied to all jobs)
-        block: If True, wait for last job completion and stream logs
         sequential: If True, each job depends on the previous job
 
     Returns:
@@ -164,40 +162,7 @@ def submit_batch_command(
         click.echo(f"  Succeeded: {succeeded}/{len(scripts_with_args)}")
         click.echo(f"  Failed: {failed}/{len(scripts_with_args)}")
         click.echo(f"{'='*50}")
-        
-        # Handle block mode - stream logs and wait for last job
-        if block and submitted_jobs:
-            last_job = submitted_jobs[-1]
-            click.echo(f"\nWaiting for last job ({last_job.job_id}) to complete and streaming logs (Ctrl+C to stop)...")
-            
-            try:
-                for line in client.stream_job_logs(last_job.job_id):
-                    click.echo(line, nl=False)
-            except KeyboardInterrupt:
-                click.echo("\n\nStopped streaming logs (job still running)")
-                return 130
-            
-            # Get final job status
-            job = client.get_job(last_job.job_id)
-            click.echo(f"\n\nJob {job.status.value}")
-            if job.exit_code is not None:
-                click.echo(f"Exit code: {job.exit_code}")
-            
-            # If job failed, fetch and print stderr
-            if job.status.value == 'failed':
-                try:
-                    stderr = client.get_job_logs(last_job.job_id, stderr=True)
-                    if stderr:
-                        click.echo(f"\n=== STDERR ===")
-                        click.echo(stderr)
-                except Exception as e:
-                    click.echo(f"Could not fetch stderr: {e}")
-                
-                if job.error_message:
-                    click.echo(f"\nError: {job.error_message}")
-            
-            return 0 if job.status.value == 'completed' else 1
-        
+
         return 0 if failed == 0 else 1
         
     except ValidationException as e:
