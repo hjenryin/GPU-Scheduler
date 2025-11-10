@@ -20,12 +20,14 @@ def _cleanup_daemon_logs(log_dir: str, daemon_prefix: str, max_age_hours: int = 
     entries. This prevents stale log entries from previous runs from accumulating
     while preserving recent logs.
 
+    Since logs are always generated in chronological order, we can efficiently
+    find the first recent entry and keep everything from that point onward.
+
     Args:
         log_dir: Directory containing log files
         daemon_prefix: Prefix for log files (e.g., 'head' or 'worker-nodename')
         max_age_hours: Maximum age of log entries to keep in hours (default: 24)
     """
-    import time
     import re
     from datetime import datetime, timedelta
 
@@ -39,15 +41,18 @@ def _cleanup_daemon_logs(log_dir: str, daemon_prefix: str, max_age_hours: int = 
             continue
 
         try:
-            # Read the log file and filter out old entries
+            # Read the log file line by line to find first recent entry
             with open(log_file, 'r') as f:
                 lines = f.readlines()
 
-            # Keep only recent log entries
-            recent_lines = []
+            if not lines:
+                continue
+
+            # Find the index of the first line with timestamp >= cutoff_time
+            first_recent_idx = None
             removed_count = 0
 
-            for line in lines:
+            for idx, line in enumerate(lines):
                 # Try to extract timestamp from log line
                 # Common format: "2025-11-10 12:34:56,123 - ..." or similar
                 timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', line)
@@ -58,20 +63,24 @@ def _cleanup_daemon_logs(log_dir: str, daemon_prefix: str, max_age_hours: int = 
                         timestamp = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
 
                         if timestamp >= cutoff_time:
-                            recent_lines.append(line)
-                        else:
-                            removed_count += 1
+                            # Found first recent entry - keep from here onward
+                            first_recent_idx = idx
+                            removed_count = idx
+                            break
                     except ValueError:
-                        # If we can't parse timestamp, keep the line to be safe
-                        recent_lines.append(line)
-                else:
-                    # No timestamp found - keep the line (might be stack trace continuation, etc.)
-                    recent_lines.append(line)
+                        # Can't parse timestamp, assume it might be recent
+                        first_recent_idx = idx
+                        removed_count = idx
+                        break
 
-            # Write back only recent entries if we removed any old ones
-            if removed_count > 0:
+            # If no recent entries found, remove entire file
+            if first_recent_idx is None:
+                os.remove(log_file)
+                logger.info(f"Removed {daemon_prefix}-{log_type}.log (all entries older than {max_age_hours}h)")
+            elif removed_count > 0:
+                # Write back only recent entries
                 with open(log_file, 'w') as f:
-                    f.writelines(recent_lines)
+                    f.writelines(lines[first_recent_idx:])
                 logger.info(f"Cleaned {removed_count} old log entries from {daemon_prefix}-{log_type}.log")
 
         except OSError as e:
