@@ -258,3 +258,92 @@ class TestJobManager:
         """Test failing non-existent job"""
         with pytest.raises(JobNotFoundException):
             job_manager.fail_job("non-existent", "Test error")
+
+    def test_resolve_dependency_shorthand_single_caret(self, job_manager):
+        """Test resolving ^ to most recent job"""
+        job1 = job_manager.submit_job("/script1.py", "1")
+        job2 = job_manager.submit_job("/script2.py", "1")
+
+        resolved = job_manager.resolve_dependency_shorthand("^")
+        assert resolved == job2.job_id
+
+    def test_resolve_dependency_shorthand_double_caret(self, job_manager):
+        """Test resolving ^^ to second most recent job"""
+        job1 = job_manager.submit_job("/script1.py", "1")
+        job2 = job_manager.submit_job("/script2.py", "1")
+        job3 = job_manager.submit_job("/script3.py", "1")
+
+        resolved = job_manager.resolve_dependency_shorthand("^^")
+        assert resolved == job2.job_id
+
+    def test_resolve_dependency_shorthand_triple_caret(self, job_manager):
+        """Test resolving ^^^ to third most recent job"""
+        job1 = job_manager.submit_job("/script1.py", "1")
+        job2 = job_manager.submit_job("/script2.py", "1")
+        job3 = job_manager.submit_job("/script3.py", "1")
+        job4 = job_manager.submit_job("/script4.py", "1")
+
+        resolved = job_manager.resolve_dependency_shorthand("^^^")
+        assert resolved == job2.job_id
+
+    def test_resolve_dependency_shorthand_regular_job_id(self, job_manager):
+        """Test that regular job IDs pass through unchanged"""
+        job_id = "job_abc123"
+        resolved = job_manager.resolve_dependency_shorthand(job_id)
+        assert resolved == job_id
+
+    def test_resolve_dependency_shorthand_no_jobs(self, job_manager):
+        """Test error when no jobs exist to reference"""
+        with pytest.raises(ValueError, match="No previous jobs to reference"):
+            job_manager.resolve_dependency_shorthand("^")
+
+    def test_resolve_dependency_shorthand_insufficient_history(self, job_manager):
+        """Test error when not enough jobs exist"""
+        job1 = job_manager.submit_job("/script1.py", "1")
+
+        with pytest.raises(ValueError, match="Only 1 job available"):
+            job_manager.resolve_dependency_shorthand("^^")
+
+    def test_resolve_dependency_shorthand_invalid_syntax(self, job_manager):
+        """Test error for invalid syntax like ^a"""
+        with pytest.raises(ValueError, match="Invalid dependency syntax"):
+            job_manager.resolve_dependency_shorthand("^a")
+
+    def test_resolve_dependency_shorthand_excludes_failed(self, job_manager):
+        """Test that FAILED jobs are excluded from ^ resolution"""
+        job1 = job_manager.submit_job("/script1.py", "1")
+        job_manager.start_job(job1.job_id, "node1", [0])
+        job_manager.fail_job(job1.job_id, "Test failure")
+
+        job2 = job_manager.submit_job("/script2.py", "1")
+
+        # ^ should resolve to job2, not job1 (which is FAILED)
+        resolved = job_manager.resolve_dependency_shorthand("^")
+        assert resolved == job2.job_id
+
+    def test_resolve_dependency_shorthand_excludes_cancelled(self, job_manager):
+        """Test that CANCELLED jobs are excluded from ^ resolution"""
+        job1 = job_manager.submit_job("/script1.py", "1")
+        job_manager.cancel_job(job1.job_id)
+
+        job2 = job_manager.submit_job("/script2.py", "1")
+
+        # ^ should resolve to job2, not job1 (which is CANCELLED)
+        resolved = job_manager.resolve_dependency_shorthand("^")
+        assert resolved == job2.job_id
+
+    def test_submit_job_with_caret_dependency(self, job_manager):
+        """Test submitting job with ^ dependency gets resolved"""
+        job1 = job_manager.submit_job("/script1.py", "1")
+        job2 = job_manager.submit_job("/script2.py", "1", dependencies=["^"])
+
+        assert job2.dependencies == [job1.job_id]
+
+    def test_submit_job_with_mixed_dependencies(self, job_manager):
+        """Test submitting job with mix of ^ and regular job IDs"""
+        job1 = job_manager.submit_job("/script1.py", "1")
+        explicit_job_id = "job_explicit123"
+
+        job2 = job_manager.submit_job("/script2.py", "1", dependencies=["^", explicit_job_id])
+
+        assert job2.dependencies == [job1.job_id, explicit_job_id]
