@@ -12,6 +12,42 @@ from scheduler.worker import WorkerDaemon, SingletonDaemon
 logger = logging.getLogger(__name__)
 
 
+def _cleanup_daemon_logs(log_dir: str, daemon_prefix: str, max_age_hours: int = 24):
+    """
+    Clean up old daemon log files (stdout and stderr) before starting daemon.
+
+    This prevents stale logs from accumulating when daemons are restarted.
+    By cleaning up before opening log files in append mode, we ensure only
+    recent logs are retained.
+
+    Args:
+        log_dir: Directory containing log files
+        daemon_prefix: Prefix for log files (e.g., 'head' or 'worker-nodename')
+        max_age_hours: Maximum age of logs to keep in hours (default: 24)
+    """
+    import time
+
+    current_time = time.time()
+    max_age_seconds = max_age_hours * 3600
+
+    # Clean both stdout and stderr log files for this daemon
+    for log_type in ['stdout', 'stderr']:
+        log_file = os.path.join(log_dir, f'{daemon_prefix}-{log_type}.log')
+
+        if not os.path.exists(log_file):
+            continue
+
+        try:
+            file_mtime = os.path.getmtime(log_file)
+            age_seconds = current_time - file_mtime
+
+            if age_seconds > max_age_seconds:
+                os.remove(log_file)
+                logger.info(f"Removed old daemon log: {daemon_prefix}-{log_type}.log (age: {age_seconds / 3600:.1f} hours)")
+        except OSError as e:
+            logger.warning(f"Failed to clean up daemon log {log_file}: {e}")
+
+
 def start_command(
     head: bool = False,
     address: Optional[str] = None,
@@ -296,11 +332,15 @@ def _daemonize_head(config: Config, singleton: SingletonDaemon) -> int:
     # Redirect standard file descriptors
     sys.stdout.flush()
     sys.stderr.flush()
-    
+
     # Redirect stdin/stdout/stderr to log files
     log_dir = os.path.expanduser("~/.scheduler/logs")
     os.makedirs(log_dir, exist_ok=True)
-    
+
+    # Clean up old head node log files before opening them
+    # This prevents stale logs from accumulating across restarts
+    _cleanup_daemon_logs(log_dir, 'head')
+
     stdin = open('/dev/null', 'r')
     stdout = open(os.path.join(log_dir, 'head-stdout.log'), 'a')
     stderr = open(os.path.join(log_dir, 'head-stderr.log'), 'a')
@@ -429,10 +469,14 @@ def _daemonize_worker(config: Config, node_name: str, num_gpus: Optional[int], s
     
     sys.stdout.flush()
     sys.stderr.flush()
-    
+
     log_dir = os.path.expanduser("~/.scheduler/logs")
     os.makedirs(log_dir, exist_ok=True)
-    
+
+    # Clean up old worker node log files before opening them
+    # This prevents stale logs from accumulating across restarts
+    _cleanup_daemon_logs(log_dir, f'worker-{node_name}')
+
     stdin = open('/dev/null', 'r')
     stdout = open(os.path.join(log_dir, f'worker-{node_name}-stdout.log'), 'a')
     stderr = open(os.path.join(log_dir, f'worker-{node_name}-stderr.log'), 'a')
