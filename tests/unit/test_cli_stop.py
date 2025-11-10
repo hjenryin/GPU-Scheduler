@@ -153,19 +153,71 @@ class TestStopAllNodes:
     def test_stop_all_connection_exception(self, mock_client_class, mock_load, mock_is_head):
         """Test handling connection exception when stopping all nodes"""
         mock_is_head.return_value = False
-        
+
         mock_config = MagicMock()
         mock_config.address = "localhost:99999"
         mock_config.head.port = 99999
         mock_load.return_value = mock_config
-        
+
         mock_client = MagicMock()
         mock_client.list_nodes.side_effect = ConnectionException("Cannot connect")
         mock_client_class.return_value = mock_client
-        
+
         with patch('scheduler.cli.stop.click.echo', autospec=True):
             result = _stop_all_nodes()
             assert result == 1
+
+    @patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+    @patch('scheduler.cli.stop.load_config', autospec=True)
+    @patch('scheduler.cli.stop.SchedulerClient', autospec=True)
+    @patch('scheduler.cli.stop._stop_local_worker_nodes', autospec=True)
+    @patch('scheduler.cli.stop.os.path.exists', autospec=True)
+    @patch('scheduler.cli.stop.time.sleep', autospec=True)
+    def test_stop_all_with_no_wait_flag(self, mock_sleep, mock_exists, mock_stop_local,
+                                        mock_client_class, mock_load, mock_is_head):
+        """Test that --no-wait flag skips the sleep"""
+        from scheduler.core.config import Config
+        mock_is_head.return_value = True
+        mock_load.return_value = Config()
+        mock_stop_local.return_value = True
+        mock_exists.return_value = True
+
+        mock_client = MagicMock()
+        mock_client.list_nodes.return_value = []
+        mock_client.shutdown_cluster.return_value = True
+        mock_client_class.return_value = mock_client
+
+        with patch('scheduler.cli.stop.click.echo', autospec=True):
+            result = _stop_all_nodes(no_wait=True)
+            assert result == 0
+            # Verify that time.sleep was NOT called
+            mock_sleep.assert_not_called()
+
+    @patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+    @patch('scheduler.cli.stop.load_config', autospec=True)
+    @patch('scheduler.cli.stop.SchedulerClient', autospec=True)
+    @patch('scheduler.cli.stop._stop_local_worker_nodes', autospec=True)
+    @patch('scheduler.cli.stop.os.path.exists', autospec=True)
+    @patch('scheduler.cli.stop.time.sleep', autospec=True)
+    def test_stop_all_without_no_wait_flag(self, mock_sleep, mock_exists, mock_stop_local,
+                                           mock_client_class, mock_load, mock_is_head):
+        """Test that without --no-wait flag, sleep is called"""
+        from scheduler.core.config import Config
+        mock_is_head.return_value = True
+        mock_load.return_value = Config()
+        mock_stop_local.return_value = True
+        mock_exists.return_value = True
+
+        mock_client = MagicMock()
+        mock_client.list_nodes.return_value = []
+        mock_client.shutdown_cluster.return_value = True
+        mock_client_class.return_value = mock_client
+
+        with patch('scheduler.cli.stop.click.echo', autospec=True):
+            result = _stop_all_nodes(no_wait=False)
+            assert result == 0
+            # Verify that time.sleep WAS called with 16 seconds
+            mock_sleep.assert_called_once_with(16)
 
 
 class TestIsRunningOnHeadNode:

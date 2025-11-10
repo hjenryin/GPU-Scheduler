@@ -12,12 +12,13 @@ from scheduler.core import ConnectionException
 logger = logging.getLogger(__name__)
 
 
-def stop_command(all_nodes: bool = False) -> int:
+def stop_command(all_nodes: bool = False, no_wait: bool = False) -> int:
     """
     Stop scheduler on current node or all nodes.
 
     Args:
         all_nodes: If True, stop all nodes in cluster (head only)
+        no_wait: If True, skip waiting for workers to shut down
 
     Returns:
         Exit code (0 for success)
@@ -26,7 +27,7 @@ def stop_command(all_nodes: bool = False) -> int:
         ConnectionException: If cannot connect to scheduler
     """
     if all_nodes:
-        return _stop_all_nodes()
+        return _stop_all_nodes(no_wait=no_wait)
     
     # Check if head node is running (for warning)
     scheduler_dir = os.path.expanduser("~/.scheduler")
@@ -55,15 +56,18 @@ def stop_command(all_nodes: bool = False) -> int:
     return 0
 
 
-def _stop_all_nodes() -> int:
+def _stop_all_nodes(no_wait: bool = False) -> int:
     """
     Stop all nodes in the cluster.
-    
+
     This function:
     1. Detects if running from head node or worker node
     2. If from head: directly stops all nodes locally
     3. If from worker: calls head node's cluster shutdown API
-    
+
+    Args:
+        no_wait: If True, skip waiting for workers to shut down
+
     Returns:
         Exit code (0 for success)
     """
@@ -96,8 +100,11 @@ def _stop_all_nodes() -> int:
                     click.echo("✓ Shutdown signal sent to all workers")
                     # Give workers time to receive the signal and shut down (15+ seconds)
                     # This matches the timeout in the orchestrator
-                    click.echo("Waiting for workers to receive shutdown signal...")
-                    time.sleep(16)  # Wait slightly longer than orchestrator's 15s timeout
+                    if not no_wait:
+                        click.echo("Waiting for workers to receive shutdown signal...")
+                        time.sleep(16)  # Wait slightly longer than orchestrator's 15s timeout
+                    else:
+                        click.echo("⚠ Skipping wait - workers will shut down asynchronously")
                 except Exception as e:
                     logger.warning(f"Could not signal workers: {e}")
                     click.echo("⚠ Could not signal workers via API")
@@ -152,13 +159,17 @@ def _stop_all_nodes() -> int:
             success = client.shutdown_cluster(graceful_timeout=60, force=False)
             if success:
                 click.echo("✓ Cluster shutdown initiated successfully")
-                click.echo("Waiting for all workers to receive shutdown signal...")
 
-                # Wait for workers to receive shutdown signal and stop
-                # This matches the orchestrator's wait time
-                time.sleep(16)  # Wait slightly longer than orchestrator's 15s timeout
-                
-                click.echo("✓ All workers should have stopped")
+                if not no_wait:
+                    click.echo("Waiting for all workers to receive shutdown signal...")
+                    # Wait for workers to receive shutdown signal and stop
+                    # This matches the orchestrator's wait time
+                    time.sleep(16)  # Wait slightly longer than orchestrator's 15s timeout
+                    click.echo("✓ All workers should have stopped")
+                else:
+                    click.echo("⚠ Skipping wait - workers will shut down asynchronously")
+                    click.echo("Workers will stop within 10-20 seconds via heartbeat mechanism")
+
                 # Note: The current worker will also stop via the heartbeat mechanism
                 # No need to manually stop it
             else:
