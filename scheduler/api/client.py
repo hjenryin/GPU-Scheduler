@@ -481,19 +481,17 @@ class SchedulerClient:
     def send_heartbeat(
         self,
         node_name: str,
-        gpu_stats: List[GPUStats],
-        log_chunks: List = None
+        gpu_stats: List[GPUStats]
     ):
         """
-        Send heartbeat with log chunks (worker use only).
+        Send heartbeat (worker use only).
 
         Args:
             node_name: Node name
             gpu_stats: GPU statistics
-            log_chunks: List of LogChunk objects to send
 
         Returns:
-            HeartbeatResponse with shutdown_requested and log_requests
+            HeartbeatResponse with shutdown_requested and active_job_ids
 
         Raises:
             ConnectionException: If cannot connect
@@ -501,8 +499,7 @@ class SchedulerClient:
         from scheduler.api.schemas import HeartbeatResponse
 
         payload = {
-            "gpu_stats": [stats.to_dict() for stats in gpu_stats],
-            "log_chunks": [chunk.dict() for chunk in (log_chunks or [])]
+            "gpu_stats": [stats.to_dict() for stats in gpu_stats]
         }
 
         try:

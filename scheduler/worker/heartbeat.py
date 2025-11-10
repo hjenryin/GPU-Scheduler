@@ -1,12 +1,11 @@
 import logging
 import threading
 import time
-from typing import Optional, List
+from typing import Optional
 
 from scheduler.core import Config, Job
 from scheduler.worker.gpu_monitor import GPUMonitor
 from scheduler.api import SchedulerClient
-from scheduler.api.schemas import LogRequest
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +18,7 @@ class HeartbeatSender:
         node_name: str,
         head_address: str,
         gpu_monitor: GPUMonitor,
-        config: Config,
-        log_reader=None  # LogChunkReader instance (optional, set later to avoid circular dependency)
+        config: Config
     ):
         """
         Initialize heartbeat sender.
@@ -30,13 +28,11 @@ class HeartbeatSender:
             head_address: Head node address
             gpu_monitor: GPUMonitor instance
             config: Configuration instance
-            log_reader: LogChunkReader instance (optional)
         """
         self.node_name = node_name
         self.head_address = head_address
         self.gpu_monitor = gpu_monitor
         self.config = config
-        self.log_reader = log_reader
 
         # Create scheduler client
         self.client = SchedulerClient(address=head_address, config=config)
@@ -47,9 +43,6 @@ class HeartbeatSender:
         # Thread control
         self.running = False
         self.heartbeat_thread: Optional[threading.Thread] = None
-
-        # Store pending log requests from head
-        self.pending_log_requests: List[LogRequest] = []
 
         # Callback for cleanup notifications (gets active job IDs to keep)
         self.cleanup_callback = None
@@ -85,7 +78,7 @@ class HeartbeatSender:
 
     def send_heartbeat(self) -> bool:
         """
-        Send a single heartbeat to head node with log chunks.
+        Send a single heartbeat to head node.
 
         Returns:
             True if shutdown requested by head, False otherwise
@@ -94,23 +87,8 @@ class HeartbeatSender:
             # Get latest GPU stats
             gpu_stats = self.gpu_monitor.get_latest_stats()
 
-            # Read log chunks for pending requests (if log_reader is available)
-            log_chunks = []
-            if self.log_reader:
-                log_chunks = self.log_reader.read_chunks(self.pending_log_requests)
-                if log_chunks:
-                    total_bytes = sum(len(c.stdout_chunk or '') + len(c.stderr_chunk or '') for c in log_chunks)
-                    logger.info(f"Sending {len(log_chunks)} log chunks ({total_bytes} bytes) for jobs: {[c.job_id for c in log_chunks]}")
-            elif self.pending_log_requests:
-                logger.warning(f"Log reader not available but have {len(self.pending_log_requests)} pending log requests")
-
             # Send heartbeat and receive response
-            response = self.client.send_heartbeat(self.node_name, gpu_stats, log_chunks)
-
-            # Store log requests from response for next heartbeat
-            if response.log_requests:
-                logger.info(f"Received {len(response.log_requests)} log requests from head: {[(r.job_id, r.stdout_pos, r.stderr_pos) for r in response.log_requests]}")
-            self.pending_log_requests = response.log_requests
+            response = self.client.send_heartbeat(self.node_name, gpu_stats)
 
             # Handle cleanup - tell worker which jobs to keep (purge all others)
             if hasattr(response, 'active_job_ids') and self.cleanup_callback:
@@ -126,10 +104,7 @@ class HeartbeatSender:
                 logger.info(f"Shutdown requested by head node for {self.node_name}")
                 return True
 
-            logger.debug(
-                f"Sent heartbeat for node {self.node_name} "
-                f"(sent {len(log_chunks)} log chunks, received {len(self.pending_log_requests)} log requests)"
-            )
+            logger.debug(f"Sent heartbeat for node {self.node_name}")
             return False
         except Exception as e:
             logger.error(f"Failed to send heartbeat: {e}")

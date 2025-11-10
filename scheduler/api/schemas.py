@@ -79,43 +79,15 @@ class NodeRegisterRequest(BaseModel):
     num_gpus: int
 
 
-class LogRequest(BaseModel):
-    """Head → Worker: Request log chunk from position"""
-    job_id: str
-    stdout_pos: int  # Byte position to read from
-    stderr_pos: int
-
-
-class LogChunk(BaseModel):
-    """Worker → Head: Log chunk with position tracking"""
-    job_id: str
-
-    # Stdout data
-    stdout_chunk: str
-    requested_stdout_pos: int  # Position head requested
-    new_stdout_pos: int        # Next position to read from
-
-    # Stderr data
-    stderr_chunk: str
-    requested_stderr_pos: int
-    new_stderr_pos: int
-
-    # Status
-    eof: bool  # True when job finished AND all logs sent
-    position_error: bool = False  # True if couldn't read from requested position
-
-
 class NodeHeartbeat(BaseModel):
     """Node heartbeat request schema"""
     gpu_stats: List[dict]  # List of GPUStats dicts
-    log_chunks: List[LogChunk] = []
 
 
 class HeartbeatResponse(BaseModel):
     """Head → Worker: Heartbeat response"""
     status: str
     shutdown_requested: bool
-    log_requests: List[LogRequest] = []
     active_job_ids: List[str] = []  # Job IDs to keep on worker (purge all others)
 
 
