@@ -113,6 +113,9 @@ def submit_batch_command(
             if sequential and previous_job_id:
                 job_depends_on.append(previous_job_id)
 
+            # Store original dependencies for comparison
+            original_job_depends_on = job_depends_on.copy()
+
             try:
                 # Submit job
                 job = client.submit_job(
@@ -130,8 +133,16 @@ def submit_batch_command(
                 click.echo(f"Job ID: {job.job_id}")
                 click.echo(f"Status: {job.status.value}")
                 click.echo(f"Requirements: {req}")
-                if job_depends_on:
-                    click.echo(f"Dependencies: {', '.join(job_depends_on)}")
+
+                # Show resolved dependencies
+                if job.dependencies:
+                    dep_display = []
+                    for i, resolved_dep in enumerate(job.dependencies):
+                        if i < len(original_job_depends_on) and original_job_depends_on[i] != resolved_dep:
+                            dep_display.append(f"{resolved_dep} (resolved)")
+                        else:
+                            dep_display.append(resolved_dep)
+                    click.echo(f"Dependencies: {', '.join(dep_display)}")
 
                 succeeded += 1
                 submitted_jobs.append(job)

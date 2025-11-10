@@ -37,6 +37,55 @@ class JobManager:
             self.jobs[job.job_id] = job
         logger.info(f"Loaded {len(jobs)} jobs from storage")
 
+    def resolve_dependency_shorthand(self, dependency: str) -> str:
+        """
+        Resolve ^ shorthand syntax to actual job ID.
+
+        Args:
+            dependency: Either a job ID or ^ syntax (^, ^^, ^^^, etc.)
+
+        Returns:
+            Resolved job ID
+
+        Raises:
+            ValueError: If invalid syntax or insufficient history
+        """
+        # If doesn't start with ^, return as-is (already a job ID)
+        if not dependency.startswith('^'):
+            return dependency
+
+        # Count the number of carets to determine how far back
+        caret_count = len(dependency)
+        if not all(c == '^' for c in dependency):
+            # Invalid syntax like "^a" or "a^"
+            raise ValueError(f"Invalid dependency syntax: '{dependency}'. Use only ^ characters (e.g., ^, ^^, ^^^)")
+
+        # Get recent jobs, excluding FAILED and CANCELLED
+        exclude_states = {JobStatus.FAILED, JobStatus.CANCELLED}
+        recent_jobs = [
+            job for job in self.jobs.values()
+            if job.status not in exclude_states
+        ]
+
+        # Sort by submission time (newest first)
+        recent_jobs.sort(key=lambda j: j.submitted_at, reverse=True)
+
+        # Check if we have enough job history
+        if len(recent_jobs) == 0:
+            raise ValueError("No previous jobs to reference with '^'")
+
+        # Index is caret_count - 1 (^ = 0, ^^ = 1, etc.)
+        index = caret_count - 1
+
+        if index >= len(recent_jobs):
+            raise ValueError(
+                f"Only {len(recent_jobs)} job{'s' if len(recent_jobs) != 1 else ''} available, "
+                f"cannot resolve '{dependency}' ({caret_count} job{'s' if caret_count != 1 else ''} back)"
+            )
+
+        resolved_job_id = recent_jobs[index].job_id
+        return resolved_job_id
+
     def submit_job(
         self,
         script: str,
@@ -93,6 +142,15 @@ class JobManager:
             script_dir = os.path.dirname(os.path.abspath(script)) if script else None
             working_dir = script_dir if script_dir else os.getcwd()
 
+        # Resolve ^ syntax in dependencies
+        resolved_dependencies = []
+        if dependencies:
+            for dep in dependencies:
+                resolved_dep = self.resolve_dependency_shorthand(dep)
+                resolved_dependencies.append(resolved_dep)
+                if resolved_dep != dep:
+                    logger.info(f"Resolved dependency '{dep}' -> {resolved_dep}")
+
         # Create job
         job = Job(
             job_id=job_id,
@@ -102,7 +160,7 @@ class JobManager:
             script_args=script_args,
             working_dir=working_dir,
             env_vars=env_vars,
-            dependencies=dependencies,
+            dependencies=resolved_dependencies if resolved_dependencies else None,
             priority=priority,
             submitted_at=datetime.now(),
             status=JobStatus.PENDING,

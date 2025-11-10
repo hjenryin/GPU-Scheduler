@@ -94,7 +94,7 @@ def stop(all_nodes):
     allow_interspersed_args=False
 ))
 @click.option('--req', default='1', help='GPU requirements')
-@click.option('--depends-on', 'depends_on', multiple=True, help='Job dependencies')
+@click.option('--depends-on', 'depends_on', multiple=True, help='Job dependencies (job IDs or ^ for previous job, ^^ for 2nd previous, etc.)')
 @click.option('--name', help='Job name')
 @click.option('--priority', type=int, default=0, help='Priority')
 @click.option('--env', multiple=True, help='Environment variables (KEY=VALUE)')
@@ -136,7 +136,7 @@ def submit(ctx, req, depends_on, name, priority, env, working_dir):
 @cli.command('submit-batch')
 @click.argument('script_list')
 @click.option('--req', default='1', help='GPU requirements')
-@click.option('--depends-on', 'depends_on', multiple=True, help='Job dependencies')
+@click.option('--depends-on', 'depends_on', multiple=True, help='Job dependencies (job IDs or ^ for previous job, ^^ for 2nd previous, etc.)')
 @click.option('--name', help='Job name')
 @click.option('--priority', type=int, default=0, help='Priority')
 @click.option('--env', multiple=True, help='Environment variables (KEY=VALUE)')
