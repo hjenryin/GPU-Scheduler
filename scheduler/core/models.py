@@ -376,6 +376,7 @@ class Job:
     error_message: Optional[str] = None
     snapshot_ref: Optional[str] = None
     snapshot_working_dir: Optional[str] = None
+    after_commit_ref: Optional[str] = None
 
     def __init__(
         self,
@@ -397,7 +398,8 @@ class Job:
         exit_code: Optional[int] = None,
         error_message: Optional[str] = None,
         snapshot_ref: Optional[str] = None,
-        snapshot_working_dir: Optional[str] = None
+        snapshot_working_dir: Optional[str] = None,
+        after_commit_ref: Optional[str] = None
     ):
         """
         Initialize job.
@@ -420,8 +422,9 @@ class Job:
             assigned_gpus: List of GPU IDs assigned to job
             exit_code: Process exit code
             error_message: Error message if failed
-            snapshot_ref: Git snapshot reference (commit SHA in shadow repo)
+            snapshot_ref: Git snapshot reference (commit SHA in shadow repo) - "before" commit
             snapshot_working_dir: Original working directory for snapshot
+            after_commit_ref: Git commit SHA after job execution - "after" commit
         """
         self.job_id = job_id
         self.name = name
@@ -442,6 +445,7 @@ class Job:
         self.error_message = error_message
         self.snapshot_ref = snapshot_ref
         self.snapshot_working_dir = snapshot_working_dir
+        self.after_commit_ref = after_commit_ref
 
     @property
     def start_time(self) -> Optional[datetime]:
@@ -504,7 +508,8 @@ class Job:
             'exit_code': self.exit_code,
             'error_message': self.error_message,
             'snapshot_ref': self.snapshot_ref,
-            'snapshot_working_dir': self.snapshot_working_dir
+            'snapshot_working_dir': self.snapshot_working_dir,
+            'after_commit_ref': self.after_commit_ref
         }
 
     @classmethod
@@ -547,7 +552,8 @@ class Job:
             exit_code=data.get('exit_code'),
             error_message=data.get('error_message'),
             snapshot_ref=data.get('snapshot_ref'),
-            snapshot_working_dir=data.get('snapshot_working_dir')
+            snapshot_working_dir=data.get('snapshot_working_dir'),
+            after_commit_ref=data.get('after_commit_ref')
         )
 
 

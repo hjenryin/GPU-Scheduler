@@ -234,6 +234,129 @@ class SchedulerClient:
             logger.error(f"Failed to get job {job_id}: {e}")
             raise ConnectionException(self._format_connection_error(f"get job {job_id}", e))
 
+    def retry_job_then(self, job_id: str) -> Job:
+        """
+        Retry a job with --then mode (create new branch from original commit).
+
+        This creates a new job with a new job_id, but reuses the original snapshot_ref
+        by creating a new branch pointing to the same commit.
+
+        Args:
+            job_id: Original job ID to retry
+
+        Returns:
+            New Job instance
+
+        Raises:
+            JobNotFoundException: If job not found
+            ValidationException: If job cannot be retried
+            ConnectionException: If cannot connect
+        """
+        from scheduler.core import generate_job_id
+        from scheduler.worker import GitSnapshotManager
+
+        # 1. Fetch original job
+        original_job = self.get_job(job_id)
+
+        # 2. Validate state
+        if original_job.status not in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.COMPLETED]:
+            raise ValidationException(
+                f"Job {job_id} is in {original_job.status.value} state. "
+                f"Can only retry FAILED, CANCELLED, or COMPLETED jobs."
+            )
+
+        if not original_job.snapshot_ref or not original_job.snapshot_working_dir:
+            raise ValidationException(
+                f"Job {job_id} has no snapshot. Cannot retry with --then mode."
+            )
+
+        # 3. Generate new job_id
+        new_job_id = generate_job_id()
+
+        # 4. Create new branch pointing to original snapshot_ref
+        try:
+            git_manager = GitSnapshotManager(self.config)
+            success = git_manager.create_branch_from_commit(
+                new_job_id,
+                original_job.snapshot_ref,
+                original_job.snapshot_working_dir
+            )
+            if not success:
+                raise ValidationException(f"Failed to create branch for retried job")
+        except Exception as e:
+            logger.error(f"Failed to create branch for retried job: {e}")
+            raise ValidationException(f"Failed to create branch for retried job: {e}")
+
+        # 5. Submit new job with original parameters
+        payload = {
+            "job_id": new_job_id,
+            "script": original_job.script,
+            "requirements": original_job.requirements.serialize(),
+            "name": original_job.name,
+            "script_args": original_job.script_args,
+            "working_dir": original_job.working_dir,
+            "env_vars": original_job.env_vars,
+            "dependencies": original_job.dependencies,  # Already resolved
+            "priority": original_job.priority,
+            "snapshot_ref": original_job.snapshot_ref,  # Reuse same commit
+            "snapshot_working_dir": original_job.snapshot_working_dir,
+        }
+
+        try:
+            response = self.session.post(f"{self.base_url}/jobs", json=payload, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            logger.info(f"Created retry job {new_job_id} from original job {job_id} (--then mode)")
+            return self._job_from_response(data)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to submit retry job: {e}")
+            raise ConnectionException(self._format_connection_error("submit retry job", e))
+        except (KeyError, ValueError) as e:
+            logger.error(f"Invalid response format: {e}")
+            raise ValidationException(f"Invalid response from server: {e}")
+
+    def retry_job_now(self, job_id: str) -> Job:
+        """
+        Retry a job with --now mode (create fresh snapshot).
+
+        This creates a new job with a new job_id and a fresh snapshot from the
+        current working directory state.
+
+        Args:
+            job_id: Original job ID to retry
+
+        Returns:
+            New Job instance
+
+        Raises:
+            JobNotFoundException: If job not found
+            ValidationException: If job cannot be retried
+            ConnectionException: If cannot connect
+        """
+        # 1. Fetch original job
+        original_job = self.get_job(job_id)
+
+        # 2. Validate state
+        if original_job.status not in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.COMPLETED]:
+            raise ValidationException(
+                f"Job {job_id} is in {original_job.status.value} state. "
+                f"Can only retry FAILED, CANCELLED, or COMPLETED jobs."
+            )
+
+        # 3. Use regular submit_job with original parameters
+        # This will generate new job_id and create fresh snapshot
+        logger.info(f"Retrying job {job_id} with --now mode (fresh snapshot)")
+        return self.submit_job(
+            script=original_job.script,
+            requirements=original_job.requirements.serialize(),
+            name=original_job.name,
+            script_args=original_job.script_args,
+            working_dir=original_job.working_dir,
+            env_vars=original_job.env_vars,
+            dependencies=original_job.dependencies,  # Already resolved
+            priority=original_job.priority,
+        )
+
     def list_jobs(
         self,
         status_filter: Optional[str] = None,
@@ -551,22 +674,26 @@ class SchedulerClient:
             logger.error(f"Failed to poll for job on node {node_name}: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")
 
-    def report_job_complete(self, job_id: str, exit_code: int):
+    def report_job_complete(self, job_id: str, exit_code: int, after_commit_ref: Optional[str] = None):
         """
         Report job completion (worker use only).
 
         Args:
             job_id: Job ID
             exit_code: Process exit code
+            after_commit_ref: Optional commit SHA of the "after" commit
 
         Raises:
             ConnectionException: If cannot connect
         """
         # Fixed: Send exit_code as query parameter (not JSON body)
         try:
+            params = {"exit_code": exit_code}
+            if after_commit_ref:
+                params["after_commit_ref"] = after_commit_ref
             response = self.session.post(
                 f"{self.base_url}/workers/jobs/{job_id}/complete",
-                params={"exit_code": exit_code},
+                params=params,
                 timeout=30
             )
             response.raise_for_status()
@@ -574,22 +701,26 @@ class SchedulerClient:
             logger.error(f"Failed to report completion for job {job_id}: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")
 
-    def report_job_failed(self, job_id: str, error_message: str):
+    def report_job_failed(self, job_id: str, error_message: str, after_commit_ref: Optional[str] = None):
         """
         Report job failure (worker use only).
 
         Args:
             job_id: Job ID
             error_message: Error message
+            after_commit_ref: Optional commit SHA of the "after" commit
 
         Raises:
             ConnectionException: If cannot connect
         """
         # Fixed: Send error_message as query parameter (not JSON body)
         try:
+            params = {"error_message": error_message}
+            if after_commit_ref:
+                params["after_commit_ref"] = after_commit_ref
             response = self.session.post(
                 f"{self.base_url}/workers/jobs/{job_id}/fail",
-                params={"error_message": error_message},
+                params=params,
                 timeout=30
             )
             response.raise_for_status()

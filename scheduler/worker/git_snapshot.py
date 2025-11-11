@@ -766,22 +766,94 @@ class GitSnapshotManager:
             logger.error(f"Unexpected error restoring snapshot for job {job_id}: {e}")
             return False
     
-    def cleanup_snapshot(self, job_id: str, snapshot_ref: str, working_dir: str, worktree_dir: Optional[str] = None) -> None:
+    def cleanup_snapshot(self, job_id: str, snapshot_ref: str, working_dir: str, worktree_dir: Optional[str] = None) -> Optional[str]:
         """Clean up snapshot after job completion
-        
-        This removes the git worktree and optionally the branch.
-        
+
+        This creates an "after" commit capturing changes made during execution,
+        then removes the git worktree.
+
         Args:
             job_id: Unique job identifier
             snapshot_ref: Snapshot reference to clean up
             working_dir: Original working directory (to find the shadow repo)
             worktree_dir: Path to worktree directory to remove (if any)
+
+        Returns:
+            Commit SHA of the "after" commit, or None if no worktree or on error
         """
+        after_commit_sha = None
+
         try:
             git_dir = self._get_shadow_repo_path(working_dir)  # This IS the git dir
-            
-            # Remove worktree if specified
+            branch_name = f"job-{job_id}"
+
+            # Create "after" commit if worktree exists
             if worktree_dir and os.path.exists(worktree_dir):
+                try:
+                    # Add all changes (including deletions) in the worktree
+                    # Use --work-tree to point to the worktree location
+                    add_cmd = ['git', '-c', f'safe.directory={worktree_dir}',
+                              f'--git-dir={git_dir}', f'--work-tree={worktree_dir}',
+                              'add', '-A']
+                    subprocess.run(
+                        add_cmd,
+                        cwd=worktree_dir,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        timeout=30,
+                        check=True
+                    )
+
+                    # Write tree from the worktree
+                    write_tree_cmd = ['git', '-c', f'safe.directory={worktree_dir}',
+                                     f'--git-dir={git_dir}', f'--work-tree={worktree_dir}',
+                                     'write-tree']
+                    result = subprocess.run(
+                        write_tree_cmd,
+                        cwd=worktree_dir,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        timeout=10,
+                        check=True
+                    )
+                    tree_sha = result.stdout.strip()
+
+                    # Create commit with snapshot_ref as parent
+                    commit_message = f"After execution for job {job_id}\n\nWorkspace: {working_dir}\nBefore commit: {snapshot_ref}"
+                    commit_cmd = ['git', f'--git-dir={git_dir}',
+                                 'commit-tree', tree_sha, '-p', snapshot_ref, '-m', commit_message]
+                    result = subprocess.run(
+                        commit_cmd,
+                        cwd=worktree_dir,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        timeout=10,
+                        check=True
+                    )
+                    after_commit_sha = result.stdout.strip()
+
+                    # Update branch to point to after commit (this will overwrite previous after commit if retrying)
+                    branch_cmd = ['git', f'--git-dir={git_dir}',
+                                 'branch', '-f', branch_name, after_commit_sha]
+                    subprocess.run(
+                        branch_cmd,
+                        cwd=worktree_dir,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        timeout=10,
+                        check=True
+                    )
+
+                    logger.info(f"Created after commit {after_commit_sha} for job {job_id}")
+
+                except Exception as e:
+                    logger.warning(f"Failed to create after commit for job {job_id}: {e}")
+
+                # Remove worktree after creating after commit
                 try:
                     cmd = self._git_base_args(working_dir, git_dir) + ['worktree', 'remove', worktree_dir, '--force']
                     subprocess.run(
@@ -795,15 +867,61 @@ class GitSnapshotManager:
                     logger.debug(f"Removed worktree {worktree_dir} for job {job_id}")
                 except Exception as e:
                     logger.warning(f"Failed to remove worktree {worktree_dir}: {e}")
-            
-            # Optionally prune old branches (keep for now for debugging)
-            # branch_name = f"job-{job_id}"
-            # subprocess.run(['git', f'--git-dir={git_dir}', 'branch', '-D', branch_name], ...)
-            
+
             logger.debug(f"Cleanup completed for job {job_id}")
-            
+            return after_commit_sha
+
         except Exception as e:
             logger.warning(f"Error during cleanup for job {job_id}: {e}")
+            return None
+
+    def create_branch_from_commit(self, job_id: str, commit_ref: str, working_dir: str) -> bool:
+        """Create a new branch pointing to an existing commit
+
+        This is used by --then retry to create a new branch for a retried job
+        that points to the same commit as the original job's "before" commit.
+
+        Args:
+            job_id: New job ID for the branch name
+            commit_ref: Existing commit SHA to point the branch to
+            working_dir: Working directory (to find the shadow repo)
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            git_dir = self._get_shadow_repo_path(working_dir)
+
+            if not os.path.exists(git_dir):
+                logger.error(f"Shadow repo not found at {git_dir}")
+                return False
+
+            branch_name = f"job-{job_id}"
+
+            # Create/update branch to point to the commit
+            cmd = ['git', f'--git-dir={git_dir}', 'branch', '-f', branch_name, commit_ref]
+            subprocess.run(
+                cmd,
+                cwd=working_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=10,
+                check=True
+            )
+
+            logger.info(f"Created branch {branch_name} pointing to commit {commit_ref}")
+            return True
+
+        except subprocess.TimeoutExpired:
+            logger.error(f"Git command timed out while creating branch for job {job_id}")
+            return False
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Git command failed while creating branch for job {job_id}: {e.stderr}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error creating branch for job {job_id}: {e}")
+            return False
 
     def purge_job_snapshots(self, job_id: str) -> None:
         """Purge all git snapshots and worktrees for a job

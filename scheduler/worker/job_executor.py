@@ -220,62 +220,59 @@ class JobExecutor:
         except OSError as e:
             logger.warning(f"Failed to terminate job with PID {pid}: {e}")
 
-    def cleanup_job(self, job: Job):
+    def cleanup_job(self, job: Job) -> Optional[str]:
         """
         Cleanup resources after job completion.
-        
-        This includes creating a completion snapshot (if job had a snapshot)
-        and removing git worktrees.
-        
+
+        This creates an "after" commit capturing changes made during execution,
+        then removes git worktrees.
+
         Args:
             job: Job to cleanup
+
+        Returns:
+            Commit SHA of the "after" commit, or None if no worktree or on error
         """
         if job.job_id in self.job_worktrees:
-            # Create completion snapshot before cleanup
-            worktree_path = self.job_worktrees[job.job_id]
-            if job.snapshot_ref and job.snapshot_working_dir:
-                try:
-                    logger.info(f"Creating completion snapshot for job {job.job_id}")
-                    completion_ref = self.git_snapshot.create_snapshot(
-                        f"{job.job_id}-completion",
-                        worktree_path
-                    )
-                    if completion_ref:
-                        logger.info(f"Created completion snapshot {completion_ref} for job {job.job_id}")
-                    else:
-                        logger.warning(f"Failed to create completion snapshot for job {job.job_id}")
-                except Exception as e:
-                    logger.warning(f"Error creating completion snapshot for job {job.job_id}: {e}")
-            
-            # Now cleanup the worktree
-            self._cleanup_job_worktree(job)
-    
-    def _cleanup_job_worktree(self, job: Job):
+            # Cleanup the worktree and get after commit
+            return self._cleanup_job_worktree(job)
+        return None
+
+    def _cleanup_job_worktree(self, job: Job) -> Optional[str]:
         """
         Internal method to cleanup git worktree for a job.
-        
+
         Args:
             job: Job to cleanup worktree for
+
+        Returns:
+            Commit SHA of the "after" commit, or None if no worktree or on error
         """
         if job.job_id not in self.job_worktrees:
-            return
-        
+            return None
+
         worktree_path = self.job_worktrees[job.job_id]
-        
+        after_commit_ref = None
+
         try:
             if job.snapshot_ref and job.snapshot_working_dir:
-                self.git_snapshot.cleanup_snapshot(
+                after_commit_ref = self.git_snapshot.cleanup_snapshot(
                     job.job_id,
                     job.snapshot_ref,
                     job.snapshot_working_dir,
                     worktree_path
                 )
-                logger.info(f"Cleaned up worktree for job {job.job_id}")
-            
+                if after_commit_ref:
+                    logger.info(f"Created after commit {after_commit_ref} and cleaned up worktree for job {job.job_id}")
+                else:
+                    logger.info(f"Cleaned up worktree for job {job.job_id} (no after commit created)")
+
             # Remove from tracking
             del self.job_worktrees[job.job_id]
+            return after_commit_ref
         except Exception as e:
             logger.warning(f"Error cleaning up worktree for job {job.job_id}: {e}")
+            return None
 
     def get_job_logs(
         self,

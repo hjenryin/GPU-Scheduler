@@ -67,6 +67,10 @@ def create_app(
     async def cancel_job(job_id: str):
         return await cancel_job_route(job_id)
 
+    @app.post(f"{constants.API_BASE_PATH}/jobs/{{job_id}}/retry-inplace")
+    async def retry_job_inplace(job_id: str):
+        return await retry_job_inplace_route(job_id)
+
     @app.get(f"{constants.API_BASE_PATH}/jobs/{{job_id}}/logs")
     async def get_job_logs(job_id: str, lines: Optional[int] = None, stderr: bool = False):
         return await get_job_logs_route(job_id, lines, stderr)
@@ -115,12 +119,12 @@ def create_app(
         return await poll_job_route(node_name)
 
     @app.post(f"{constants.API_BASE_PATH}/workers/jobs/{{job_id}}/complete")
-    async def complete_job(job_id: str, exit_code: int):
-        return await complete_job_route(job_id, exit_code)
+    async def complete_job(job_id: str, exit_code: int, after_commit_ref: Optional[str] = None):
+        return await complete_job_route(job_id, exit_code, after_commit_ref)
 
     @app.post(f"{constants.API_BASE_PATH}/workers/jobs/{{job_id}}/fail")
-    async def fail_job(job_id: str, error_message: str):
-        return await fail_job_route(job_id, error_message)
+    async def fail_job(job_id: str, error_message: str, after_commit_ref: Optional[str] = None):
+        return await fail_job_route(job_id, error_message, after_commit_ref)
 
     # Cluster management routes
     @app.post(f"{constants.API_BASE_PATH}/shutdown/cluster")
@@ -193,6 +197,17 @@ async def cancel_job_route(job_id: str):
         return {"status": "cancelled", "job_id": job_id}
     except JobNotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+async def retry_job_inplace_route(job_id: str):
+    """POST /api/v1/jobs/{job_id}/retry-inplace - Retry a job in-place"""
+    try:
+        job = _job_manager.retry_job_inplace(job_id)
+        return {"status": "retried", "job_id": job_id, "job": JobResponse.from_job(job).dict()}
+    except JobNotFoundException as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 async def get_job_logs_route(
@@ -336,7 +351,7 @@ async def poll_job_route(node_name: str) -> Optional[JobResponse]:
     return None
 
 
-async def complete_job_route(job_id: str, exit_code: int):
+async def complete_job_route(job_id: str, exit_code: int, after_commit_ref: Optional[str] = None):
     """POST /api/v1/workers/jobs/{job_id}/complete - Mark job complete"""
     try:
         job = _job_manager.get_job(job_id)
@@ -352,7 +367,7 @@ async def complete_job_route(job_id: str, exit_code: int):
                 node.grace_period_until = None
 
         # Mark job complete
-        _job_manager.complete_job(job_id, exit_code)
+        _job_manager.complete_job(job_id, exit_code, after_commit_ref)
 
         return {"status": "completed", "job_id": job_id}
     except JobNotFoundException as e:
@@ -362,7 +377,7 @@ async def complete_job_route(job_id: str, exit_code: int):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-async def fail_job_route(job_id: str, error_message: str):
+async def fail_job_route(job_id: str, error_message: str, after_commit_ref: Optional[str] = None):
     """POST /api/v1/workers/jobs/{job_id}/fail - Mark job failed"""
     try:
         job = _job_manager.get_job(job_id)
@@ -378,7 +393,7 @@ async def fail_job_route(job_id: str, error_message: str):
                 node.grace_period_until = None
 
         # Mark job failed
-        _job_manager.fail_job(job_id, error_message)
+        _job_manager.fail_job(job_id, error_message, after_commit_ref)
 
         return {"status": "failed", "job_id": job_id}
     except JobNotFoundException as e:
