@@ -580,6 +580,11 @@ class TestWorkerMethods:
 
         mock_response = Mock(spec=requests.Response)
         mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "ok",
+            "shutdown_requested": False,
+            "active_job_ids": []
+        }
 
         gpu_stats = [
             GPUStats(gpu_id=0, utilization=50, memory_used=8000,
@@ -587,13 +592,17 @@ class TestWorkerMethods:
         ]
 
         with patch.object(client.session, 'post', return_value=mock_response) as mock_post:
-            client.send_heartbeat("worker-1", gpu_stats)
+            result = client.send_heartbeat("worker-1", gpu_stats)
 
             # Verify payload contains serialized stats
             call_kwargs = mock_post.call_args
             payload = call_kwargs[1]['json']
             assert "gpu_stats" in payload
             assert len(payload["gpu_stats"]) == 1
+
+            # Verify response is properly parsed
+            assert result.status == "ok"
+            assert result.shutdown_requested is False
 
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_poll_for_job_with_job(self, mock_load_config):
