@@ -275,10 +275,18 @@ async def heartbeat_route(node_name: str, request: NodeHeartbeat) -> HeartbeatRe
         gpu_stats = [GPUStats.from_dict(stat) for stat in request.gpu_stats]
         _node_manager.update_heartbeat(node_name, gpu_stats)
 
-        # Get ALL active job IDs across all workers (not just this node)
+        # Get ALL job IDs across all workers (not just this node)
         # This prevents workers from purging logs of jobs running on other nodes
         # when the head and worker share the same log directory
-        active_job_ids = [job.job_id for job in _job_manager.jobs.values()]
+        recorded_job_ids = [job.job_id for job in _job_manager.jobs.values()]
+
+        # Get RUNNING job IDs assigned to THIS worker only
+        # Worker should terminate processes not in this list (after grace period)
+        running_job_ids = [
+            job.job_id
+            for job in _job_manager.jobs.values()
+            if job.status == JobStatus.RUNNING and job.assigned_node == node_name
+        ]
 
         # Check if shutdown has been requested for this node
         node = _node_manager.get_node(node_name)
@@ -287,7 +295,8 @@ async def heartbeat_route(node_name: str, request: NodeHeartbeat) -> HeartbeatRe
         return HeartbeatResponse(
             status="ok",
             shutdown_requested=shutdown_requested,
-            active_job_ids=active_job_ids
+            recorded_job_ids=recorded_job_ids,
+            running_job_ids=running_job_ids
         )
     except NodeNotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

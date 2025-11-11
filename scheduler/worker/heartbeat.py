@@ -90,15 +90,16 @@ class HeartbeatSender:
             # Send heartbeat and receive response
             response = self.client.send_heartbeat(self.node_name, gpu_stats)
 
-            # Handle cleanup - tell worker which jobs to keep (purge all others)
-            if hasattr(response, 'active_job_ids') and self.cleanup_callback:
-                self.cleanup_callback(response.active_job_ids)
-            # Fallback for backward compatibility with old purge_job_ids
-            elif hasattr(response, 'purge_job_ids') and response.purge_job_ids and self.cleanup_callback:
-                # Old style - just purge specific jobs
-                for job_id in response.purge_job_ids:
-                    logger.info(f"Received purge request for job {job_id}")
-                    self.cleanup_callback([])  # Empty keep list means purge the ones specified
+            # Handle cleanup - tell worker which jobs to keep and which to run
+            if self.cleanup_callback:
+                recorded_job_ids = getattr(response, 'recorded_job_ids', [])
+                running_job_ids = getattr(response, 'running_job_ids', [])
+
+                # If response still uses old active_job_ids field, use it for backward compatibility
+                if not recorded_job_ids and hasattr(response, 'active_job_ids'):
+                    recorded_job_ids = response.active_job_ids
+
+                self.cleanup_callback(recorded_job_ids, running_job_ids)
 
             if response.shutdown_requested:
                 logger.info(f"Shutdown requested by head node for {self.node_name}")
@@ -145,8 +146,9 @@ class HeartbeatSender:
         Set the callback function to be called for job cleanup.
 
         Args:
-            callback: Function that takes a list of active job IDs to keep.
-                     Worker should clean up any jobs not in this list.
+            callback: Function that takes (recorded_job_ids, running_job_ids).
+                     recorded_job_ids: All job IDs to keep log files for
+                     running_job_ids: Job IDs that should be actively running (terminate others)
         """
         self.cleanup_callback = callback
 
