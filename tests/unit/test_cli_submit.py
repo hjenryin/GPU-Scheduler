@@ -336,4 +336,68 @@ class TestSubmitCommand:
                            "--req=1", "-D", "--name", "2", "-g", "--env", "--name", "3"]
             assert call_kwargs['script_args'] == expected_args
 
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
+    def test_submit_generic_exception(self, mock_client_class, mock_load_config):
+        """Test handling of generic exception during submission"""
+        mock_client = Mock(spec_set=SchedulerClient)
+        mock_client.submit_job.side_effect = RuntimeError("Unexpected error occurred")
+        mock_client_class.return_value = mock_client
+        
+        with patch('scheduler.cli.submit.click.echo', autospec=True):
+            result = submit_command(
+                command=["python", "script.py"]
+            )
+            assert result == 1
+
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
+    def test_submit_with_resolved_dependencies(self, mock_client_class, mock_load_config):
+        """Test submission with dependencies that get resolved by server"""
+        mock_job = Mock(spec_set=Job)
+        mock_job.job_id = "job_456"
+        mock_job.status.value = "pending"
+        # Server resolved "latest-train" to actual job ID
+        mock_job.dependencies = ["job-123", "job-124"]
+        
+        mock_client = Mock(spec_set=SchedulerClient)
+        mock_client.submit_job.return_value = mock_job
+        mock_client_class.return_value = mock_client
+        
+        with patch('scheduler.cli.submit.click.echo', autospec=True) as mock_echo:
+            result = submit_command(
+                command=["python", "script.py"],
+                depends_on=["latest-train", "job-124"]
+            )
+            assert result == 0
+            # Verify dependencies are displayed with resolution markers
+            echo_calls = [str(call) for call in mock_echo.call_args_list]
+            # Should show "job-123 (resolved)" since latest-train was resolved to job-123
+            assert any("job-123 (resolved)" in str(call) for call in echo_calls)
+
+    @patch('scheduler.cli.submit.load_config', autospec=True)
+    @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
+    def test_submit_with_unresolved_dependencies(self, mock_client_class, mock_load_config):
+        """Test submission with dependencies that don't need resolution"""
+        mock_job = Mock(spec_set=Job)
+        mock_job.job_id = "job_789"
+        mock_job.status.value = "pending"
+        # Dependencies passed through unchanged
+        mock_job.dependencies = ["job-100", "job-200"]
+        
+        mock_client = Mock(spec_set=SchedulerClient)
+        mock_client.submit_job.return_value = mock_job
+        mock_client_class.return_value = mock_client
+        
+        with patch('scheduler.cli.submit.click.echo', autospec=True) as mock_echo:
+            result = submit_command(
+                command=["python", "script.py"],
+                depends_on=["job-100", "job-200"]
+            )
+            assert result == 0
+            # Verify dependencies are displayed without resolution markers
+            echo_calls = [str(call) for call in mock_echo.call_args_list]
+            # Should show plain job IDs since they weren't resolved
+            assert any("job-100" in str(call) and "(resolved)" not in str(call) for call in echo_calls)
+
 
