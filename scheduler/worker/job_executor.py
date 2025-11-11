@@ -104,8 +104,10 @@ class JobExecutor:
                     working_dir = job.working_dir or os.path.dirname(os.path.abspath(job.script))
                     script_path = job.script
             else:
-                # No snapshot, use original working directory or script's directory as fallback
-                working_dir = job.working_dir or os.path.dirname(os.path.abspath(job.script))
+                # No snapshot, use original working directory
+                # Assert working_dir is not None (validated at Job construction)
+                assert job.working_dir is not None, f"Job {job.job_id}: working_dir must not be None"
+                working_dir = job.working_dir
                 script_path = job.script
                 logger.info(f"Job {job.job_id} has no snapshot, using working directory: {working_dir}")
 

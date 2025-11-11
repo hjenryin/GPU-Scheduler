@@ -128,29 +128,17 @@ class TestJobExecutor:
     @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_execute_job_no_working_dir(self, mock_file, mock_popen, test_config):
-        """Test job execution without specified working directory"""
-        import os
-        mock_process = mock_popen.return_value
-        mock_process.pid = 12345
-
-
-        executor = JobExecutor(test_config)
-
-        job = Job(
-            job_id="test-job",
-            name="test",
-            script="/path/to/script.py",
-            requirements=JobRequirement("1"),
-            status=JobStatus.PENDING
-            # No working_dir specified
-        )
-
-        pid = executor.execute_job(job, [0])
-
-        # Should use directory of script
-        call_args = mock_popen.call_args
-        expected_cwd = os.path.dirname(os.path.abspath("/path/to/script.py"))
-        assert call_args[1]['cwd'] == expected_cwd
+        """Test that Job validation prevents None working_dir"""
+        # Attempt to create a job with no working_dir should raise ValueError
+        with pytest.raises(ValueError, match="working_dir cannot be None"):
+            job = Job(
+                job_id="test-job",
+                name="test",
+                script="/path/to/script.py",
+                requirements=JobRequirement("1"),
+                status=JobStatus.PENDING
+                # No working_dir specified - should raise ValueError
+            )
 
     @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)

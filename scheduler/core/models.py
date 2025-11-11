@@ -439,7 +439,12 @@ class Job:
         self.script = script
         self.requirements = requirements
         self.script_args = script_args or []
+        
+        # Validate working_dir is not None
+        if working_dir is None:
+            raise ValueError(f"Job {job_id}: working_dir cannot be None. It must be set by the client.")
         self.working_dir = working_dir
+        
         self.env_vars = env_vars or {}
         self.dependencies = dependencies or []
         self.priority = priority
