@@ -60,11 +60,12 @@ class WorkerDaemon:
         # Initialize file handler
         self.file_handler = FileHandler(config)
 
-        # Cleanup old logs on startup (older than 24 hours)
-        logger.info("Cleaning up old log files on startup...")
-        removed_count = self.file_handler.cleanup_old_logs(max_age_hours=24)
+        # Cleanup old system logs on startup (older than 24 hours)
+        # Note: Job logs are NOT cleaned automatically - only via explicit purge commands
+        logger.info("Cleaning up old system log files on startup...")
+        removed_count = self.file_handler.cleanup_old_logs(max_age_hours=24, include_job_logs=False)
         if removed_count > 0:
-            logger.info(f"Cleaned up {removed_count} old log files on startup")
+            logger.info(f"Cleaned up {removed_count} old system log files on startup")
 
         # Initialize heartbeat sender
         self.heartbeat_sender = HeartbeatSender(

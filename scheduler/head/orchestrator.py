@@ -74,13 +74,14 @@ class Orchestrator:
         # Initialize API server
         self.api_server = APIServer(self.job_manager, self.node_manager, config)
 
-        # Cleanup old logs on startup (older than 24 hours)
+        # Cleanup old system logs on startup (older than 24 hours)
         # Head node cleans up logs in case it's also running a worker
-        logger.info("Cleaning up old log files on startup...")
+        # Note: Job logs are NOT cleaned automatically - only via explicit purge commands
+        logger.info("Cleaning up old system log files on startup...")
         file_handler = FileHandler(config)
-        removed_count = file_handler.cleanup_old_logs(max_age_hours=24)
+        removed_count = file_handler.cleanup_old_logs(max_age_hours=24, include_job_logs=False)
         if removed_count > 0:
-            logger.info(f"Cleaned up {removed_count} old log files on startup")
+            logger.info(f"Cleaned up {removed_count} old system log files on startup")
 
         # Setup signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -384,12 +385,23 @@ class Orchestrator:
         from scheduler.core.constants import RSYNC_PORT
         from scheduler.core.utils import is_port_available
 
-        # Check if port is available
-        if not is_port_available(RSYNC_PORT):
-            logger.error(f"Cannot start rsync daemon: port {RSYNC_PORT} is already in use. "
+        # Try to find an available port, starting with the default
+        # If default port is in use, try the next 10 ports
+        available_port = None
+        for port_offset in range(11):  # Try ports 8873-8883
+            candidate_port = RSYNC_PORT + port_offset
+            if is_port_available(candidate_port):
+                available_port = candidate_port
+                break
+
+        if available_port is None:
+            logger.error(f"Cannot start rsync daemon: ports {RSYNC_PORT}-{RSYNC_PORT + 10} are all in use. "
                         f"Log syncing will be disabled.")
             self.rsync_port = None
             return
+
+        if available_port != RSYNC_PORT:
+            logger.info(f"Default rsync port {RSYNC_PORT} is in use, using alternative port {available_port}")
 
         log_dir = os.path.expanduser(self.config.worker.log_dir)
         os.makedirs(log_dir, exist_ok=True)
@@ -413,22 +425,22 @@ class Orchestrator:
 
         self.rsync_config_file = config_path
 
-        # Start rsync daemon on RSYNC_PORT (no sudo needed for ports > 1024)
+        # Start rsync daemon on available_port (no sudo needed for ports > 1024)
         try:
             self.rsync_daemon_process = subprocess.Popen(
                 [
                     'rsync',
                     '--daemon',
                     '--no-detach',  # Run in foreground
-                    f'--port={RSYNC_PORT}',
+                    f'--port={available_port}',
                     f'--config={config_path}',
                     '--log-file=/dev/null'  # Suppress rsync logs
                 ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE
             )
-            self.rsync_port = RSYNC_PORT
-            logger.info(f"rsync daemon started on port {RSYNC_PORT} for log syncing")
+            self.rsync_port = available_port
+            logger.info(f"rsync daemon started on port {available_port} for log syncing")
         except FileNotFoundError:
             logger.error("rsync command not found - log syncing will be disabled")
             os.remove(config_path)
@@ -437,7 +449,7 @@ class Orchestrator:
             # Don't raise - allow orchestrator to continue without rsync
         except OSError as e:
             if "Address already in use" in str(e):
-                logger.error(f"Cannot bind to port {RSYNC_PORT}: address already in use. "
+                logger.error(f"Cannot bind to port {available_port}: address already in use. "
                            f"Log syncing will be disabled.")
             else:
                 logger.error(f"Failed to start rsync daemon: {e}. Log syncing will be disabled.")
