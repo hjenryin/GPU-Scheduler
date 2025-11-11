@@ -127,6 +127,11 @@ class NodeManager:
         # Update heartbeat timestamp
         node.update_heartbeat(gpu_stats)
 
+        # Mark as acknowledged if shutdown was requested
+        if node.shutdown_requested and not node.shutdown_acknowledged:
+            node.shutdown_acknowledged = True
+            logger.info(f"Node {node_name} acknowledged shutdown signal")
+
         self.persistence.save_node(node)
         logger.debug(f"Heartbeat received from {node_name}")
 

@@ -79,15 +79,14 @@ class TestStopAllNodes:
         mock_load.return_value = Config()
         mock_stop_local.return_value = True
         mock_exists.return_value = True  # Head lock file exists
-        
+
         # Mock the client
         mock_client = MagicMock()
         mock_client.list_nodes.return_value = []
         mock_client.shutdown_cluster.return_value = True
         mock_client_class.return_value = mock_client
-        
-        with patch('scheduler.cli.stop.click.echo', autospec=True), \
-             patch('scheduler.cli.stop.time.sleep', autospec=True):
+
+        with patch('scheduler.cli.stop.click.echo', autospec=True):
             result = _stop_all_nodes()
             assert result == 0
             mock_client.shutdown_cluster.assert_called_once()
@@ -99,21 +98,20 @@ class TestStopAllNodes:
     def test_stop_all_from_worker_node(self, mock_stop_local, mock_client_class, mock_load, mock_is_head):
         """Test stopping all nodes when running from worker"""
         mock_is_head.return_value = False
-        
+
         mock_config = MagicMock()
         mock_config.address = "localhost:9000"
         mock_config.head.port = 9000
         mock_load.return_value = mock_config
-        
+
         mock_client = MagicMock()
         mock_client.list_nodes.return_value = [Mock()]
         mock_client.shutdown_cluster.return_value = True
         mock_client_class.return_value = mock_client
-        
+
         mock_stop_local.return_value = True
-        
-        with patch('scheduler.cli.stop.click.echo', autospec=True), \
-             patch('scheduler.cli.stop.time.sleep', autospec=True):
+
+        with patch('scheduler.cli.stop.click.echo', autospec=True):
             result = _stop_all_nodes()
             assert result == 0
             mock_client.shutdown_cluster.assert_called_once()
@@ -153,16 +151,16 @@ class TestStopAllNodes:
     def test_stop_all_connection_exception(self, mock_client_class, mock_load, mock_is_head):
         """Test handling connection exception when stopping all nodes"""
         mock_is_head.return_value = False
-        
+
         mock_config = MagicMock()
         mock_config.address = "localhost:99999"
         mock_config.head.port = 99999
         mock_load.return_value = mock_config
-        
+
         mock_client = MagicMock()
         mock_client.list_nodes.side_effect = ConnectionException("Cannot connect")
         mock_client_class.return_value = mock_client
-        
+
         with patch('scheduler.cli.stop.click.echo', autospec=True):
             result = _stop_all_nodes()
             assert result == 1
