@@ -8,6 +8,7 @@ from scheduler.cli.submit_batch import submit_batch_command
 from scheduler.cli.jobs import jobs_command
 from scheduler.cli.logs import logs_command
 from scheduler.cli.cancel import cancel_command
+from scheduler.cli.retry import retry
 from scheduler.cli.config import config_command
 from scheduler.cli.status import status_command
 from scheduler.cli.purge import purge_command
@@ -228,6 +229,10 @@ def cancel(job_ids):
     except Exception as e:
         click.echo(f"Error: {e}")
         sys.exit(1)
+
+
+# Add retry command to CLI
+cli.add_command(retry)
 
 
 @cli.command()

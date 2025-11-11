@@ -274,13 +274,14 @@ class JobManager:
         self.persistence.save_job(job)
         logger.info(f"Job {job_id} started on {node_name} with GPUs {gpu_ids}")
 
-    def complete_job(self, job_id: str, exit_code: int):
+    def complete_job(self, job_id: str, exit_code: int, after_commit_ref: Optional[str] = None):
         """
         Mark job as completed.
 
         Args:
             job_id: Job ID
             exit_code: Process exit code
+            after_commit_ref: Optional commit SHA of the "after" commit
 
         Raises:
             JobNotFoundException: If job not found
@@ -292,17 +293,20 @@ class JobManager:
         job.status = JobStatus.COMPLETED
         job.completed_at = datetime.now()
         job.exit_code = exit_code
+        if after_commit_ref:
+            job.after_commit_ref = after_commit_ref
 
         self.persistence.save_job(job)
         logger.info(f"Job {job_id} completed with exit code {exit_code}")
 
-    def fail_job(self, job_id: str, error_message: str):
+    def fail_job(self, job_id: str, error_message: str, after_commit_ref: Optional[str] = None):
         """
         Mark job as failed.
 
         Args:
             job_id: Job ID
             error_message: Error message
+            after_commit_ref: Optional commit SHA of the "after" commit
 
         Raises:
             JobNotFoundException: If job not found
@@ -314,6 +318,8 @@ class JobManager:
         job.status = JobStatus.FAILED
         job.completed_at = datetime.now()
         job.error_message = error_message
+        if after_commit_ref:
+            job.after_commit_ref = after_commit_ref
 
         self.persistence.save_job(job)
         logger.error(f"Job {job_id} failed: {error_message}")
@@ -357,6 +363,57 @@ class JobManager:
 
         self.persistence.save_job(job)
         logger.info(f"Job {job_id} marked as untracked")
+
+    def retry_job_inplace(self, job_id: str) -> Job:
+        """
+        Retry a job in-place by reverting it to PENDING state.
+
+        This resets the job to PENDING and clears execution-related fields,
+        while keeping the original snapshot_ref, dependencies, and submission fields.
+        The job will be re-executed in the original branch with the "before" commit.
+
+        Args:
+            job_id: Job ID to retry
+
+        Returns:
+            The updated job
+
+        Raises:
+            JobNotFoundException: If job not found
+            ValueError: If job is not in a terminal state (FAILED, CANCELLED, COMPLETED)
+        """
+        job = self.jobs.get(job_id)
+        if not job:
+            raise JobNotFoundException(f"Job {job_id} not found")
+
+        # Validate job is in terminal state
+        if job.status not in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.COMPLETED]:
+            raise ValueError(f"Job {job_id} is in {job.status.value} state. "
+                           f"Can only retry FAILED, CANCELLED, or COMPLETED jobs.")
+
+        # Reset to PENDING state
+        job.status = JobStatus.PENDING
+
+        # Clear execution-related fields
+        job.started_at = None
+        job.completed_at = None
+        job.exit_code = None
+        job.error_message = None
+        job.assigned_node = None
+        job.assigned_gpus = []
+        job.after_commit_ref = None  # Will be recreated on next execution
+
+        # Keep unchanged:
+        # - job_id (same job)
+        # - snapshot_ref (before commit - unchanged)
+        # - snapshot_working_dir (unchanged)
+        # - dependencies (already resolved - unchanged)
+        # - name, script, requirements, script_args, env_vars, working_dir, priority, submitted_at
+
+        self.persistence.save_job(job)
+        logger.info(f"Job {job_id} retried in-place (reset to PENDING)")
+
+        return job
 
     def purge_job(self, job_id: str):
         """

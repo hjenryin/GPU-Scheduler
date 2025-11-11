@@ -270,15 +270,15 @@ class WorkerDaemon:
                 is_running, exit_code = self.job_executor.get_job_status(pid)
 
                 if not is_running:
-                    # Job completed - cleanup resources
-                    self.job_executor.cleanup_job(job)
+                    # Job completed - cleanup resources and get after commit
+                    after_commit_ref = self.job_executor.cleanup_job(job)
 
                     if exit_code == 0:
                         logger.info(f"Job {job.job_id} completed successfully")
-                        self.client.report_job_complete(job.job_id, exit_code)
+                        self.client.report_job_complete(job.job_id, exit_code, after_commit_ref)
                     else:
                         logger.error(f"Job {job.job_id} failed with exit code {exit_code}")
-                        self.client.report_job_failed(job.job_id, f"Exit code: {exit_code}")
+                        self.client.report_job_failed(job.job_id, f"Exit code: {exit_code}", after_commit_ref)
 
                     # Remove from active jobs
                     with self.active_jobs_lock:
