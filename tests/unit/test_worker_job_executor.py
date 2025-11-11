@@ -72,7 +72,8 @@ class TestJobExecutor:
             name="test",
             script="/path/to/script.py",
             requirements=JobRequirement("1"),
-            status=JobStatus.PENDING
+            status=JobStatus.PENDING,
+            working_dir="/tmp/test"
         )
 
         pid = executor.execute_job(job, [0])
@@ -97,7 +98,8 @@ class TestJobExecutor:
             name="test",
             script="/path/to/script.py",
             requirements=JobRequirement("1"),
-            status=JobStatus.PENDING
+            status=JobStatus.PENDING,
+            working_dir="/tmp/test"
         )
 
         pid = executor.execute_job(job, [2])
