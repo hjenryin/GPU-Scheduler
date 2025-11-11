@@ -64,8 +64,8 @@ class TestHeartbeatSender:
 
         assert result is True
         mock_gpu_monitor_instance.get_latest_stats.assert_called_once()
-        # Now expects log_chunks as third parameter
-        assert mock_client_instance.send_heartbeat.call_count == 1
+        # When shutdown_requested=True, send_heartbeat is called twice (confirmation)
+        assert mock_client_instance.send_heartbeat.call_count == 2
 
     @patch('scheduler.worker.heartbeat.SchedulerClient', autospec=True)
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
@@ -385,7 +385,8 @@ class TestHeartbeatSender:
         result = sender.send_heartbeat()
 
         assert result is True
-        assert mock_client_instance.send_heartbeat.call_count == 1
+        # When shutdown_requested=True, send_heartbeat is called twice (initial + confirmation)
+        assert mock_client_instance.send_heartbeat.call_count == 2
 
     @patch('scheduler.worker.heartbeat.SchedulerClient', autospec=True)
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)

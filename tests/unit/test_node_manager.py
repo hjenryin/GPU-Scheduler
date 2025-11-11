@@ -2,7 +2,7 @@
 import pytest
 from datetime import datetime, timedelta
 
-from scheduler.core.models import Node, GPU, GPUStats, NodeStatus
+from scheduler.core.models import Node, GPU, GPUStats, NodeStatus, ShutdownState
 from scheduler.core.exceptions import NodeNotFoundException
 from scheduler.manager import NodeManager
 from scheduler.manager import PersistenceManager
@@ -303,8 +303,8 @@ class TestNodeManager:
         node2 = node_manager.get_node("gpu2")
         assert node1.status == NodeStatus.CONNECTED
         assert node2.status == NodeStatus.CONNECTED
-        assert node1.shutdown_requested == False
-        assert node2.shutdown_requested == False
+        assert node1.shutdown_state == ShutdownState.NONE
+        assert node2.shutdown_state == ShutdownState.NONE
         
         # Request shutdown for all workers
         node_manager.request_shutdown_all_workers()
@@ -312,8 +312,8 @@ class TestNodeManager:
         # Verify shutdown was requested
         node1 = node_manager.get_node("gpu1")
         node2 = node_manager.get_node("gpu2")
-        assert node1.shutdown_requested == True
-        assert node2.shutdown_requested == True
+        assert node1.shutdown_state != ShutdownState.NONE
+        assert node2.shutdown_state != ShutdownState.NONE
 
     def test_reregister_clears_shutdown_flags(self, node_manager):
         """Test that re-registering a node clears shutdown flags"""
@@ -327,17 +327,12 @@ class TestNodeManager:
         # Request shutdown
         node_manager.request_shutdown_all_workers()
         node1 = node_manager.get_node("gpu1")
-        assert node1.shutdown_requested == True
-
-        # Simulate acknowledgment
-        node1.shutdown_acknowledged = True
-        node_manager.persistence.save_node(node1)
+        assert node1.shutdown_state != ShutdownState.NONE
 
         # Re-register the node (simulating worker restart)
         node_manager.register_node("gpu1", "192.168.1.10", 4)
 
         # Verify shutdown flags are cleared
         node1 = node_manager.get_node("gpu1")
-        assert node1.shutdown_requested == False
-        assert node1.shutdown_acknowledged == False
+        assert node1.shutdown_state == ShutdownState.NONE
         assert node1.status == NodeStatus.CONNECTED

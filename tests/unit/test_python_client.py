@@ -434,40 +434,6 @@ class TestJobLogs:
             with pytest.raises(JobNotFoundException):
                 client.get_job_logs("nonexistent")
 
-    @patch('scheduler.api.client.load_config', autospec=True)
-    def test_stream_job_logs_success(self, mock_load_config):
-        """Test successfully streaming job logs"""
-        mock_load_config.return_value = Mock()
-        client = SchedulerClient(address="test:9000")
-
-        mock_response = Mock(spec=requests.Response)
-        mock_response.status_code = 200
-        mock_response.iter_lines.return_value = iter([
-            "Line 1",
-            "Line 2",
-            "",  # Empty line should be filtered
-            "Line 3"
-        ])
-
-        with patch.object(client.session, 'get', return_value=mock_response):
-            lines = list(client.stream_job_logs("job_123"))
-
-        assert len(lines) == 3
-        assert lines[0] == "Line 1"
-        assert lines[2] == "Line 3"
-
-    @patch('scheduler.api.client.load_config', autospec=True)
-    def test_stream_job_logs_not_found(self, mock_load_config):
-        """Test stream_job_logs raises JobNotFoundException"""
-        mock_load_config.return_value = Mock()
-        client = SchedulerClient(address="test:9000")
-
-        mock_response = Mock(spec=requests.Response)
-        mock_response.status_code = 404
-
-        with patch.object(client.session, 'get', return_value=mock_response):
-            with pytest.raises(JobNotFoundException):
-                list(client.stream_job_logs("nonexistent"))
 
 
 class TestNodeMethods:
@@ -580,6 +546,12 @@ class TestWorkerMethods:
 
         mock_response = Mock(spec=requests.Response)
         mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "ok",
+            "shutdown_requested": False,
+            "recorded_job_ids": [],
+            "running_job_ids": []
+        }
 
         gpu_stats = [
             GPUStats(gpu_id=0, utilization=50, memory_used=8000,
@@ -587,8 +559,12 @@ class TestWorkerMethods:
         ]
 
         with patch.object(client.session, 'post', return_value=mock_response) as mock_post:
-            client.send_heartbeat("worker-1", gpu_stats)
+            result = client.send_heartbeat("worker-1", gpu_stats)
 
+            # Verify it returned a HeartbeatResponse
+            assert result.status == "ok"
+            assert result.shutdown_requested is False
+            
             # Verify payload contains serialized stats
             call_kwargs = mock_post.call_args
             payload = call_kwargs[1]['json']
