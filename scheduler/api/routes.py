@@ -275,8 +275,10 @@ async def heartbeat_route(node_name: str, request: NodeHeartbeat) -> HeartbeatRe
         gpu_stats = [GPUStats.from_dict(stat) for stat in request.gpu_stats]
         _node_manager.update_heartbeat(node_name, gpu_stats)
 
-        # Get active job IDs for this node (worker will purge jobs not in this list)
-        active_job_ids = _job_manager.get_active_jobs_for_node(node_name)
+        # Get ALL active job IDs across all workers (not just this node)
+        # This prevents workers from purging logs of jobs running on other nodes
+        # when the head and worker share the same log directory
+        active_job_ids = [job.job_id for job in _job_manager.jobs.values()]
 
         # Check if shutdown has been requested for this node
         node = _node_manager.get_node(node_name)
