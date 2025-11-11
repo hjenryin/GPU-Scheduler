@@ -36,8 +36,7 @@ class TestWorkerDaemon:
         assert daemon.node_name == "test-node"
         assert daemon.num_gpus == 4
         assert daemon.running is False
-        assert daemon.current_job is None
-        assert daemon.current_job_pid is None
+        assert daemon.active_jobs == {}
 
         # Verify GPU monitor was created
         mock_gpu_monitor.assert_called_once_with(test_config)
@@ -550,8 +549,8 @@ class TestWorkerDaemon:
         # Verify failure was reported
         mock_client_instance.report_job_failed.assert_called_once_with("job-004", "Execution failed")
 
-        # Job should be cleared
-        assert daemon.current_job is None
+        # Job should not be added to active_jobs since execution failed
+        assert job.job_id not in daemon.active_jobs
 
     @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
     @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)

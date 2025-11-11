@@ -104,10 +104,10 @@ class JobExecutor:
                     working_dir = job.working_dir or os.path.dirname(os.path.abspath(job.script))
                     script_path = job.script
             else:
-                # No snapshot, use original working directory
-                working_dir = job.working_dir
+                # No snapshot, use original working directory or script's directory as fallback
+                working_dir = job.working_dir or os.path.dirname(os.path.abspath(job.script))
                 script_path = job.script
-                logger.info(f"Job {job.job_id} has no snapshot, using original working directory: {working_dir}")
+                logger.info(f"Job {job.job_id} has no snapshot, using working directory: {working_dir}")
 
             # Clean up old log files (older than 24 hours) before starting new job
             self.file_handler.cleanup_old_logs(max_age_hours=24)
