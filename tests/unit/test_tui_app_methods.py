@@ -226,53 +226,105 @@ class TestSchedulerTUIScreenSwitching:
 class TestRunTUI:
     """Tests for run_tui function"""
 
+    @patch('scheduler.tui.app.os.environ.get')
+    @patch('scheduler.tui.app.sys.stdout.isatty')
     @patch('scheduler.tui.app.SchedulerTUI', autospec=True)
-    def test_run_tui_with_client(self, mock_tui_class):
+    def test_run_tui_with_client(self, mock_tui_class, mock_isatty, mock_environ_get):
         """Test run_tui with client"""
         from scheduler.tui.app import run_tui
-        
+
+        # Mock TTY detection
+        mock_isatty.return_value = True
+        mock_environ_get.return_value = 'xterm-256color'
+
         mock_client = Mock(spec_set=SchedulerClient)
         mock_app = MagicMock(spec_set=App)
         mock_tui_class.return_value = mock_app
-        
+
         run_tui(client=mock_client)
-        
+
         mock_tui_class.assert_called_once_with(mock_client)
         mock_app.run.assert_called_once()
 
+    @patch('scheduler.tui.app.os.environ.get')
+    @patch('scheduler.tui.app.sys.stdout.isatty')
     @patch('scheduler.tui.app.SchedulerClient', autospec=True)
     @patch('scheduler.tui.app.SchedulerTUI', autospec=True)
-    def test_run_tui_with_address(self, mock_tui_class, mock_client_class):
+    def test_run_tui_with_address(self, mock_tui_class, mock_client_class, mock_isatty, mock_environ_get):
         """Test run_tui with address"""
         from scheduler.tui.app import run_tui
-        
+
+        # Mock TTY detection
+        mock_isatty.return_value = True
+        mock_environ_get.return_value = 'xterm-256color'
+
         mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_app = MagicMock(spec_set=App)
         mock_tui_class.return_value = mock_app
-        
+
         run_tui(address="localhost:8265")
-        
+
         mock_client_class.assert_called_once_with(address="localhost:8265")
         mock_tui_class.assert_called_once_with(mock_client)
         mock_app.run.assert_called_once()
 
+    @patch('scheduler.tui.app.os.environ.get')
+    @patch('scheduler.tui.app.sys.stdout.isatty')
     @patch('scheduler.tui.app.SchedulerClient', autospec=True)
     @patch('scheduler.tui.app.SchedulerTUI', autospec=True)
-    def test_run_tui_without_parameters(self, mock_tui_class, mock_client_class):
+    def test_run_tui_without_parameters(self, mock_tui_class, mock_client_class, mock_isatty, mock_environ_get):
         """Test run_tui without parameters"""
         from scheduler.tui.app import run_tui
-        
+
+        # Mock TTY detection
+        mock_isatty.return_value = True
+        mock_environ_get.return_value = 'xterm-256color'
+
         mock_client = Mock(spec_set=SchedulerClient)
         mock_client_class.return_value = mock_client
         mock_app = MagicMock(spec_set=App)
         mock_tui_class.return_value = mock_app
-        
+
         run_tui()
-        
+
         mock_client_class.assert_called_once_with(address=None)
         mock_tui_class.assert_called_once_with(mock_client)
         mock_app.run.assert_called_once()
+
+    @patch('scheduler.tui.app.sys.stdout.isatty')
+    def test_run_tui_raises_error_when_no_tty(self, mock_isatty):
+        """Test run_tui raises RuntimeError when stdout is not a TTY"""
+        from scheduler.tui.app import run_tui
+
+        # Mock no TTY
+        mock_isatty.return_value = False
+
+        mock_client = Mock(spec_set=SchedulerClient)
+
+        with pytest.raises(RuntimeError) as exc_info:
+            run_tui(client=mock_client)
+
+        assert "TUI requires a terminal/screen to run" in str(exc_info.value)
+        assert "Text User Interface" in str(exc_info.value)
+
+    @patch('scheduler.tui.app.os.environ.get')
+    @patch('scheduler.tui.app.sys.stdout.isatty')
+    def test_run_tui_raises_error_when_no_term_env(self, mock_isatty, mock_environ_get):
+        """Test run_tui raises RuntimeError when TERM env var is not set"""
+        from scheduler.tui.app import run_tui
+
+        # Mock TTY present but no TERM env var
+        mock_isatty.return_value = True
+        mock_environ_get.return_value = None
+
+        mock_client = Mock(spec_set=SchedulerClient)
+
+        with pytest.raises(RuntimeError) as exc_info:
+            run_tui(client=mock_client)
+
+        assert "TERM environment variable is not set" in str(exc_info.value)
+        assert "export TERM" in str(exc_info.value)
 
 
 class TestSchedulerTUIKeyboardShortcuts:

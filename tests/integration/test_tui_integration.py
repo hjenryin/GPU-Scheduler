@@ -269,41 +269,59 @@ class TestSchedulerTUI:
 class TestRunTUI:
     """Test run_tui function."""
 
+    @patch('scheduler.tui.app.os.environ.get')
+    @patch('scheduler.tui.app.sys.stdout.isatty')
     @patch('scheduler.tui.app.SchedulerTUI', autospec=True)
-    def test_run_tui_with_client(self, mock_tui_class, mock_scheduler_client):
+    def test_run_tui_with_client(self, mock_tui_class, mock_isatty, mock_environ_get, mock_scheduler_client):
         """Test run_tui with provided client."""
+        # Mock TTY detection
+        mock_isatty.return_value = True
+        mock_environ_get.return_value = 'xterm-256color'
+
         mock_app = Mock(spec_set=App)
         mock_tui_class.return_value = mock_app
-        
+
         run_tui(client=mock_scheduler_client)
-        
+
         mock_tui_class.assert_called_once_with(mock_scheduler_client)
         mock_app.run.assert_called_once()
 
+    @patch('scheduler.tui.app.os.environ.get')
+    @patch('scheduler.tui.app.sys.stdout.isatty')
     @patch('scheduler.tui.app.SchedulerClient', autospec=True)
     @patch('scheduler.tui.app.SchedulerTUI', autospec=True)
-    def test_run_tui_with_address(self, mock_tui_class, mock_client_class, mock_scheduler_client):
+    def test_run_tui_with_address(self, mock_tui_class, mock_client_class, mock_isatty, mock_environ_get, mock_scheduler_client):
         """Test run_tui with address parameter."""
+        # Mock TTY detection
+        mock_isatty.return_value = True
+        mock_environ_get.return_value = 'xterm-256color'
+
         mock_client_class.return_value = mock_scheduler_client
         mock_app = Mock(spec_set=App)
         mock_tui_class.return_value = mock_app
-        
+
         run_tui(address="localhost:8265")
-        
+
         mock_client_class.assert_called_once_with(address="localhost:8265")
         mock_tui_class.assert_called_once_with(mock_scheduler_client)
         mock_app.run.assert_called_once()
 
+    @patch('scheduler.tui.app.os.environ.get')
+    @patch('scheduler.tui.app.sys.stdout.isatty')
     @patch('scheduler.tui.app.SchedulerClient', autospec=True)
     @patch('scheduler.tui.app.SchedulerTUI', autospec=True)
-    def test_run_tui_without_parameters(self, mock_tui_class, mock_client_class, mock_scheduler_client):
+    def test_run_tui_without_parameters(self, mock_tui_class, mock_client_class, mock_isatty, mock_environ_get, mock_scheduler_client):
         """Test run_tui without parameters."""
+        # Mock TTY detection
+        mock_isatty.return_value = True
+        mock_environ_get.return_value = 'xterm-256color'
+
         mock_client_class.return_value = mock_scheduler_client
         mock_app = Mock(spec_set=App)
         mock_tui_class.return_value = mock_app
-        
+
         run_tui()
-        
+
         mock_client_class.assert_called_once_with(address=None)
         mock_tui_class.assert_called_once_with(mock_scheduler_client)
         mock_app.run.assert_called_once()

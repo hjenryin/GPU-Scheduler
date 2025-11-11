@@ -2,6 +2,8 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import Header, Footer
 import logging
+import sys
+import os
 from typing import Optional
 
 from scheduler.api import SchedulerClient
@@ -269,12 +271,41 @@ def run_tui(client: Optional[SchedulerClient] = None, address: Optional[str] = N
     Args:
         client: SchedulerClient instance (if None, creates one)
         address: Head node address (used if client is None)
+
+    Raises:
+        RuntimeError: If no terminal/screen is detected (not a TTY)
     """
+    # Check if we have a terminal/screen available
+    if not sys.stdout.isatty():
+        raise RuntimeError(
+            "Error: TUI requires a terminal/screen to run.\n"
+            "The 'scheduler status' command is a Text User Interface (TUI) that must be run "
+            "from an interactive shell with a screen attached.\n"
+            "It cannot be run from:\n"
+            "  - Non-interactive shells\n"
+            "  - Piped commands (e.g., 'scheduler status | less')\n"
+            "  - Background processes\n"
+            "  - SSH sessions without TTY allocation (use 'ssh -t' to allocate a TTY)\n"
+            "  - Cron jobs or systemd services\n"
+            "\n"
+            "If running via SSH, ensure you allocate a TTY:\n"
+            "  ssh -t user@host 'scheduler status'"
+        )
+
+    # Additional check for TERM environment variable
+    if not os.environ.get('TERM'):
+        raise RuntimeError(
+            "Error: TERM environment variable is not set.\n"
+            "The TUI requires a terminal emulator to run. Please set the TERM variable:\n"
+            "  export TERM=xterm-256color\n"
+            "or run from a proper terminal emulator."
+        )
+
     if client is None:
         client = SchedulerClient(address=address)
 
     app = SchedulerTUI(client)
-    
+
     # Enable dev mode for better debugging - logs will show in textual console
     # Run with: textual console then in another terminal run: textual run --dev scheduler.tui.app:run_tui
     try:
