@@ -440,3 +440,145 @@ class TestHeartbeatSender:
         # Stop it
         sender.running = False
         assert sender.is_shutdown_requested() is True
+
+    @patch('scheduler.worker.heartbeat.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
+    def test_send_heartbeat_with_cleanup_callback(self, mock_gpu_monitor, mock_client_class, test_config):
+        """Test send_heartbeat calls cleanup callback with job IDs"""
+        from scheduler.api.schemas import HeartbeatResponse
+        
+        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance.get_latest_stats.return_value = []
+        mock_gpu_monitor.return_value = mock_gpu_monitor_instance
+
+        # Create mock response with recorded and running job IDs
+        mock_response = Mock(spec=HeartbeatResponse)
+        mock_response.shutdown_requested = False
+        mock_response.recorded_job_ids = ["job-1", "job-2", "job-3"]
+        mock_response.running_job_ids = ["job-1"]
+        
+        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance.send_heartbeat.return_value = mock_response
+        mock_client_class.return_value = mock_client_instance
+
+        sender = HeartbeatSender(
+            node_name="test-node",
+            head_address="localhost:8265",
+            gpu_monitor=mock_gpu_monitor_instance,
+            config=test_config
+        )
+
+        # Set cleanup callback
+        cleanup_called = []
+        def cleanup_callback(recorded, running):
+            cleanup_called.append((recorded, running))
+        
+        sender.set_cleanup_callback(cleanup_callback)
+
+        # Send heartbeat
+        result = sender.send_heartbeat()
+
+        # Verify callback was called with correct arguments
+        assert len(cleanup_called) == 1
+        assert cleanup_called[0] == (["job-1", "job-2", "job-3"], ["job-1"])
+        assert result is False
+
+    @patch('scheduler.worker.heartbeat.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
+    def test_send_heartbeat_backward_compatibility_active_job_ids(self, mock_gpu_monitor, mock_client_class, test_config):
+        """Test send_heartbeat uses active_job_ids for backward compatibility"""
+        from scheduler.api.schemas import HeartbeatResponse
+        
+        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance.get_latest_stats.return_value = []
+        mock_gpu_monitor.return_value = mock_gpu_monitor_instance
+
+        # Create mock response with old active_job_ids field (no recorded_job_ids)
+        mock_response = Mock(spec=HeartbeatResponse)
+        mock_response.shutdown_requested = False
+        mock_response.recorded_job_ids = []  # Empty
+        mock_response.running_job_ids = []
+        mock_response.active_job_ids = ["job-old-1", "job-old-2"]  # Old field
+        
+        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance.send_heartbeat.return_value = mock_response
+        mock_client_class.return_value = mock_client_instance
+
+        sender = HeartbeatSender(
+            node_name="test-node",
+            head_address="localhost:8265",
+            gpu_monitor=mock_gpu_monitor_instance,
+            config=test_config
+        )
+
+        # Set cleanup callback
+        cleanup_called = []
+        def cleanup_callback(recorded, running):
+            cleanup_called.append((recorded, running))
+        
+        sender.set_cleanup_callback(cleanup_callback)
+
+        # Send heartbeat
+        sender.send_heartbeat()
+
+        # Verify callback was called with active_job_ids (backward compatibility)
+        assert len(cleanup_called) == 1
+        assert cleanup_called[0] == (["job-old-1", "job-old-2"], [])
+
+    @patch('scheduler.worker.heartbeat.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
+    def test_send_heartbeat_confirmation_failure(self, mock_gpu_monitor, mock_client_class, test_config):
+        """Test send_heartbeat handles failure in shutdown confirmation gracefully"""
+        from scheduler.api.schemas import HeartbeatResponse
+        
+        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance.get_latest_stats.return_value = []
+        mock_gpu_monitor.return_value = mock_gpu_monitor_instance
+
+        mock_response = Mock(spec=HeartbeatResponse)
+        mock_response.shutdown_requested = True
+        
+        mock_client_instance = Mock(spec_set=SchedulerClient)
+        # First call returns shutdown request, second call (confirmation) fails
+        mock_client_instance.send_heartbeat.side_effect = [
+            mock_response,  # Initial heartbeat
+            Exception("Network error")  # Confirmation fails
+        ]
+        mock_client_class.return_value = mock_client_instance
+
+        sender = HeartbeatSender(
+            node_name="test-node",
+            head_address="localhost:8265",
+            gpu_monitor=mock_gpu_monitor_instance,
+            config=test_config
+        )
+
+        # Send heartbeat - should still return True despite confirmation failure
+        result = sender.send_heartbeat()
+        assert result is True
+        # Should have attempted to send confirmation (2 calls total)
+        assert mock_client_instance.send_heartbeat.call_count == 2
+
+    @patch('scheduler.worker.heartbeat.SchedulerClient', autospec=True)
+    @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
+    def test_set_purge_callback_backward_compatibility(self, mock_gpu_monitor, mock_client_class, test_config):
+        """Test set_purge_callback calls set_cleanup_callback for backward compatibility"""
+        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor.return_value = mock_gpu_monitor_instance
+
+        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_class.return_value = mock_client_instance
+
+        sender = HeartbeatSender(
+            node_name="test-node",
+            head_address="localhost:8265",
+            gpu_monitor=mock_gpu_monitor_instance,
+            config=test_config
+        )
+
+        # Use deprecated set_purge_callback
+        test_callback = lambda x, y: None
+        sender.set_purge_callback(test_callback)
+
+        # Verify it set the cleanup callback
+        assert sender.cleanup_callback == test_callback
