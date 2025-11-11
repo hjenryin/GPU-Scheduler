@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta
 
 from scheduler.core import Config
-from scheduler.core import GPU, Node, GPUStats, NodeStatus
+from scheduler.core import GPU, Node, GPUStats, NodeStatus, ShutdownState
 from scheduler.core import NodeNotFoundException, ValidationException
 from scheduler.manager.persistence import PersistenceManager
 
@@ -62,9 +62,8 @@ class NodeManager:
             node.address = address
             node.num_gpus = num_gpus
             node.status = NodeStatus.CONNECTED
-            # Clear shutdown flags when node re-registers
-            node.shutdown_requested = False
-            node.shutdown_acknowledged = False
+            # Clear shutdown state when node re-registers
+            node.shutdown_state = ShutdownState.NONE
             logger.info(f"Node {node_name} re-registered")
         else:
             # Create new node with empty GPU list (will be populated on first heartbeat)
@@ -85,7 +84,8 @@ class NodeManager:
     def update_heartbeat(
         self,
         node_name: str,
-        gpu_stats: List[GPUStats]
+        gpu_stats: List[GPUStats],
+        shutdown_acknowledged: bool = False
     ):
         """
         Update node heartbeat and GPU statistics.
@@ -93,6 +93,7 @@ class NodeManager:
         Args:
             node_name: Node name
             gpu_stats: List of GPU statistics
+            shutdown_acknowledged: True if worker is confirming shutdown receipt
 
         Raises:
             NodeNotFoundException: If node not found
@@ -130,10 +131,18 @@ class NodeManager:
         # Update heartbeat timestamp
         node.update_heartbeat(gpu_stats)
 
-        # Mark as acknowledged if shutdown was requested
-        if node.shutdown_requested and not node.shutdown_acknowledged:
-            node.shutdown_acknowledged = True
-            logger.info(f"Node {node_name} acknowledged shutdown signal")
+        # State machine for shutdown confirmation:
+        # NONE -> PENDING -> SENT -> CONFIRMED
+
+        # Transition: PENDING -> SENT (first heartbeat after shutdown requested)
+        if node.shutdown_state == ShutdownState.PENDING:
+            node.shutdown_state = ShutdownState.SENT
+            logger.info(f"Sending shutdown signal to {node_name}")
+
+        # Transition: SENT -> CONFIRMED (worker confirms receipt)
+        elif shutdown_acknowledged and node.shutdown_state == ShutdownState.SENT:
+            node.shutdown_state = ShutdownState.CONFIRMED
+            logger.info(f"Node {node_name} confirmed shutdown")
 
         self.persistence.save_node(node)
         logger.debug(f"Heartbeat received from {node_name}")
@@ -217,12 +226,12 @@ class NodeManager:
     def request_shutdown_all_workers(self):
         """
         Request shutdown for all worker nodes.
-        Sets the shutdown_requested flag on all nodes so they will
+        Sets the shutdown_state to PENDING on all nodes so they will
         gracefully shutdown when they next poll/heartbeat.
         """
         for node in self.nodes.values():
             if node.status == NodeStatus.CONNECTED:
-                node.shutdown_requested = True
+                node.shutdown_state = ShutdownState.PENDING
                 self.persistence.save_node(node)
                 logger.info(f"Shutdown requested for node {node.node_name}")
         logger.info(f"Shutdown requested for {len(self.nodes)} worker nodes")
