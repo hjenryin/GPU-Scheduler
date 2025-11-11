@@ -87,6 +87,7 @@ def mock_job_manager():
     # Use Mock with spec instead of autospec on already-mocked attributes
     from scheduler.manager import JobManager
     mock_jm = MagicMock(spec=JobManager)
+    mock_jm.jobs = {}  # Add jobs attribute as empty dict
     
     with patch('scheduler.api.routes._job_manager', mock_jm):
         yield mock_jm
@@ -462,13 +463,13 @@ class TestHeartbeatRoute:
     """Tests for heartbeat_route"""
 
     @pytest.mark.asyncio
-    async def test_heartbeat_success(self, mock_node_manager):
+    async def test_heartbeat_success(self, mock_job_manager, mock_node_manager):
         """Test successful heartbeat"""
         request = NodeHeartbeat(gpu_stats=[])
         
         result = await heartbeat_route("node1", request)
         
-        assert result['status'] == "ok"
+        assert result.status == "ok"
         mock_node_manager.update_heartbeat.assert_called_once()
 
     @pytest.mark.asyncio
@@ -495,25 +496,26 @@ class TestHeartbeatRoute:
         assert exc_info.value.status_code == 400  # Route returns 400 for generic errors
 
     @pytest.mark.asyncio
-    async def test_heartbeat_returns_shutdown_flag(self, mock_node_manager):
+    async def test_heartbeat_returns_shutdown_flag(self, mock_job_manager, mock_node_manager):
         """Test heartbeat returns shutdown_requested flag"""
         from unittest.mock import Mock
-        request = NodeHeartbeat(gpu_stats=[])
+        from scheduler.core import ShutdownState
+        request = NodeHeartbeat(gpu_stats=[], timeout=1)  # With timeout to trigger long-poll
         
         # Mock node with shutdown requested
         mock_node = Mock()
-        mock_node.shutdown_requested = True
+        mock_node.shutdown_state = ShutdownState.SENT
         mock_node_manager.get_node.return_value = mock_node
         
-        result = await heartbeat_route("node1", request)
+        result = await heartbeat_route("node1", request, timeout=1)
         
-        assert result['status'] == "ok"
-        assert result['shutdown_requested'] == True
+        assert result.status == "ok"
+        assert result.shutdown_requested == True
         mock_node_manager.update_heartbeat.assert_called_once()
-        mock_node_manager.get_node.assert_called_once_with("node1")
+        mock_node_manager.get_node.assert_called()
 
     @pytest.mark.asyncio
-    async def test_heartbeat_no_shutdown_requested(self, mock_node_manager):
+    async def test_heartbeat_no_shutdown_requested(self, mock_job_manager, mock_node_manager):
         """Test heartbeat when shutdown not requested"""
         from unittest.mock import Mock
         request = NodeHeartbeat(gpu_stats=[])
@@ -525,8 +527,8 @@ class TestHeartbeatRoute:
         
         result = await heartbeat_route("node1", request)
         
-        assert result['status'] == "ok"
-        assert result['shutdown_requested'] == False
+        assert result.status == "ok"
+        assert result.shutdown_requested == False
 
 
 class TestListNodesRoute:
@@ -650,7 +652,7 @@ class TestCompleteJobRoute:
         result = await complete_job_route("job_123", exit_code=0)
         
         assert result['status'] == "completed"
-        mock_job_manager.complete_job.assert_called_once_with("job_123", 0)
+        mock_job_manager.complete_job.assert_called_once_with("job_123", 0, None)
 
     @pytest.mark.asyncio
     async def test_complete_job_not_found(self, mock_job_manager, mock_node_manager):
@@ -683,7 +685,7 @@ class TestFailJobRoute:
         result = await fail_job_route("job_123", "Error occurred")
         
         assert result['status'] == "failed"
-        mock_job_manager.fail_job.assert_called_once_with("job_123", "Error occurred")
+        mock_job_manager.fail_job.assert_called_once_with("job_123", "Error occurred", None)
 
     @pytest.mark.asyncio
     async def test_fail_job_not_found(self, mock_job_manager, mock_node_manager):
@@ -704,17 +706,19 @@ class TestShutdownClusterRoute:
 
     @pytest.mark.asyncio
     async def test_shutdown_cluster(self, mock_logger, mock_node_manager):
-        """Test shutdown cluster route"""
+        """Test shutdown cluster route when orchestrator not available"""
         from scheduler.api.routes import shutdown_cluster_route
         from scheduler.head import Orchestrator
-        from unittest.mock import patch
+        from unittest.mock import patch, Mock
+        from fastapi import BackgroundTasks
 
         mock_node_manager.get_connected_nodes.return_value = []
+        mock_background_tasks = Mock(spec=BackgroundTasks)
 
         # Mock orchestrator instance as None
         with patch.object(Orchestrator, '_instance', None):
             with pytest.raises(HTTPException) as exc_info:
-                await shutdown_cluster_route(graceful_timeout=60, force=False)
+                await shutdown_cluster_route(background_tasks=mock_background_tasks)
 
             assert exc_info.value.status_code == 500
 
@@ -723,16 +727,20 @@ class TestShutdownClusterRoute:
         """Test successful cluster shutdown"""
         from scheduler.api.routes import shutdown_cluster_route
         from scheduler.head import Orchestrator
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock, patch, Mock, AsyncMock
+        from fastapi import BackgroundTasks
 
         mock_node_manager.get_connected_nodes.return_value = [Mock(), Mock()]
+        mock_background_tasks = Mock(spec=BackgroundTasks)
         mock_orchestrator = MagicMock()
-        mock_orchestrator.request_cluster_shutdown = MagicMock()
+        mock_orchestrator.shutdown_cluster_workers = MagicMock(return_value=True)
 
         with patch.object(Orchestrator, '_instance', mock_orchestrator):
-            result = await shutdown_cluster_route(graceful_timeout=60, force=True)
+            result = await shutdown_cluster_route(background_tasks=mock_background_tasks)
 
-            assert result['status'] == "shutdown_initiated"
+            assert result['status'] == "shutdown_complete"
             assert result['nodes_count'] == 2
-            mock_orchestrator.request_cluster_shutdown.assert_called_once_with(60, True)
+            assert result['all_confirmed'] == True
+            mock_orchestrator.shutdown_cluster_workers.assert_called_once()
+            mock_background_tasks.add_task.assert_called_once_with(mock_orchestrator.stop)
 
