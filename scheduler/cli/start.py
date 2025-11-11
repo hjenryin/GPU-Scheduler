@@ -607,7 +607,7 @@ def _start_worker_node_internal(config: Config, node_name: Optional[str], num_gp
 def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optional[int], block: bool) -> int:
     """Start worker node daemon."""
     from scheduler.core import save_head_info
-    
+
     # Determine node name
     if not node_name:
         node_name = socket.gethostname()
@@ -617,9 +617,6 @@ def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optio
 
     # Display connection info
     click.echo(f"Connecting to head node: {config.address}")
-    
-    # Save head node address for CLI commands
-    save_head_info(config.address)
 
     # Check for existing worker
     # Use hardcoded location for lock files as documented
@@ -631,6 +628,9 @@ def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optio
         click.echo(f"\nError: Worker '{node_name}' is already running on this machine")
         click.echo("Use 'scheduler stop' to stop it first")
         return 1
+
+    # Save head node address for CLI commands (after lock is acquired)
+    save_head_info(config.address)
 
     # If non-blocking mode, fork a background process
     if not block:
