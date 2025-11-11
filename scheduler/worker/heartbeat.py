@@ -87,8 +87,13 @@ class HeartbeatSender:
             # Get latest GPU stats
             gpu_stats = self.gpu_monitor.get_latest_stats()
 
-            # Send heartbeat and receive response
-            response = self.client.send_heartbeat(self.node_name, gpu_stats)
+            # Send heartbeat with long-poll timeout
+            response = self.client.send_heartbeat(
+                self.node_name,
+                gpu_stats,
+                shutdown_acknowledged=False,
+                timeout=self.heartbeat_interval
+            )
 
             # Handle cleanup - tell worker which jobs to keep and which to run
             if self.cleanup_callback:
@@ -103,6 +108,19 @@ class HeartbeatSender:
 
             if response.shutdown_requested:
                 logger.info(f"Shutdown requested by head node for {self.node_name}")
+
+                # Send immediate confirmation heartbeat
+                try:
+                    logger.info("Sending immediate shutdown confirmation")
+                    self.client.send_heartbeat(
+                        self.node_name,
+                        gpu_stats,
+                        shutdown_acknowledged=True
+                    )
+                    logger.info("Shutdown confirmation sent")
+                except Exception as e:
+                    logger.error(f"Failed to send confirmation: {e}")
+
                 return True
 
             logger.debug(f"Sent heartbeat for node {self.node_name}")
@@ -137,7 +155,7 @@ class HeartbeatSender:
                 logger.info("Shutdown requested - stopping heartbeat loop")
                 self.running = False
                 break
-            time.sleep(self.heartbeat_interval)
+            # NO sleep! send_heartbeat() already waited via long-polling
 
         logger.info("Heartbeat loop stopped")
 

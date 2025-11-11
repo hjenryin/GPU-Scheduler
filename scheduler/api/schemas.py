@@ -89,6 +89,7 @@ class NodeRegisterResponse(BaseModel):
 class NodeHeartbeat(BaseModel):
     """Node heartbeat request schema"""
     gpu_stats: List[dict]  # List of GPUStats dicts
+    shutdown_acknowledged: bool = False  # Worker confirms shutdown receipt
 
 
 class HeartbeatResponse(BaseModel):

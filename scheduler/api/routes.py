@@ -1,8 +1,9 @@
 from typing import List, Optional
+import asyncio
 import logging
 import os
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 
 from scheduler.manager import JobManager, NodeManager
@@ -11,7 +12,7 @@ from scheduler.api.schemas import (
     NodeRegisterRequest, NodeRegisterResponse, NodeHeartbeat, HeartbeatResponse, NodeResponse,
     GPUFreezeRequest
 )
-from scheduler.core import JobStatus, GPUStats, JobNotFoundException, NodeNotFoundException, constants
+from scheduler.core import JobStatus, GPUStats, JobNotFoundException, NodeNotFoundException, constants, ShutdownState
 from scheduler.core import load_config
 
 logger = logging.getLogger(__name__)
@@ -89,8 +90,8 @@ def create_app(
         return await register_node_route(request)
 
     @app.post(f"{constants.API_BASE_PATH}/nodes/{{node_name}}/heartbeat")
-    async def heartbeat(node_name: str, request: NodeHeartbeat):
-        return await heartbeat_route(node_name, request)
+    async def heartbeat(node_name: str, request: NodeHeartbeat, timeout: Optional[int] = None):
+        return await heartbeat_route(node_name, request, timeout)
 
     @app.get(f"{constants.API_BASE_PATH}/nodes", response_model=List[NodeResponse])
     async def list_nodes():
@@ -128,8 +129,8 @@ def create_app(
 
     # Cluster management routes
     @app.post(f"{constants.API_BASE_PATH}/shutdown/cluster")
-    async def shutdown_cluster(graceful_timeout: int = 60, force: bool = False):
-        return await shutdown_cluster_route(graceful_timeout, force)
+    async def shutdown_cluster(background_tasks: BackgroundTasks):
+        return await shutdown_cluster_route(background_tasks)
 
     return app
 
@@ -283,33 +284,53 @@ async def register_node_route(request: NodeRegisterRequest) -> NodeRegisterRespo
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-async def heartbeat_route(node_name: str, request: NodeHeartbeat) -> HeartbeatResponse:
+async def heartbeat_route(
+    node_name: str,
+    request: NodeHeartbeat,
+    timeout: Optional[int] = None
+) -> HeartbeatResponse:
     """POST /api/v1/nodes/{node_name}/heartbeat - Send heartbeat and receive log requests"""
     try:
         # Convert dict stats to GPUStats objects
         gpu_stats = [GPUStats.from_dict(stat) for stat in request.gpu_stats]
-        _node_manager.update_heartbeat(node_name, gpu_stats)
 
-        # Get ALL job IDs across all workers (not just this node)
-        # This prevents workers from purging logs of jobs running on other nodes
-        # when the head and worker share the same log directory
+        # Update heartbeat with shutdown_acknowledged flag
+        _node_manager.update_heartbeat(
+            node_name,
+            gpu_stats,
+            shutdown_acknowledged=request.shutdown_acknowledged
+        )
+
+        # Get job lists
         recorded_job_ids = [job.job_id for job in _job_manager.jobs.values()]
-
-        # Get RUNNING job IDs assigned to THIS worker only
-        # Worker should terminate processes not in this list (after grace period)
         running_job_ids = [
             job.job_id
             for job in _job_manager.jobs.values()
             if job.status == JobStatus.RUNNING and job.assigned_node == node_name
         ]
 
-        # Check if shutdown has been requested for this node
-        node = _node_manager.get_node(node_name)
-        shutdown_requested = node.shutdown_requested if node else False
+        # Long-poll if timeout provided
+        if timeout and timeout > 0:
+            import time
+            start = time.time()
+            while time.time() - start < timeout:
+                # Check if shutdown was requested
+                node = _node_manager.get_node(node_name)
+                if node and node.shutdown_state != ShutdownState.NONE:
+                    return HeartbeatResponse(
+                        status="ok",
+                        shutdown_requested=True,
+                        recorded_job_ids=recorded_job_ids,
+                        running_job_ids=running_job_ids
+                    )
 
+                # Sleep briefly before checking again
+                await asyncio.sleep(0.1)
+
+        # Normal response (no shutdown, timeout reached or no timeout provided)
         return HeartbeatResponse(
             status="ok",
-            shutdown_requested=shutdown_requested,
+            shutdown_requested=False,
             recorded_job_ids=recorded_job_ids,
             running_job_ids=running_job_ids
         )
@@ -403,49 +424,52 @@ async def fail_job_route(job_id: str, error_message: str, after_commit_ref: Opti
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-async def shutdown_cluster_route(graceful_timeout: int = 60, force: bool = False) -> dict:
+async def shutdown_cluster_route(background_tasks: BackgroundTasks) -> dict:
     """
     POST /api/v1/shutdown/cluster - Shutdown entire cluster
-    
-    Args:
-        graceful_timeout: Seconds to wait for graceful shutdown
-        force: Whether to force kill if graceful shutdown fails
-    
+
     Returns:
-        Confirmation of shutdown initiation
+        Confirmation of shutdown status
     """
     try:
-        logger.info(f"Cluster shutdown requested: graceful_timeout={graceful_timeout}, force={force}")
-        
+        logger.info("Cluster shutdown requested")
+
         # Get all connected nodes
         nodes = _node_manager.get_connected_nodes()
         logger.info(f"Found {len(nodes)} connected nodes to shutdown")
-        
+
         # Signal orchestrator to shutdown cluster
-        # This will be handled by the orchestrator's shutdown_cluster method
         from scheduler.head import Orchestrator
         orchestrator = Orchestrator.get_instance()
-        if orchestrator:
-            orchestrator.request_cluster_shutdown(graceful_timeout, force)
-            logger.info("Cluster shutdown initiated successfully")
-            return {
-                "status": "shutdown_initiated",
-                "nodes_count": len(nodes),
-                "graceful_timeout": graceful_timeout,
-                "force": force
-            }
-        else:
+        if not orchestrator:
             logger.error("Orchestrator instance not available")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Orchestrator not available"
             )
-            
+
+        # Do shutdown work directly (blocks until workers confirm)
+        loop = asyncio.get_event_loop()
+        all_confirmed = await loop.run_in_executor(
+            None,
+            orchestrator.shutdown_cluster_workers
+        )
+
+        # Schedule head shutdown AFTER response is sent
+        background_tasks.add_task(orchestrator.stop)
+
+        logger.info(f"Cluster shutdown completed: all_confirmed={all_confirmed}")
+        return {
+            "status": "shutdown_complete" if all_confirmed else "shutdown_timeout",
+            "nodes_count": len(nodes),
+            "all_confirmed": all_confirmed
+        }
+
     except Exception as e:
-        logger.error(f"Error initiating cluster shutdown: {e}")
+        logger.error(f"Error during cluster shutdown: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to initiate cluster shutdown: {e}"
+            detail=f"Failed to shutdown cluster: {e}"
         )
 
 

@@ -603,7 +603,9 @@ class SchedulerClient:
     def send_heartbeat(
         self,
         node_name: str,
-        gpu_stats: List[GPUStats]
+        gpu_stats: List[GPUStats],
+        shutdown_acknowledged: bool = False,
+        timeout: Optional[int] = None
     ):
         """
         Send heartbeat (worker use only).
@@ -611,9 +613,11 @@ class SchedulerClient:
         Args:
             node_name: Node name
             gpu_stats: GPU statistics
+            shutdown_acknowledged: True if confirming shutdown receipt
+            timeout: Long-poll timeout in seconds
 
         Returns:
-            HeartbeatResponse with shutdown_requested and active_job_ids
+            HeartbeatResponse with shutdown_requested and job lists
 
         Raises:
             ConnectionException: If cannot connect
@@ -621,11 +625,22 @@ class SchedulerClient:
         from scheduler.api.schemas import HeartbeatResponse
 
         payload = {
-            "gpu_stats": [stats.to_dict() for stats in gpu_stats]
+            "gpu_stats": [stats.to_dict() for stats in gpu_stats],
+            "shutdown_acknowledged": shutdown_acknowledged
         }
 
+        # Add timeout as query parameter if provided
+        params = {}
+        if timeout:
+            params["timeout"] = timeout
+
         try:
-            response = self.session.post(f"{self.base_url}/nodes/{node_name}/heartbeat", json=payload, timeout=30)
+            response = self.session.post(
+                f"{self.base_url}/nodes/{node_name}/heartbeat",
+                json=payload,
+                params=params,
+                timeout=(timeout + 5) if timeout else 30
+            )
             response.raise_for_status()
             data = response.json()
             return HeartbeatResponse(**data)
@@ -852,41 +867,31 @@ class SchedulerClient:
 
         return node
 
-    def shutdown_cluster(self, graceful_timeout: int = 60, force: bool = False) -> bool:
+    def shutdown_cluster(self) -> bool:
         """
         Request head node to shutdown entire cluster.
-        
-        Args:
-            graceful_timeout: Seconds to wait for graceful shutdown
-            force: Whether to force kill if graceful shutdown fails
-            
+
         Returns:
-            True if shutdown request was sent successfully
-            
+            True if shutdown completed successfully
+
         Raises:
             ConnectionException: If cannot connect to head node
         """
-        payload = {
-            "graceful_timeout": graceful_timeout,
-            "force": force
-        }
-        
         try:
             response = self.session.post(
                 f"{self.base_url}/shutdown/cluster",
-                json=payload,
-                timeout=30
+                timeout=120  # Give it time to wait for confirmations
             )
             response.raise_for_status()
             data = response.json()
-            
-            if data.get("status") == "shutdown_initiated":
-                logger.info(f"Cluster shutdown initiated successfully: {data}")
-                return True
+
+            if data.get("status") in ["shutdown_complete", "shutdown_timeout"]:
+                logger.info(f"Cluster shutdown completed: {data}")
+                return data.get("all_confirmed", False)
             else:
                 logger.warning(f"Unexpected shutdown response: {data}")
                 return False
-                
+
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to request cluster shutdown: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")

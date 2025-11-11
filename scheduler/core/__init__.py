@@ -6,6 +6,7 @@ from scheduler.core.models import (
     JobRequirement,
     JobStatus,
     NodeStatus,
+    ShutdownState,
     GPUStats,
 )
 
@@ -67,6 +68,7 @@ __all__ = [
     "JobRequirement",
     "JobStatus",
     "NodeStatus",
+    "ShutdownState",
     "GPUStats",
     # Config
     "Config",

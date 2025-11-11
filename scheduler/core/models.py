@@ -28,6 +28,14 @@ class NodeStatus(Enum):
     INITIALIZING = "initializing"
 
 
+class ShutdownState(Enum):
+    """Node shutdown state enumeration"""
+    NONE = "none"              # No shutdown requested
+    PENDING = "pending"        # Head has requested shutdown
+    SENT = "sent"             # Head has sent signal via heartbeat response
+    CONFIRMED = "confirmed"    # Worker has confirmed receipt
+
+
 class GPUStats:
     """GPU statistics snapshot"""
     
@@ -569,8 +577,7 @@ class Node:
     last_heartbeat: Optional[datetime] = None
     registered_at: Optional[datetime] = None
     grace_period_until: Optional[datetime] = None
-    shutdown_requested: bool = False
-    shutdown_acknowledged: bool = False
+    shutdown_state: ShutdownState = ShutdownState.NONE
 
     def __init__(
         self,
@@ -582,8 +589,7 @@ class Node:
         last_heartbeat: Optional[datetime] = None,
         registered_at: Optional[datetime] = None,
         grace_period_until: Optional[datetime] = None,
-        shutdown_requested: bool = False,
-        shutdown_acknowledged: bool = False
+        shutdown_state: ShutdownState = ShutdownState.NONE
     ):
         """
         Initialize node.
@@ -597,8 +603,7 @@ class Node:
             last_heartbeat: Last heartbeat timestamp
             registered_at: Registration timestamp
             grace_period_until: Timestamp until which node is in grace period
-            shutdown_requested: Flag indicating if shutdown has been requested for this node
-            shutdown_acknowledged: Flag indicating if worker has received shutdown signal via heartbeat
+            shutdown_state: Current shutdown state (NONE, PENDING, SENT, CONFIRMED)
         """
         self.node_name = node_name
         self.address = address
@@ -608,8 +613,7 @@ class Node:
         self.last_heartbeat = last_heartbeat
         self.registered_at = registered_at or datetime.now()
         self.grace_period_until = grace_period_until
-        self.shutdown_requested = shutdown_requested
-        self.shutdown_acknowledged = shutdown_acknowledged
+        self.shutdown_state = shutdown_state
 
     def update_heartbeat(self, gpu_stats: List[GPUStats]):
         """Update node heartbeat and GPU statistics.
@@ -695,8 +699,7 @@ class Node:
             'last_heartbeat': self.last_heartbeat.isoformat() if self.last_heartbeat else None,
             'registered_at': self.registered_at.isoformat() if self.registered_at else None,
             'grace_period_until': self.grace_period_until.isoformat() if self.grace_period_until else None,
-            'shutdown_requested': self.shutdown_requested,
-            'shutdown_acknowledged': self.shutdown_acknowledged
+            'shutdown_state': self.shutdown_state.value
         }
 
     @classmethod
@@ -720,6 +723,9 @@ class Node:
         # Parse GPUs
         gpus = [GPU.from_dict(gpu_data) for gpu_data in data.get('gpus', [])]
 
+        # Parse shutdown state
+        shutdown_state = ShutdownState(data['shutdown_state']) if data.get('shutdown_state') else ShutdownState.NONE
+
         return cls(
             node_name=data['node_name'],
             address=data['address'],
@@ -729,7 +735,6 @@ class Node:
             last_heartbeat=last_heartbeat,
             registered_at=registered_at,
             grace_period_until=grace_period_until,
-            shutdown_requested=data.get('shutdown_requested', False),
-            shutdown_acknowledged=data.get('shutdown_acknowledged', False)
+            shutdown_state=shutdown_state
         )
 

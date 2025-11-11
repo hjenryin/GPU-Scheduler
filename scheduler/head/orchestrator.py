@@ -8,7 +8,7 @@ import os
 from datetime import datetime
 from typing import Optional
 
-from scheduler.core import Config, PermissionDeniedException
+from scheduler.core import Config, PermissionDeniedException, ShutdownState
 from scheduler.storage import FileBackend, SQLiteBackend
 from scheduler.manager import PersistenceManager, JobManager, NodeManager, Scheduler
 from scheduler.head.api_server import APIServer
@@ -39,9 +39,6 @@ class Orchestrator:
         self.config = config
         self.singleton = singleton
         self.running = False
-        self._cluster_shutdown_requested = False
-        self._cluster_shutdown_timeout = 60
-        self._cluster_shutdown_force = False
         self.scheduler_thread: Optional[threading.Thread] = None
 
         # rsync daemon for log syncing
@@ -293,92 +290,65 @@ class Orchestrator:
         if signum == signal.SIGINT:
             raise KeyboardInterrupt()
 
-    def request_cluster_shutdown(self, graceful_timeout: int = 60, force: bool = False):
+    def shutdown_cluster_workers(self) -> bool:
         """
-        Request cluster-wide shutdown.
-        
-        Args:
-            graceful_timeout: Seconds to wait for graceful shutdown
-            force: Whether to force kill if graceful shutdown fails
+        Shutdown all workers and wait for confirmation.
+        Does NOT stop the head - caller is responsible for that.
+
+        Returns:
+            True if all workers confirmed, False if timeout
         """
-        logger.info(f"Cluster shutdown requested: timeout={graceful_timeout}, force={force}")
-        self._cluster_shutdown_requested = True
-        self._cluster_shutdown_timeout = graceful_timeout
-        self._cluster_shutdown_force = force
-        
-        # Start cluster shutdown in a separate thread to avoid blocking API response
-        shutdown_thread = threading.Thread(target=self._shutdown_cluster_worker, daemon=True)
-        shutdown_thread.start()
+        logger.info("Starting cluster shutdown")
 
-    def _shutdown_cluster_worker(self):
-        """Worker thread to handle cluster shutdown."""
-        try:
-            logger.info("Starting cluster shutdown process...")
+        # 1. Untrack running jobs
+        running_jobs = self.job_manager.get_running_jobs()
+        logger.info(f"Marking {len(running_jobs)} running jobs as untracked")
+        for job in running_jobs:
+            try:
+                self.job_manager.untrack_job(job.job_id)
+            except Exception as e:
+                logger.error(f"Failed to untrack job {job.job_id}: {e}")
 
-            # Mark all running jobs as untracked (they'll continue running, just not tracked)
-            running_jobs = self.job_manager.get_running_jobs()
-            logger.info(f"Marking {len(running_jobs)} running jobs as untracked")
-            for job in running_jobs:
-                try:
-                    self.job_manager.untrack_job(job.job_id)
-                except Exception as e:
-                    logger.error(f"Failed to untrack job {job.job_id}: {e}")
+        # 2. Cancel pending jobs
+        pending_jobs = self.job_manager.get_pending_jobs()
+        logger.info(f"Cancelling {len(pending_jobs)} pending jobs")
+        for job in pending_jobs:
+            try:
+                self.job_manager.cancel_job(job.job_id)
+            except Exception as e:
+                logger.error(f"Failed to cancel job {job.job_id}: {e}")
 
-            # Cancel all pending jobs
-            pending_jobs = self.job_manager.get_pending_jobs()
-            logger.info(f"Cancelling {len(pending_jobs)} pending jobs")
-            for job in pending_jobs:
-                try:
-                    self.job_manager.cancel_job(job.job_id)
-                except Exception as e:
-                    logger.error(f"Failed to cancel job {job.job_id}: {e}")
+        # 3. Signal all workers (sets shutdown_state=PENDING)
+        self.node_manager.request_shutdown_all_workers()
+        logger.info("Shutdown signal sent to all workers")
 
-            # Get all connected nodes
+        # 4. Wait for all workers to CONFIRM
+        # With long-polling, workers will respond almost immediately (<1s)
+        # But give 2x heartbeat interval as safety margin
+        max_wait = 2 * self.config.worker.heartbeat_interval
+        start_time = time.time()
+
+        logger.info(f"Waiting for workers to confirm shutdown (max {max_wait}s)...")
+        while time.time() - start_time < max_wait:
             nodes = self.node_manager.get_connected_nodes()
-            logger.info(f"Shutting down {len(nodes)} connected nodes")
+            if not nodes:
+                logger.info("No connected nodes to shutdown")
+                return True
 
-            # Request shutdown for all worker nodes
-            # Workers will see this flag in their next heartbeat and shutdown immediately
-            self.node_manager.request_shutdown_all_workers()
-            logger.info("Shutdown signal sent to all worker nodes via heartbeat mechanism")
+            if all(node.shutdown_state == ShutdownState.CONFIRMED for node in nodes):
+                elapsed = time.time() - start_time
+                logger.info(f"All {len(nodes)} workers confirmed shutdown in {elapsed:.1f}s")
+                return True
 
-            # Wait for all workers to acknowledge (send heartbeat after shutdown request)
-            # Use 2x heartbeat interval as maximum wait time
-            max_wait = 2 * self.config.worker.heartbeat_interval
-            logger.info(f"Waiting for all workers to acknowledge shutdown (max {max_wait}s)...")
+            time.sleep(0.5)
 
-            start_time = time.time()
-            all_acknowledged = False
+        # Timeout
+        nodes = self.node_manager.get_connected_nodes()
+        unconfirmed = [n.node_name for n in nodes if n.shutdown_state != ShutdownState.CONFIRMED]
+        if unconfirmed:
+            logger.warning(f"Workers did not confirm shutdown: {unconfirmed}")
 
-            while time.time() - start_time < max_wait:
-                # Check if all nodes have acknowledged
-                nodes = self.node_manager.get_connected_nodes()
-                if all(node.shutdown_acknowledged for node in nodes):
-                    elapsed = time.time() - start_time
-                    logger.info(f"All {len(nodes)} workers acknowledged shutdown in {elapsed:.1f}s")
-                    all_acknowledged = True
-                    break
-
-                # Sleep briefly before checking again
-                time.sleep(0.5)
-
-            if not all_acknowledged:
-                # Timeout reached - report which workers didn't acknowledge
-                nodes = self.node_manager.get_connected_nodes()
-                unacknowledged = [n.node_name for n in nodes if not n.shutdown_acknowledged]
-                if unacknowledged:
-                    logger.warning(f"Workers did not acknowledge shutdown: {unacknowledged}")
-                else:
-                    logger.info("All workers acknowledged shutdown")
-
-            # Stop the head node itself
-            logger.info("Stopping head node...")
-            self.stop(graceful=False)
-
-            logger.info("Cluster shutdown completed")
-
-        except Exception as e:
-            logger.error(f"Error during cluster shutdown: {e}", exc_info=True)
+        return False
 
     def _start_rsync_daemon(self):
         """Start rsync daemon as subprocess for log syncing (no sudo required)."""
