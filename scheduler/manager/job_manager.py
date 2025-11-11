@@ -452,3 +452,87 @@ class JobManager:
             if job.assigned_node == node_name:
                 active_jobs.append(job.job_id)
         return active_jobs
+
+    def retry_job(self, job_id: str, mode: str = "inplace") -> dict:
+        """
+        Retry a job that has failed, been cancelled, or completed.
+
+        Args:
+            job_id: Job ID to retry
+            mode: Retry mode
+                - "inplace": Reset job to PENDING (reuse same job ID and snapshot)
+                - "then": Create new job with same config and normal priority (0)
+                - "now": Create new job with same config and high priority (100)
+
+        Returns:
+            Dict with retry status and details
+
+        Raises:
+            JobNotFoundException: If job not found
+            ValueError: If job is not in a terminal state or invalid mode
+        """
+        job = self.jobs.get(job_id)
+        if not job:
+            raise JobNotFoundException(f"Job {job_id} not found")
+
+        # Only allow retry for terminal states
+        terminal_states = {JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.COMPLETED}
+        if job.status not in terminal_states:
+            raise ValueError(
+                f"Job {job_id} is in {job.status.value} state. "
+                f"Only jobs in FAILED, CANCELLED, or COMPLETED states can be retried."
+            )
+
+        # Validate mode
+        if mode not in ["inplace", "then", "now"]:
+            raise ValueError(f"Invalid retry mode: {mode}. Must be 'inplace', 'then', or 'now'")
+
+        if mode == "inplace":
+            # Reset job to PENDING state, keep original snapshot
+            job.status = JobStatus.PENDING
+            job.started_at = None
+            job.completed_at = None
+            job.exit_code = None
+            job.error_message = None
+            job.assigned_node = None
+            job.assigned_gpus = None
+            # Keep original snapshot_ref and snapshot_working_dir
+
+            self.persistence.save_job(job)
+            logger.info(f"Job {job_id} reset to PENDING for retry (inplace mode)")
+
+            return {
+                "status": "pending",
+                "job_id": job_id,
+                "mode": "inplace"
+            }
+
+        else:
+            # Create new job with same configuration
+            new_priority = 100 if mode == "now" else 0
+
+            new_job = self.submit_job(
+                script=job.script,
+                requirements=job.requirements.serialize(),
+                name=f"{job.name} (retry)",
+                script_args=job.script_args,
+                working_dir=job.working_dir,
+                env_vars=job.env_vars,
+                dependencies=None,  # Don't copy dependencies for retry
+                priority=new_priority,
+                snapshot_ref=job.snapshot_ref,  # Reuse original snapshot
+                snapshot_working_dir=job.snapshot_working_dir
+            )
+
+            logger.info(
+                f"Created new job {new_job.job_id} as retry of {job_id} "
+                f"(mode={mode}, priority={new_priority})"
+            )
+
+            return {
+                "status": "pending",
+                "job_id": job_id,
+                "new_job_id": new_job.job_id,
+                "mode": mode,
+                "priority": new_priority
+            }

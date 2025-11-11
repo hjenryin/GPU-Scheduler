@@ -844,3 +844,103 @@ class SchedulerClient:
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to unfreeze all GPUs: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")
+
+    def retry_job(self, job_id: str, mode: str = "inplace") -> dict:
+        """
+        Retry a failed, cancelled, or completed job.
+
+        Args:
+            job_id: Job ID to retry
+            mode: Retry mode
+                - "inplace": Reset job to PENDING (server-side only)
+                - "then": Create new job with original snapshot
+                - "now": Create new job with fresh snapshot from current client state
+
+        Returns:
+            Dict with retry status and details
+
+        Raises:
+            JobNotFoundException: If job not found
+            ConnectionException: If cannot connect
+            ValidationException: If job is not in terminal state
+        """
+        if mode == "now":
+            # For "now" mode, we need to fetch the original job and create a new snapshot
+            try:
+                original_job = self.get_job(job_id)
+            except JobNotFoundException:
+                raise
+            except Exception as e:
+                logger.error(f"Failed to get job {job_id} for retry: {e}")
+                raise ConnectionException(f"Failed to connect to head node: {e}")
+
+            # Create a new snapshot from current working directory
+            from scheduler.worker import GitSnapshotManager
+            import os
+
+            working_dir = original_job.working_dir if original_job.working_dir else os.getcwd()
+
+            # Generate new job_id for the retry
+            from scheduler.core import generate_job_id
+            new_job_id = generate_job_id()
+
+            # Create fresh snapshot from current state
+            snapshot_ref = None
+            snapshot_working_dir = None
+
+            try:
+                git_manager = GitSnapshotManager(self.config)
+                if git_manager.is_git_repository(working_dir):
+                    logger.info(f"Creating fresh snapshot for job {new_job_id} (retry of {job_id})")
+                    snapshot_result = git_manager.create_snapshot(new_job_id, working_dir)
+                    if snapshot_result:
+                        snapshot_ref, snapshot_working_dir = snapshot_result
+                        logger.info(f"Created snapshot {snapshot_ref} at {snapshot_working_dir}")
+            except Exception as e:
+                logger.warning(f"Failed to create snapshot for retry job {new_job_id}: {e}")
+
+            # Submit new job with fresh snapshot
+            try:
+                new_job = self.submit_job(
+                    script=original_job.script,
+                    requirements=original_job.requirements.serialize(),
+                    name=f"{original_job.name} (retry)",
+                    script_args=original_job.script_args,
+                    working_dir=working_dir,
+                    env_vars=original_job.env_vars,
+                    dependencies=None,
+                    priority=100  # High priority for "now" mode
+                )
+
+                return {
+                    "status": "pending",
+                    "job_id": job_id,
+                    "new_job_id": new_job.job_id,
+                    "mode": "now"
+                }
+            except Exception as e:
+                logger.error(f"Failed to submit retry job: {e}")
+                raise
+
+        # For "inplace" and "then" modes, let the server handle it
+        payload = {"mode": mode}
+
+        try:
+            response = self.session.post(
+                f"{self.base_url}/jobs/{job_id}/retry",
+                json=payload,
+                timeout=30
+            )
+            if response.status_code == 404:
+                raise JobNotFoundException(f"Job {job_id} not found")
+            if response.status_code == 400:
+                # Validation error (e.g., job not in terminal state)
+                error_data = response.json()
+                raise ValidationException(error_data.get("detail", "Invalid retry request"))
+            response.raise_for_status()
+            return response.json()
+        except (JobNotFoundException, ValidationException):
+            raise
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to retry job {job_id}: {e}")
+            raise ConnectionException(f"Failed to connect to head node: {e}")
