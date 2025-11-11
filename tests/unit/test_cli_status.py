@@ -135,3 +135,31 @@ class TestStatusCommand:
                 # auto-detect address from worker lock file or config
                 mock_client_class.assert_called_once_with(config=config)
 
+
+    @patch('scheduler.cli.status.load_config', autospec=True)
+    def test_status_tui_exception_with_logging(self, mock_load_config):
+        """Test that status command logs exception when TUI crashes"""
+        config = Config(
+            address="localhost:8265",
+            head=HeadConfig(port=8265)
+        )
+        mock_load_config.return_value = config
+        
+        with patch('scheduler.cli.status.SchedulerClient', autospec=True) as mock_client_class, \
+             patch('scheduler.cli.status.run_tui', autospec=True) as mock_run_tui, \
+             patch('scheduler.cli.status.logger', autospec=True) as mock_logger:
+            mock_client = Mock(spec_set=SchedulerClient)
+            mock_client.list_nodes.return_value = []
+            mock_client_class.return_value = mock_client
+            
+            # TUI crashes with exception
+            mock_run_tui.side_effect = RuntimeError("TUI crashed")
+
+            with patch('scheduler.cli.status.click.echo', autospec=True) as mock_echo:
+                result = status_command()
+                assert result == 1
+                # Should log the error
+                mock_logger.error.assert_called_once()
+                # Should also echo the error
+                echo_calls = [str(call) for call in mock_echo.call_args_list]
+                assert any("Error:" in str(call) for call in echo_calls)
