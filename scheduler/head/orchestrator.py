@@ -42,6 +42,7 @@ class Orchestrator:
         self._cluster_shutdown_requested = False
         self._cluster_shutdown_timeout = 60
         self._cluster_shutdown_force = False
+        self._shutdown_ready_event = threading.Event()  # Signals when shutdown is ready (workers acknowledged)
         self.scheduler_thread: Optional[threading.Thread] = None
 
         # rsync daemon for log syncing
@@ -296,7 +297,7 @@ class Orchestrator:
     def request_cluster_shutdown(self, graceful_timeout: int = 60, force: bool = False):
         """
         Request cluster-wide shutdown.
-        
+
         Args:
             graceful_timeout: Seconds to wait for graceful shutdown
             force: Whether to force kill if graceful shutdown fails
@@ -305,10 +306,27 @@ class Orchestrator:
         self._cluster_shutdown_requested = True
         self._cluster_shutdown_timeout = graceful_timeout
         self._cluster_shutdown_force = force
-        
+
+        # Clear the shutdown ready event before starting
+        self._shutdown_ready_event.clear()
+
         # Start cluster shutdown in a separate thread to avoid blocking API response
         shutdown_thread = threading.Thread(target=self._shutdown_cluster_worker, daemon=True)
         shutdown_thread.start()
+
+    def wait_for_shutdown_ready(self, timeout: Optional[float] = None) -> bool:
+        """
+        Wait for cluster shutdown to be ready (all workers acknowledged).
+        This blocks until the shutdown process has completed worker coordination
+        and is ready to shut down the head node.
+
+        Args:
+            timeout: Maximum time to wait in seconds (None = wait forever)
+
+        Returns:
+            True if shutdown is ready, False if timeout occurred
+        """
+        return self._shutdown_ready_event.wait(timeout=timeout)
 
     def _shutdown_cluster_worker(self):
         """Worker thread to handle cluster shutdown."""
@@ -370,6 +388,14 @@ class Orchestrator:
                     logger.warning(f"Workers did not acknowledge shutdown: {unacknowledged}")
                 else:
                     logger.info("All workers acknowledged shutdown")
+
+            # Signal that shutdown is ready (workers acknowledged)
+            # This allows the API to respond to the client before head stops
+            logger.info("Signaling shutdown ready to API client...")
+            self._shutdown_ready_event.set()
+
+            # Give a brief moment for API response to be sent
+            time.sleep(0.5)
 
             # Stop the head node itself
             logger.info("Stopping head node...")

@@ -1,6 +1,7 @@
 from typing import List, Optional
 import logging
 import os
+import asyncio
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -406,46 +407,75 @@ async def fail_job_route(job_id: str, error_message: str, after_commit_ref: Opti
 async def shutdown_cluster_route(graceful_timeout: int = 60, force: bool = False) -> dict:
     """
     POST /api/v1/shutdown/cluster - Shutdown entire cluster
-    
+
+    This endpoint implements long polling: it won't return until all workers
+    have acknowledged the shutdown signal and the head is ready to shut down.
+    The response is sent right before the head node shuts down.
+
     Args:
         graceful_timeout: Seconds to wait for graceful shutdown
         force: Whether to force kill if graceful shutdown fails
-    
+
     Returns:
-        Confirmation of shutdown initiation
+        Confirmation of shutdown completion (sent right before head shuts down)
     """
     try:
         logger.info(f"Cluster shutdown requested: graceful_timeout={graceful_timeout}, force={force}")
-        
+
         # Get all connected nodes
         nodes = _node_manager.get_connected_nodes()
         logger.info(f"Found {len(nodes)} connected nodes to shutdown")
-        
+
         # Signal orchestrator to shutdown cluster
-        # This will be handled by the orchestrator's shutdown_cluster method
         from scheduler.head import Orchestrator
         orchestrator = Orchestrator.get_instance()
-        if orchestrator:
-            orchestrator.request_cluster_shutdown(graceful_timeout, force)
-            logger.info("Cluster shutdown initiated successfully")
-            return {
-                "status": "shutdown_initiated",
-                "nodes_count": len(nodes),
-                "graceful_timeout": graceful_timeout,
-                "force": force
-            }
-        else:
+        if not orchestrator:
             logger.error("Orchestrator instance not available")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Orchestrator not available"
             )
-            
+
+        # Initiate shutdown in background thread
+        orchestrator.request_cluster_shutdown(graceful_timeout, force)
+        logger.info("Cluster shutdown initiated, waiting for workers to acknowledge...")
+
+        # Wait for shutdown to be ready (workers acknowledged)
+        # Use a generous timeout: graceful_timeout + 30 seconds for worker acknowledgment
+        wait_timeout = graceful_timeout + 30
+        loop = asyncio.get_event_loop()
+
+        # Run the blocking wait in a thread pool to avoid blocking the event loop
+        shutdown_ready = await loop.run_in_executor(
+            None,
+            orchestrator.wait_for_shutdown_ready,
+            wait_timeout
+        )
+
+        if shutdown_ready:
+            logger.info("All workers acknowledged shutdown, head will shut down now")
+            return {
+                "status": "shutdown_complete",
+                "nodes_count": len(nodes),
+                "graceful_timeout": graceful_timeout,
+                "force": force,
+                "message": "All workers acknowledged shutdown, head shutting down"
+            }
+        else:
+            logger.warning(f"Shutdown ready timeout after {wait_timeout}s, forcing shutdown")
+            return {
+                "status": "shutdown_timeout",
+                "nodes_count": len(nodes),
+                "graceful_timeout": graceful_timeout,
+                "force": force,
+                "message": f"Timeout waiting for workers, head shutting down anyway"
+            }
+
     except Exception as e:
-        logger.error(f"Error initiating cluster shutdown: {e}")
+        logger.error(f"Error during cluster shutdown: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to initiate cluster shutdown: {e}"
+            detail=f"Failed to complete cluster shutdown: {e}"
         )
 
 
