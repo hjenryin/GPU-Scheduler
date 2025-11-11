@@ -29,16 +29,14 @@ class TestCreateApp:
 
     def test_create_app_sets_global_managers(self):
         """Test that create_app sets global managers"""
-        from scheduler.api.routes import _job_manager, _node_manager, _log_position_manager
+        from scheduler.api.routes import _job_manager, _node_manager
 
         # Clear globals
         _job_manager = None
         _node_manager = None
-        _log_position_manager = None
 
         mock_job_manager = Mock(spec_set=JobManager)
         mock_node_manager = Mock(spec_set=NodeManager)
-        # LogPositionManager removed - not needed
 
         app = create_app(mock_job_manager, mock_node_manager)
 

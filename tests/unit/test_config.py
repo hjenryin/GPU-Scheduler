@@ -30,7 +30,7 @@ class TestConfig:
         assert config.worker.gpu_poll_interval == 10
         assert config.worker.gpu_util_threshold == 10.0
         assert config.worker.gpu_mem_threshold == 10.0
-        assert config.worker.gpu_stable_time == 30
+        assert config.worker.gpu_stable_time == 120
         assert config.worker.job_startup_grace == 120
 
         # Check storage config defaults
