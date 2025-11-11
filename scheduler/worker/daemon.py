@@ -5,6 +5,7 @@ import signal
 import subprocess
 import threading
 import time
+from datetime import datetime
 from typing import Optional, List
 
 from scheduler.core import Config, ConnectionException, get_local_ip
@@ -83,9 +84,9 @@ class WorkerDaemon:
         self.log_dir = os.path.expanduser(config.worker.log_dir)
         self.rsync_port: Optional[int] = None  # Learned from head node during registration
 
-        # Track current job
-        self.current_job = None
-        self.current_job_pid = None
+        # Track active jobs (job_id -> {job, pid, start_time, monitor_thread})
+        self.active_jobs = {}
+        self.active_jobs_lock = threading.Lock()
 
         # Setup signal handlers (only in main thread)
         if threading.current_thread() is threading.main_thread():
@@ -149,8 +150,9 @@ class WorkerDaemon:
         self.running = False
 
         # Don't wait for jobs or terminate them - let them continue running
-        if self.current_job:
-            logger.info(f"Leaving job {self.current_job.job_id} running (untracked)")
+        with self.active_jobs_lock:
+            if self.active_jobs:
+                logger.info(f"Leaving {len(self.active_jobs)} job(s) running (untracked): {list(self.active_jobs.keys())}")
 
         # Stop heartbeat
         self.heartbeat_sender.stop()
@@ -225,19 +227,44 @@ class WorkerDaemon:
             raise ConnectionException(f"Failed to register with head node: {e}")
 
     def _execute_job(self, job):
-        """Execute a job (internal)."""
+        """Execute a job in background (non-blocking)."""
         try:
-            self.current_job = job
-
             # Get assigned GPUs from job
             gpu_ids = job.assigned_gpus if job.assigned_gpus else list(range(self.num_gpus))
 
             # Execute the job
             pid = self.job_executor.execute_job(job, gpu_ids)
-            self.current_job_pid = pid
 
             logger.info(f"Job {job.job_id} started with PID {pid}")
 
+            # Start monitoring thread (non-blocking)
+            monitor_thread = threading.Thread(
+                target=self._monitor_job,
+                args=(job, pid),
+                daemon=True,
+                name=f"monitor-{job.job_id}"
+            )
+            monitor_thread.start()
+
+            # Track job in active jobs dictionary
+            with self.active_jobs_lock:
+                self.active_jobs[job.job_id] = {
+                    'job': job,
+                    'pid': pid,
+                    'start_time': datetime.now(),
+                    'monitor_thread': monitor_thread
+                }
+
+        except Exception as e:
+            logger.error(f"Error executing job {job.job_id}: {e}")
+            try:
+                self.client.report_job_failed(job.job_id, str(e))
+            except Exception as report_error:
+                logger.error(f"Failed to report job failure for {job.job_id}: {report_error}")
+
+    def _monitor_job(self, job, pid: int):
+        """Monitor job execution in background thread."""
+        try:
             # Monitor job execution
             while self.running:
                 is_running, exit_code = self.job_executor.get_job_status(pid)
@@ -252,25 +279,27 @@ class WorkerDaemon:
                     else:
                         logger.error(f"Job {job.job_id} failed with exit code {exit_code}")
                         self.client.report_job_failed(job.job_id, f"Exit code: {exit_code}")
+
+                    # Remove from active jobs
+                    with self.active_jobs_lock:
+                        self.active_jobs.pop(job.job_id, None)
                     break
 
                 # Still running, sleep and check again
                 time.sleep(5)
 
-            self.current_job = None
-            self.current_job_pid = None
-
         except Exception as e:
-            logger.error(f"Error executing job {job.job_id}: {e}")
+            logger.error(f"Error monitoring job {job.job_id}: {e}")
             # Cleanup resources on error
-            if self.current_job:
-                self.job_executor.cleanup_job(self.current_job)
+            self.job_executor.cleanup_job(job)
             try:
                 self.client.report_job_failed(job.job_id, str(e))
             except Exception as report_error:
                 logger.error(f"Failed to report job failure for {job.job_id}: {report_error}")
-            self.current_job = None
-            self.current_job_pid = None
+
+            # Remove from active jobs
+            with self.active_jobs_lock:
+                self.active_jobs.pop(job.job_id, None)
 
     def _signal_handler(self, signum, frame):
         """Handle termination signals."""
@@ -280,40 +309,78 @@ class WorkerDaemon:
         if signum == signal.SIGINT:
             raise KeyboardInterrupt()
 
-    def _handle_cleanup_request(self, active_job_ids: List[str]):
+    def _handle_cleanup_request(self, recorded_job_ids: List[str], running_job_ids: List[str]):
         """
         Handle cleanup request from head node.
-        Keeps only jobs in active_job_ids list, purges all others.
+        - Purges log files for jobs not in recorded_job_ids
+        - Terminates processes for jobs not in running_job_ids (after 30-second grace period)
 
         Args:
-            active_job_ids: List of job IDs to keep (all others will be purged)
+            recorded_job_ids: All job IDs to keep log files for
+            running_job_ids: Job IDs that should be actively running on this worker
         """
         try:
-            logger.debug(f"Processing cleanup request. Active jobs: {active_job_ids}")
+            logger.debug(f"Processing cleanup request. Recorded: {recorded_job_ids}, Running: {running_job_ids}")
 
-            # Get log directory
+            # Part 1: Cleanup log files for jobs not in recorded list
             log_dir = os.path.expanduser(self.config.worker.log_dir)
-            if not os.path.exists(log_dir):
-                return
+            if os.path.exists(log_dir):
+                # Find all job IDs with log files
+                log_job_ids = set()
+                for filename in os.listdir(log_dir):
+                    if filename.endswith('.log'):
+                        # Extract job_id from filename (format: job_id.stdout.log or job_id.stderr.log)
+                        parts = filename.rsplit('.', 2)
+                        if len(parts) == 3:
+                            log_job_ids.add(parts[0])
 
-            # Find all job IDs with log files
-            log_job_ids = set()
-            for filename in os.listdir(log_dir):
-                if filename.endswith('.log'):
-                    # Extract job_id from filename (format: job_id.stdout.log or job_id.stderr.log)
-                    parts = filename.rsplit('.', 2)
-                    if len(parts) == 3:
-                        log_job_ids.add(parts[0])
+                # Determine which jobs to purge (present locally but not in recorded list)
+                jobs_to_purge = log_job_ids - set(recorded_job_ids)
 
-            # Determine which jobs to purge (present locally but not in active list)
-            jobs_to_purge = log_job_ids - set(active_job_ids)
+                if jobs_to_purge:
+                    logger.info(f"Purging {len(jobs_to_purge)} inactive job logs: {jobs_to_purge}")
 
-            if jobs_to_purge:
-                logger.info(f"Purging {len(jobs_to_purge)} inactive jobs: {jobs_to_purge}")
+                # Purge each job not in recorded list
+                for job_id in jobs_to_purge:
+                    self._purge_job_files(job_id)
 
-            # Purge each job not in active list
-            for job_id in jobs_to_purge:
-                self._purge_job_files(job_id)
+            # Part 2: Terminate processes for jobs not in running list (with grace period)
+            with self.active_jobs_lock:
+                current_job_ids = set(self.active_jobs.keys())
+
+            jobs_to_terminate = current_job_ids - set(running_job_ids)
+
+            for job_id in jobs_to_terminate:
+                with self.active_jobs_lock:
+                    job_info = self.active_jobs.get(job_id)
+
+                if job_info:
+                    # Check if job is within 30-second grace period
+                    job_age = (datetime.now() - job_info['start_time']).total_seconds()
+
+                    if job_age < 30:
+                        logger.debug(f"Job {job_id} not in running list but within grace period ({job_age:.1f}s)")
+                        continue
+
+                    # Grace period expired, terminate the job
+                    pid = job_info['pid']
+                    logger.warning(f"Terminating job {job_id} (PID {pid}) - not in running list after {job_age:.1f}s")
+
+                    try:
+                        self.job_executor.terminate_job(pid)
+
+                        # Report as cancelled
+                        self.client.report_job_failed(job_id, "Job cancelled by head node")
+
+                        # Cleanup resources
+                        self.job_executor.cleanup_job(job_info['job'])
+
+                    except Exception as term_error:
+                        logger.error(f"Error terminating job {job_id}: {term_error}")
+
+                    # Remove from active jobs
+                    with self.active_jobs_lock:
+                        self.active_jobs.pop(job_id, None)
 
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
