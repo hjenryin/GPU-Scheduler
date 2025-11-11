@@ -25,6 +25,11 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 4
         mock_gpu_monitor.return_value = mock_monitor_instance
 
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
+
         daemon = WorkerDaemon(test_config, node_name="test-node")
 
         assert daemon.node_name == "test-node"
@@ -47,6 +52,11 @@ class TestWorkerDaemon:
         mock_monitor_instance = Mock()
         mock_gpu_monitor.return_value = mock_monitor_instance
 
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
+
         daemon = WorkerDaemon(test_config, node_name="test-node", num_gpus=2)
 
         assert daemon.num_gpus == 2
@@ -68,6 +78,11 @@ class TestWorkerDaemon:
         mock_monitor_instance = Mock()
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
+
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
 
         # Test with config.address set
         config1 = Config(address="head-node:8265")
@@ -95,6 +110,11 @@ class TestWorkerDaemon:
         mock_monitor_instance.start_monitoring = Mock()
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
+
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
 
         mock_heartbeat_instance = Mock()
         mock_heartbeat_instance.stop = Mock()
@@ -132,6 +152,11 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
+
         mock_client_instance = Mock(spec_set=SchedulerClient)
         mock_client_instance.register_node.side_effect = Exception("Connection refused")
         mock_client.return_value = mock_client_instance
@@ -156,6 +181,11 @@ class TestWorkerDaemon:
         mock_monitor_instance.stop_monitoring = Mock()
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
+
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
         
         mock_heartbeat_instance = Mock()
         mock_heartbeat_instance.stop = Mock()
@@ -187,6 +217,11 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
+
         mock_heartbeat_instance = Mock()
         mock_heartbeat.return_value = mock_heartbeat_instance
 
@@ -214,6 +249,11 @@ class TestWorkerDaemon:
         mock_monitor_instance = Mock()
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
+
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
 
         mock_executor_instance = Mock()
         # First call: still running, second call: completed
@@ -253,6 +293,11 @@ class TestWorkerDaemon:
         mock_monitor_instance.stop_monitoring = Mock()
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
+
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
 
         mock_executor_instance = Mock()
         # Job never completes
@@ -300,6 +345,11 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
+
         daemon = WorkerDaemon(test_config, node_name="test-node")
 
         # Stop without starting
@@ -318,6 +368,11 @@ class TestWorkerDaemon:
         mock_monitor_instance = Mock()
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
+
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
 
         mock_executor_instance = Mock()
         mock_executor_instance.execute_job.return_value = 12345
@@ -364,6 +419,11 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
+
         mock_executor_instance = Mock()
         mock_executor_instance.execute_job.return_value = 12345
         # Job fails
@@ -404,6 +464,11 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 4
         mock_gpu_monitor.return_value = mock_monitor_instance
 
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
+
         mock_executor_instance = Mock()
         mock_executor_instance.execute_job.return_value = 12345
         mock_executor_instance.get_job_status.return_value = (False, 0)
@@ -443,6 +508,11 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
+
         mock_executor_instance = Mock()
         mock_executor_instance.execute_job.side_effect = Exception("Execution failed")
         mock_job_executor.return_value = mock_executor_instance
@@ -481,6 +551,11 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
+
         mock_client_instance = Mock(spec_set=SchedulerClient)
         mock_client_instance.register_node.return_value = {"status": "registered"}
         mock_client.return_value = mock_client_instance
@@ -506,6 +581,11 @@ class TestWorkerDaemon:
         mock_monitor_instance = Mock()
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
+
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
 
         mock_heartbeat_instance = Mock()
         mock_heartbeat.return_value = mock_heartbeat_instance
@@ -535,6 +615,11 @@ class TestWorkerDaemon:
         mock_monitor_instance = Mock()
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
+
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
 
         mock_executor_instance = Mock()
         mock_executor_instance.execute_job.return_value = 12345
@@ -568,6 +653,11 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
+
         mock_executor_instance = Mock()
         mock_executor_instance.execute_job.return_value = 12345
         # Job fails with exit code 1
@@ -599,6 +689,11 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
+
         mock_executor_instance = Mock()
         # Simulate exception during execution
         mock_executor_instance.execute_job.side_effect = RuntimeError("Test error")
@@ -627,6 +722,11 @@ class TestWorkerDaemon:
         mock_monitor_instance = Mock()
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
+
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
 
         mock_file_handler_instance = Mock()
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
@@ -657,6 +757,11 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
+
         mock_file_handler_instance = Mock()
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
@@ -685,6 +790,11 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_monitor_instance.start_monitoring = Mock()
         mock_gpu_monitor.return_value = mock_monitor_instance
+
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
 
         mock_file_handler_instance = Mock()
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
@@ -729,6 +839,11 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_monitor_instance.start_monitoring = Mock()
         mock_gpu_monitor.return_value = mock_monitor_instance
+
+        # Mock file handler cleanup to return int
+        mock_file_handler_instance = Mock()
+        mock_file_handler_instance.cleanup_old_logs.return_value = 0
+        mock_file_handler.return_value = mock_file_handler_instance
 
         mock_file_handler_instance = Mock()
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
