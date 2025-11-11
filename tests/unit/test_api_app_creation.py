@@ -4,7 +4,6 @@ from unittest.mock import Mock, MagicMock
 from scheduler.api.routes import create_app
 from scheduler.manager import JobManager
 from scheduler.manager import NodeManager
-from scheduler.manager.log_position_manager import LogPositionManager
 
 
 class TestCreateApp:
@@ -14,9 +13,9 @@ class TestCreateApp:
         """Test that create_app registers all routes"""
         mock_job_manager = Mock(spec_set=JobManager)
         mock_node_manager = Mock(spec_set=NodeManager)
-        mock_log_position_manager = Mock(spec_set=LogPositionManager)
+        # LogPositionManager removed - not needed
 
-        app = create_app(mock_job_manager, mock_node_manager, mock_log_position_manager)
+        app = create_app(mock_job_manager, mock_node_manager)
         
         # Check that routes are registered
         route_paths = [route.path for route in app.routes]
@@ -39,9 +38,9 @@ class TestCreateApp:
 
         mock_job_manager = Mock(spec_set=JobManager)
         mock_node_manager = Mock(spec_set=NodeManager)
-        mock_log_position_manager = Mock(spec_set=LogPositionManager)
+        # LogPositionManager removed - not needed
 
-        app = create_app(mock_job_manager, mock_node_manager, mock_log_position_manager)
+        app = create_app(mock_job_manager, mock_node_manager)
 
         # Check that globals are set (they're used internally)
         assert app is not None
@@ -50,9 +49,9 @@ class TestCreateApp:
         """Test that create_app configures FastAPI app"""
         mock_job_manager = Mock(spec_set=JobManager)
         mock_node_manager = Mock(spec_set=NodeManager)
-        mock_log_position_manager = Mock(spec_set=LogPositionManager)
+        # LogPositionManager removed - not needed
 
-        app = create_app(mock_job_manager, mock_node_manager, mock_log_position_manager)
+        app = create_app(mock_job_manager, mock_node_manager)
 
         # Check FastAPI configuration
         assert app.title == "GPU Scheduler API"
