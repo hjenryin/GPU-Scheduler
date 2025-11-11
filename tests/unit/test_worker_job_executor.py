@@ -503,8 +503,7 @@ class TestJobExecutor:
         executor = JobExecutor(test_config)
         
         # Mock git snapshot manager
-        executor.git_snapshot.create_snapshot = Mock(return_value="completion_ref")
-        executor.git_snapshot.cleanup_snapshot = Mock()
+        executor.git_snapshot.cleanup_snapshot = Mock(return_value="completion_ref")
         
         # Create job with snapshot
         job = Job(
@@ -514,7 +513,8 @@ class TestJobExecutor:
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING,
             snapshot_ref="abc123",
-            snapshot_working_dir="/workspace"
+            snapshot_working_dir="/workspace",
+            working_dir="/workspace"
         )
         
         # Add to worktrees tracking
@@ -522,13 +522,18 @@ class TestJobExecutor:
         executor.job_worktrees[job.job_id] = worktree_path
         
         # Cleanup
-        executor.cleanup_job(job)
+        result = executor.cleanup_job(job)
         
-        # Verify completion snapshot was created
-        executor.git_snapshot.create_snapshot.assert_called_once_with(
-            "test-job-completion",
+        # Verify cleanup_snapshot was called with correct parameters
+        executor.git_snapshot.cleanup_snapshot.assert_called_once_with(
+            "test-job",  # job_id
+            "abc123",  # snapshot_ref
+            "/workspace",  # snapshot_working_dir
             worktree_path
         )
+        
+        # Verify after_commit_ref is returned
+        assert result == "completion_ref"
         
         # Verify cleanup was called
         executor.git_snapshot.cleanup_snapshot.assert_called_once()
