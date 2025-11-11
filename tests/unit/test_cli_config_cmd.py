@@ -130,3 +130,40 @@ class TestConfigCommand:
         
         # Should return error code
         assert result != 0
+
+    @patch('scheduler.cli.config.load_config', autospec=True)
+    def test_config_get_nonexistent_key(self, mock_load_config):
+        """Test config get with nonexistent key"""
+        config = Config(address="localhost:8265")
+        mock_load_config.return_value = config
+        
+        with patch('scheduler.cli.config.click.echo', autospec=True) as mock_echo:
+            result = config_command(command='get', key='nonexistent_key')
+            
+            assert result == 1  # Key not found
+            mock_echo.assert_called_once_with("")
+
+    @patch('scheduler.cli.config.load_config', autospec=True)
+    def test_config_get_nested_key_partial_path(self, mock_load_config):
+        """Test config get with nested key where intermediate key doesn't exist"""
+        config = Config(address="localhost:8265")
+        mock_load_config.return_value = config
+        
+        with patch('scheduler.cli.config.click.echo', autospec=True) as mock_echo:
+            result = config_command(command='get', key='nonexistent.nested.key')
+            
+            assert result == 1  # Key not found
+            mock_echo.assert_called_once_with("")
+
+    @patch('scheduler.cli.config.load_config', autospec=True)
+    def test_config_generic_exception(self, mock_load_config):
+        """Test config command handles generic exceptions"""
+        mock_load_config.side_effect = RuntimeError("Unexpected error")
+        
+        with patch('scheduler.cli.config.click.echo', autospec=True) as mock_echo:
+            result = config_command(command='show')
+            
+            assert result == 1
+            # Should print error message
+            call_args = [str(call) for call in mock_echo.call_args_list]
+            assert any("Error:" in str(call) for call in call_args)
