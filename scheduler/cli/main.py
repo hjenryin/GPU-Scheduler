@@ -13,6 +13,7 @@ from scheduler.cli.status import status_command
 from scheduler.cli.purge import purge_command
 from scheduler.cli.freeze import freeze_command
 from scheduler.cli.unfreeze import unfreeze_command
+from scheduler.cli.retry import retry_command
 
 
 @click.group()
@@ -221,6 +222,42 @@ def cancel(job_ids):
     """Cancel jobs"""
     try:
         code = cancel_command(job_ids=list(job_ids))
+        sys.exit(code)
+    except KeyboardInterrupt:
+        click.echo("\nInterrupted")
+        sys.exit(130)
+    except Exception as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument('job_id')
+@click.option('--inplace', is_flag=True, help='Reset job to PENDING (reuse same job ID)')
+@click.option('--then', is_flag=True, help='Create new job with original snapshot')
+@click.option('--now', is_flag=True, help='Create new job with fresh snapshot from current state')
+def retry(job_id, inplace, then, now):
+    """Retry a failed, cancelled, or completed job
+
+    By default:
+    - Failed/Cancelled jobs use --inplace mode
+    - Completed jobs use --then mode
+
+    Examples:
+
+    \b
+    scheduler retry job_abc123              # Auto-select mode based on job status
+    scheduler retry job_abc123 --inplace   # Reset job to PENDING
+    scheduler retry job_abc123 --then      # Create new job with original snapshot
+    scheduler retry job_abc123 --now       # Create new job with current state
+    """
+    try:
+        code = retry_command(
+            job_id=job_id,
+            inplace=inplace,
+            then=then,
+            now=now
+        )
         sys.exit(code)
     except KeyboardInterrupt:
         click.echo("\nInterrupted")

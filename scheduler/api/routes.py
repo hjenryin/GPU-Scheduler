@@ -79,6 +79,10 @@ def create_app(
     async def purge_jobs(request: dict):
         return await purge_jobs_route(request)
 
+    @app.post(f"{constants.API_BASE_PATH}/jobs/{{job_id}}/retry")
+    async def retry_job(job_id: str, request: dict):
+        return await retry_job_route(job_id, request)
+
     # Node routes
     @app.post(f"{constants.API_BASE_PATH}/nodes/register", response_model=NodeRegisterResponse)
     async def register_node(request: NodeRegisterRequest):
@@ -490,6 +494,31 @@ async def purge_jobs_route(request: dict) -> dict:
     except Exception as e:
         logger.error(f"Error purging jobs: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+async def retry_job_route(job_id: str, request: dict) -> dict:
+    """
+    POST /api/v1/jobs/{job_id}/retry - Retry a failed, cancelled, or completed job
+
+    Args:
+        job_id: Job ID to retry
+        request: Dict with 'mode' field ('inplace' or 'then')
+
+    Returns:
+        Response with retry status and details
+    """
+    try:
+        mode = request.get('mode', 'inplace')
+        result = _job_manager.retry_job(job_id, mode=mode)
+        return result
+    except JobNotFoundException as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as e:
+        # Invalid mode or job not in terminal state
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error retrying job {job_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 async def freeze_gpu_route(node_name: str, gpu_id: int, request: GPUFreezeRequest) -> dict:
