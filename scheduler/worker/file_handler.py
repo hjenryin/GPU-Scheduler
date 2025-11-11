@@ -61,12 +61,16 @@ class FileHandler:
         os.makedirs(snapshot_dir, exist_ok=True)
         return snapshot_dir
 
-    def cleanup_old_logs(self, max_age_hours: int = 24) -> int:
+    def cleanup_old_logs(self, max_age_hours: int = 24, include_job_logs: bool = False) -> int:
         """
         Remove log files older than the specified age.
 
+        By default, this only removes system logs (head/worker logs) and NOT job logs.
+        Job logs should only be removed via explicit purge commands.
+
         Args:
             max_age_hours: Maximum age of logs to keep in hours (default: 24)
+            include_job_logs: If True, also remove old job logs (default: False)
 
         Returns:
             Number of log files removed
@@ -81,6 +85,11 @@ class FileHandler:
         try:
             for filename in os.listdir(self.log_dir):
                 if not filename.endswith('.log'):
+                    continue
+
+                # Skip job logs unless explicitly requested
+                # Job logs follow the pattern: job_{job_id}.stdout.log or job_{job_id}.stderr.log
+                if not include_job_logs and filename.startswith('job_'):
                     continue
 
                 file_path = os.path.join(self.log_dir, filename)
