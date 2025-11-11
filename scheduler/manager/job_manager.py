@@ -14,6 +14,11 @@ logger = logging.getLogger(__name__)
 
 class JobManager:
     """Manages job queue and lifecycle"""
+    
+    # Class attributes with type hints and defaults for spec_set compatibility
+    jobs: Dict[str, Job] = {}
+    persistence: PersistenceManager = None
+    config: Config = None
 
     def __init__(self, persistence: PersistenceManager, config: Config):
         """

@@ -84,9 +84,11 @@ class TestNodeRegisterResponseSchema:
 @pytest.fixture
 def mock_job_manager():
     """Mocks the _job_manager in the routes file with autospec."""
-    # Use Mock with spec instead of autospec on already-mocked attributes
     from scheduler.manager import JobManager
-    mock_jm = MagicMock(spec=JobManager)
+    from unittest.mock import create_autospec
+    
+    # Use create_autospec with spec_set for internal classes
+    mock_jm = create_autospec(JobManager, instance=True, spec_set=True)
     mock_jm.jobs = {}  # Add jobs attribute as empty dict
     
     with patch('scheduler.api.routes._job_manager', mock_jm):
@@ -709,11 +711,11 @@ class TestShutdownClusterRoute:
         """Test shutdown cluster route when orchestrator not available"""
         from scheduler.api.routes import shutdown_cluster_route
         from scheduler.head import Orchestrator
-        from unittest.mock import patch, Mock
+        from unittest.mock import patch, create_autospec
         from fastapi import BackgroundTasks
 
         mock_node_manager.get_connected_nodes.return_value = []
-        mock_background_tasks = Mock(spec=BackgroundTasks)
+        mock_background_tasks = create_autospec(BackgroundTasks, instance=True, spec_set=True)
 
         # Mock orchestrator instance as None
         with patch.object(Orchestrator, '_instance', None):
@@ -727,13 +729,15 @@ class TestShutdownClusterRoute:
         """Test successful cluster shutdown"""
         from scheduler.api.routes import shutdown_cluster_route
         from scheduler.head import Orchestrator
-        from unittest.mock import MagicMock, patch, Mock, AsyncMock
+        from unittest.mock import patch, create_autospec, Mock
         from fastapi import BackgroundTasks
 
         mock_node_manager.get_connected_nodes.return_value = [Mock(), Mock()]
-        mock_background_tasks = Mock(spec=BackgroundTasks)
-        mock_orchestrator = MagicMock()
-        mock_orchestrator.shutdown_cluster_workers = MagicMock(return_value=True)
+        mock_background_tasks = create_autospec(BackgroundTasks, instance=True, spec_set=True)
+        
+        # Use create_autospec for Orchestrator (internal class)
+        mock_orchestrator = create_autospec(Orchestrator, instance=True, spec_set=True)
+        mock_orchestrator.shutdown_cluster_workers.return_value = True
 
         with patch.object(Orchestrator, '_instance', mock_orchestrator):
             result = await shutdown_cluster_route(background_tasks=mock_background_tasks)

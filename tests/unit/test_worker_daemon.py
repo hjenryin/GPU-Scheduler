@@ -2,7 +2,7 @@
 import pytest
 import signal
 import time
-from unittest.mock import Mock, patch, MagicMock, call
+from unittest.mock import Mock, patch, MagicMock, call, create_autospec
 
 from scheduler.worker.daemon import WorkerDaemon
 from scheduler.core.exceptions import ConnectionException
@@ -25,8 +25,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 4
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -52,8 +53,9 @@ class TestWorkerDaemon:
         mock_monitor_instance = Mock()
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -79,8 +81,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -111,8 +114,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -152,8 +156,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -182,8 +187,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
         
@@ -217,8 +223,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -250,8 +257,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -294,8 +302,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -345,8 +354,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -369,8 +379,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -419,8 +430,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -464,8 +476,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 4
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -508,8 +521,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -551,8 +565,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -582,8 +597,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -616,8 +632,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -653,8 +670,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -689,8 +707,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -723,8 +742,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -757,8 +777,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -791,8 +812,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.start_monitoring = Mock()
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
@@ -840,8 +862,9 @@ class TestWorkerDaemon:
         mock_monitor_instance.start_monitoring = Mock()
         mock_gpu_monitor.return_value = mock_monitor_instance
 
-        # Mock file handler cleanup to return int
-        mock_file_handler_instance = Mock()
+        # Mock file handler with create_autospec
+        from scheduler.worker.file_handler import FileHandler
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
