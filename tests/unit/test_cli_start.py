@@ -211,7 +211,7 @@ class TestStartHeadNodeImplementation:
 class TestStartWorkerNodeImplementation:
     """Tests for _start_worker_node implementation"""
 
-    @patch('scheduler.core.head_info.save_head_info', autospec=True)
+    @patch('scheduler.core.save_head_info', autospec=True)
     @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
     @patch('scheduler.cli.start.WorkerDaemon', autospec=True)
     @patch('scheduler.cli.start.click.echo', autospec=True)

@@ -570,5 +570,6 @@ class TestJobDetailScreen:
                 
                 # Should call get_job_logs method on app.client
                 mock_app_instance.client.get_job_logs.assert_called()
-                mock_logs.update.assert_called_once()
+                # Actual code calls load_text, not update
+                mock_logs.load_text.assert_called_once()
                 mock_header.update.assert_called_once_with("Full Logs")
