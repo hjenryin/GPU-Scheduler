@@ -116,7 +116,11 @@ class TestHeartbeatSender:
         job = sender.poll_for_job()
 
         assert job == mock_job
-        mock_client_instance.poll_for_job.assert_called_once_with("test-node", timeout=30)
+        # Should use the config value (test_config has job_poll_timeout from conftest)
+        mock_client_instance.poll_for_job.assert_called_once_with(
+            "test-node",
+            timeout=test_config.worker.job_poll_timeout
+        )
 
     @patch('scheduler.worker.heartbeat.SchedulerClient', autospec=True)
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)

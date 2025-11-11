@@ -26,6 +26,7 @@ from scheduler.core.constants import (
     DEFAULT_CLIENT_REQ,
     TEMP_DIR_PATH,
     LOG_DIR_PATH,
+    JOB_POLL_TIMEOUT as DEFAULT_JOB_POLL_TIMEOUT,
 )
 
 
@@ -51,6 +52,7 @@ class WorkerConfig:
     gpu_stable_time: int = DEFAULT_GPU_STABLE_TIME
     job_startup_grace: int = DEFAULT_JOB_STARTUP_GRACE
     heartbeat_interval: int = DEFAULT_HEARTBEAT_INTERVAL
+    job_poll_timeout: int = DEFAULT_JOB_POLL_TIMEOUT
 
 
 @dataclass(frozen=True)

@@ -118,7 +118,7 @@ class HeartbeatSender:
             Job if assigned, None if no job available
         """
         try:
-            job = self.client.poll_for_job(self.node_name, timeout=30)
+            job = self.client.poll_for_job(self.node_name, timeout=self.config.worker.job_poll_timeout)
             if job:
                 logger.info(f"Received job assignment: {job.job_id}")
             return job

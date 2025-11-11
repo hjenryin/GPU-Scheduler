@@ -59,12 +59,17 @@ class APIServer:
 
         try:
             # Create uvicorn server configuration
+            # Set timeout_keep_alive > job_poll_timeout to prevent connection resets during long-polling
+            # Workers poll with configurable timeout, so we need at least timeout + 35s for keep-alive
+            job_poll_timeout = self.config.worker.job_poll_timeout
             config = uvicorn.Config(
                 self.app,
                 host=self.host,
                 port=self.port,
                 log_level="info",
-                access_log=True
+                access_log=True,
+                timeout_keep_alive=job_poll_timeout + 30,  # Poll timeout + 30s buffer (for 5s client buffer + margin)
+                timeout_graceful_shutdown=10  # Give in-flight requests time to complete
             )
             self.server = uvicorn.Server(config)
 

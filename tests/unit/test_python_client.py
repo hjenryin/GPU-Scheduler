@@ -12,7 +12,7 @@ from scheduler.core.exceptions import (
     ValidationException,
 )
 from scheduler.core.models import Job, JobStatus, Node, GPUStats
-from scheduler.core import constants
+from scheduler.core import API_VERSION
 
 
 class TestSchedulerClientInitialization:
@@ -26,7 +26,7 @@ class TestSchedulerClientInitialization:
 
             assert client.head_address == "test-host:9000"
             assert "test-host:9000" in client.base_url
-            assert f"{constants.API_BASE_PATH}" in client.base_url
+            assert f"/api/{API_VERSION}" in client.base_url
 
     def test_client_initialization_without_address(self):
         """Test client auto-detects address from config"""
@@ -620,7 +620,7 @@ class TestWorkerMethods:
         }
 
         with patch.object(client.session, 'get', return_value=mock_response):
-            job = client.poll_for_job("worker-1", timeout=30)
+            job = client.poll_for_job("worker-1", timeout=30)  # Use explicit timeout for test
 
         assert job is not None
         assert job.job_id == "job_123"
@@ -635,7 +635,7 @@ class TestWorkerMethods:
         mock_response.status_code = 204  # No content
 
         with patch.object(client.session, 'get', return_value=mock_response):
-            job = client.poll_for_job("worker-1", timeout=30)
+            job = client.poll_for_job("worker-1", timeout=30)  # Use explicit timeout for test
 
         assert job is None
 
@@ -646,7 +646,7 @@ class TestWorkerMethods:
         client = SchedulerClient(address="test:9000")
 
         with patch.object(client.session, 'get', side_effect=requests.exceptions.Timeout()):
-            job = client.poll_for_job("worker-1", timeout=30)
+            job = client.poll_for_job("worker-1", timeout=30)  # Use explicit timeout for test
 
         assert job is None
 

@@ -1,5 +1,5 @@
-
 # Default values
+# None of the values here should be exported. They should only be imported by core.config
 
 # Head node defaults
 DEFAULT_PORT = 8265

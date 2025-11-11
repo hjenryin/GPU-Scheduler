@@ -15,8 +15,7 @@ from scheduler.core import (
 )
 from scheduler.core import GPU, Job, JobStatus, Node, NodeStatus, GPUStats
 from scheduler.core import Config, load_config
-from scheduler.core import constants
-from scheduler.core import parse_address
+from scheduler.core import parse_address, API_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +63,7 @@ class SchedulerClient:
 
         # Parse and validate address
         host, port = parse_address(self.head_address)
-        self.base_url = f"http://{host}:{port}{constants.API_BASE_PATH}"
+        self.base_url = f"http://{host}:{port}/api/{API_VERSION}"
 
         # Create session with retry logic
         self.session = requests.Session()
@@ -511,13 +510,13 @@ class SchedulerClient:
             logger.error(f"Failed to send heartbeat for node {node_name}: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")
 
-    def poll_for_job(self, node_name: str, timeout: int = 30) -> Optional[Job]:
+    def poll_for_job(self, node_name: str, timeout: int = None) -> Optional[Job]:
         """
         Long-poll for job assignment (worker use only).
 
         Args:
             node_name: Node name
-            timeout: Poll timeout in seconds
+            timeout: Poll timeout in seconds (defaults to config value or 30)
 
         Returns:
             Job if assigned, None if timeout
@@ -525,6 +524,10 @@ class SchedulerClient:
         Raises:
             ConnectionException: If cannot connect
         """
+        if timeout is None:
+            # Use config value if available, otherwise default to 30
+            timeout = self.config.worker.job_poll_timeout
+
         params = {"timeout": timeout}
 
         try:
