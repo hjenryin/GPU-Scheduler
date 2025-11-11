@@ -314,3 +314,30 @@ class TestNodeManager:
         node2 = node_manager.get_node("gpu2")
         assert node1.shutdown_requested == True
         assert node2.shutdown_requested == True
+
+    def test_reregister_clears_shutdown_flags(self, node_manager):
+        """Test that re-registering a node clears shutdown flags"""
+        # Register a node
+        node_manager.register_node("gpu1", "192.168.1.10", 4)
+
+        # Simulate heartbeat to mark as connected
+        stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(4)]
+        node_manager.update_heartbeat("gpu1", stats)
+
+        # Request shutdown
+        node_manager.request_shutdown_all_workers()
+        node1 = node_manager.get_node("gpu1")
+        assert node1.shutdown_requested == True
+
+        # Simulate acknowledgment
+        node1.shutdown_acknowledged = True
+        node_manager.persistence.save_node(node1)
+
+        # Re-register the node (simulating worker restart)
+        node_manager.register_node("gpu1", "192.168.1.10", 4)
+
+        # Verify shutdown flags are cleared
+        node1 = node_manager.get_node("gpu1")
+        assert node1.shutdown_requested == False
+        assert node1.shutdown_acknowledged == False
+        assert node1.status == NodeStatus.CONNECTED

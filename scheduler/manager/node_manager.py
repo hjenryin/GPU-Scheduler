@@ -62,6 +62,9 @@ class NodeManager:
             node.address = address
             node.num_gpus = num_gpus
             node.status = NodeStatus.CONNECTED
+            # Clear shutdown flags when node re-registers
+            node.shutdown_requested = False
+            node.shutdown_acknowledged = False
             logger.info(f"Node {node_name} re-registered")
         else:
             # Create new node with empty GPU list (will be populated on first heartbeat)
