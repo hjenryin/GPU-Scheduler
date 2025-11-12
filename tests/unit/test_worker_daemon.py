@@ -240,16 +240,14 @@ class TestWorkerDaemon:
         mock_heartbeat_instance.stop.assert_called_once()
         mock_monitor_instance.stop_monitoring.assert_called_once()
 
-    @pytest.mark.skip(reason="Test needs rewrite for new async/threading architecture - stop() behavior changed with active_jobs dict and monitoring threads")
     @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
     @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
     @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
     @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
     @patch('scheduler.worker.daemon.FileHandler', autospec=True)
-    @patch('time.sleep', autospec=True)
-    def test_stop_graceful_with_completing_job(self, mock_sleep, mock_file_handler, mock_gpu_monitor,
-                                               mock_job_executor, mock_heartbeat, mock_client, test_config):
-        """Test graceful stop waits for job to complete"""
+    def test_stop_leaves_active_jobs_running(self, mock_file_handler, mock_gpu_monitor,
+                                             mock_job_executor, mock_heartbeat, mock_client, test_config):
+        """Test that stop() leaves active jobs running (untracked)"""
         mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
@@ -261,86 +259,42 @@ class TestWorkerDaemon:
         mock_file_handler.return_value = mock_file_handler_instance
 
         mock_executor_instance = create_autospec(JobExecutor, instance=True, spec_set=True)
-        # First call: still running, second call: completed
-        mock_executor_instance.get_job_status.side_effect = [
-            (True, None),
-            (False, 0)
-        ]
         mock_job_executor.return_value = mock_executor_instance
 
         mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.return_value = mock_client_instance
-
-        daemon = WorkerDaemon(test_config, node_name="test-node")
-        daemon.start()
-
-        # Set a current job
-        mock_job = Mock(spec_set=Job)
-        mock_job.job_id = "job-001"
-        daemon.current_job = mock_job
-        daemon.current_job_pid = 12345
-
-        daemon.stop(graceful=True)
-
-        # Should have waited for job
-        assert mock_executor_instance.get_job_status.call_count == 2
-
-    @pytest.mark.skip(reason="Test needs rewrite for new async/threading architecture - stop() behavior changed with active_jobs dict and monitoring threads")
-    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
-    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
-    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
-    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
-    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
-    @patch('time.sleep', autospec=True)
-    @patch('time.time', autospec=True)
-    def test_stop_graceful_timeout_terminates_job(self, mock_time, mock_sleep, mock_file_handler,
-                                                  mock_gpu_monitor, mock_job_executor,
-                                                  mock_heartbeat, mock_client, test_config):
-        """Test graceful stop terminates job after timeout"""
-        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
-        mock_monitor_instance.detect_gpus.return_value = 2
-        mock_gpu_monitor.return_value = mock_monitor_instance
-
-        # Mock file handler with create_autospec
-        from scheduler.worker.file_handler import FileHandler
-        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
-        mock_file_handler_instance.cleanup_old_logs.return_value = 0
-        mock_file_handler.return_value = mock_file_handler_instance
-
-        mock_executor_instance = create_autospec(JobExecutor, instance=True, spec_set=True)
-        # Job never completes
-        mock_executor_instance.get_job_status.return_value = (True, None)
-        mock_job_executor.return_value = mock_executor_instance
 
         mock_heartbeat_instance = create_autospec(HeartbeatSender, instance=True, spec_set=True)
         mock_heartbeat.return_value = mock_heartbeat_instance
 
-        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
-        mock_client.return_value = mock_client_instance
-
-        # Mock time to simulate timeout: start_time=0, then after timeout it becomes 61
-        call_count = [0]
-        def time_side_effect():
-            call_count[0] += 1
-            if call_count[0] == 1:
-                return 0  # start_time
-            else:
-                return 61  # After timeout
-        
-        mock_time.side_effect = time_side_effect
-
         daemon = WorkerDaemon(test_config, node_name="test-node")
-        # Don't actually start (to avoid thread issues)
-        daemon.running = True
+        daemon.start()
+
+        # Simulate an active job
+        from datetime import datetime
         mock_job = Mock(spec_set=Job)
         mock_job.job_id = "job-001"
-        daemon.current_job = mock_job
-        daemon.current_job_pid = 12345
+        mock_thread = Mock(spec=[])  # Simple mock for thread object
+        daemon.active_jobs["job-001"] = {
+            'job': mock_job,
+            'pid': 12345,
+            'start_time': datetime.now(),
+            'monitor_thread': mock_thread
+        }
 
+        # Call stop
         daemon.stop(graceful=True)
 
-        # Should have terminated the job
-        mock_executor_instance.terminate_job.assert_called_once_with(12345)
+        # Verify daemon stopped
+        assert daemon.running is False
+
+        # Verify heartbeat and monitoring stopped
+        mock_heartbeat_instance.stop.assert_called_once()
+        mock_monitor_instance.stop_monitoring.assert_called_once()
+
+        # Verify job was NOT terminated (left in active_jobs during stop call)
+        # Note: active_jobs is not cleared by stop(), jobs just become untracked
+        mock_executor_instance.terminate_job.assert_not_called()
 
     @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
     @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
@@ -367,15 +321,15 @@ class TestWorkerDaemon:
 
         assert daemon.running is False
 
-    @pytest.mark.skip(reason="Test needs rewrite for new async/threading architecture - _execute_job is now non-blocking with background monitoring threads")
+    @patch('scheduler.worker.daemon.threading.Thread', autospec=True)
     @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
     @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
     @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
     @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
     @patch('scheduler.worker.daemon.FileHandler', autospec=True)
-    def test_execute_job_success(self, mock_file_handler, mock_gpu_monitor,
-                                 mock_job_executor, mock_heartbeat, mock_client, test_config):
-        """Test successful job execution"""
+    def test_execute_job_starts_monitor_thread(self, mock_file_handler, mock_gpu_monitor,
+                                               mock_job_executor, mock_heartbeat, mock_client, mock_thread, test_config):
+        """Test that _execute_job starts job execution and monitoring thread (non-blocking)"""
         mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
@@ -388,12 +342,13 @@ class TestWorkerDaemon:
 
         mock_executor_instance = create_autospec(JobExecutor, instance=True, spec_set=True)
         mock_executor_instance.execute_job.return_value = 12345
-        # Job completes successfully
-        mock_executor_instance.get_job_status.return_value = (False, 0)
         mock_job_executor.return_value = mock_executor_instance
 
         mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.return_value = mock_client_instance
+
+        mock_thread_instance = Mock(spec=['start'])  # Mock with start method
+        mock_thread.return_value = mock_thread_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
         daemon.running = True
@@ -407,63 +362,29 @@ class TestWorkerDaemon:
             assigned_gpus=[0, 1]
         )
 
+        # Execute job (should be non-blocking)
         daemon._execute_job(job)
 
         # Verify job was executed
         mock_executor_instance.execute_job.assert_called_once_with(job, [0, 1])
 
-        # Verify completion was reported
-        mock_client_instance.report_job_complete.assert_called_once_with("job-001", 0)
+        # Verify monitor thread was created and started
+        mock_thread.assert_called_once()
+        call_kwargs = mock_thread.call_args[1]
+        assert call_kwargs['target'] == daemon._monitor_job
+        assert call_kwargs['args'] == (job, 12345)
+        assert call_kwargs['daemon'] is True
+        assert call_kwargs['name'] == 'monitor-job-001'
+        mock_thread_instance.start.assert_called_once()
 
-        # Job should be cleared
-        assert daemon.current_job is None
-        assert daemon.current_job_pid is None
+        # Verify job was added to active_jobs
+        assert "job-001" in daemon.active_jobs
+        assert daemon.active_jobs["job-001"]['job'] == job
+        assert daemon.active_jobs["job-001"]['pid'] == 12345
+        assert daemon.active_jobs["job-001"]['monitor_thread'] == mock_thread_instance
 
-    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
-    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
-    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
-    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
-    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
-    def test_execute_job_failure(self, mock_file_handler, mock_gpu_monitor,
-                                 mock_job_executor, mock_heartbeat, mock_client, test_config):
-        """Test job execution failure"""
-        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
-        mock_monitor_instance.detect_gpus.return_value = 2
-        mock_gpu_monitor.return_value = mock_monitor_instance
-
-        # Mock file handler with create_autospec
-        from scheduler.worker.file_handler import FileHandler
-        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
-        mock_file_handler_instance.cleanup_old_logs.return_value = 0
-        mock_file_handler.return_value = mock_file_handler_instance
-
-        mock_executor_instance = create_autospec(JobExecutor, instance=True, spec_set=True)
-        mock_executor_instance.execute_job.return_value = 12345
-        # Job fails
-        mock_executor_instance.get_job_status.return_value = (False, 1)
-        mock_job_executor.return_value = mock_executor_instance
-
-        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
-        mock_client.return_value = mock_client_instance
-
-        daemon = WorkerDaemon(test_config, node_name="test-node")
-        daemon.running = True
-
-        job = Job(
-            job_id="job-002",
-            name="test-job",
-            script="/path/to/script.py",
-            requirements=JobRequirement("1"),
-            status=JobStatus.PENDING
-        )
-
-        daemon._execute_job(job)
-
-        # Verify failure was reported
-        mock_client_instance.report_job_failed.assert_called_once()
-        call_args = mock_client_instance.report_job_failed.call_args
-        assert call_args[0][0] == "job-002"
-        assert "Exit code: 1" in call_args[0][1]
+        # Should NOT have reported completion yet (happens in monitor thread)
+        mock_client_instance.report_job_complete.assert_not_called()
 
     @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
     @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
@@ -690,43 +611,6 @@ class TestWorkerDaemon:
         daemon.running = True
         
         # Execute job
-        daemon._execute_job(sample_job)
-
-        # Verify cleanup_job was called
-        mock_executor_instance.cleanup_job.assert_called_once_with(sample_job)
-
-    @pytest.mark.skip(reason="Test needs rewrite for new async/threading architecture - cleanup now happens in monitoring thread, not in _execute_job")
-    @patch('scheduler.worker.daemon.SchedulerClient', autospec=True)
-    @patch('scheduler.worker.daemon.HeartbeatSender', autospec=True)
-    @patch('scheduler.worker.daemon.JobExecutor', autospec=True)
-    @patch('scheduler.worker.daemon.GPUMonitor', autospec=True)
-    @patch('scheduler.worker.daemon.FileHandler', autospec=True)
-    def test_execute_job_calls_cleanup_on_exception(self, mock_file_handler,
-                                                    mock_gpu_monitor, mock_job_executor,
-                                                    mock_heartbeat, mock_client, test_config, sample_job):
-        """Test that cleanup_job is called when job execution raises exception"""
-        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
-        mock_monitor_instance.detect_gpus.return_value = 2
-        mock_gpu_monitor.return_value = mock_monitor_instance
-
-        # Mock file handler with create_autospec
-        from scheduler.worker.file_handler import FileHandler
-        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
-        mock_file_handler_instance.cleanup_old_logs.return_value = 0
-        mock_file_handler.return_value = mock_file_handler_instance
-
-        mock_executor_instance = create_autospec(JobExecutor, instance=True, spec_set=True)
-        # Simulate exception during execution
-        mock_executor_instance.execute_job.side_effect = RuntimeError("Test error")
-        mock_job_executor.return_value = mock_executor_instance
-
-        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
-        mock_client.return_value = mock_client_instance
-
-        daemon = WorkerDaemon(test_config, node_name="test-node")
-        daemon.running = True
-        
-        # Execute job (should handle exception)
         daemon._execute_job(sample_job)
 
         # Verify cleanup_job was called

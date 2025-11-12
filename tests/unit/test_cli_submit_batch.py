@@ -313,58 +313,6 @@ class TestSubmitBatchCommand:
             for script in test_scripts:
                 os.unlink(script)
 
-    @pytest.mark.skip(reason="Test expects blocking behavior that doesn't exist in implementation")
-    @patch('scheduler.cli.submit_batch.load_config', autospec=True)
-    @patch('scheduler.cli.submit_batch.SchedulerClient', autospec=True)
-    def test_submit_batch_async_behavior(self, mock_client_class, mock_load_config):
-        """Test that batch submission respects async flag"""
-        # Create mock jobs
-        mock_pending_job = Mock(spec_set=Job)
-        mock_pending_job.job_id = "job_123"
-        mock_pending_job.status.value = "pending"
-        mock_pending_job.dependencies = []
-        
-        mock_completed_job = Mock(spec_set=Job)
-        mock_completed_job.job_id = "job_123"
-        mock_completed_job.status.value = "completed"
-        mock_completed_job.exit_code = 0
-        mock_completed_job.error_message = None
-        mock_completed_job.dependencies = []
-        
-        mock_client = Mock(spec_set=SchedulerClient)
-        mock_client.submit_job.return_value = mock_pending_job
-        mock_client.get_job.return_value = mock_completed_job
-        mock_client_class.return_value = mock_client
-        
-        # Create test scripts
-        test_scripts = []
-        for i in range(2):
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.py') as f:
-                f.write(f"print('test {i}')")
-                test_scripts.append(f.name)
-
-        # Create script list file
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
-            for script in test_scripts:
-                f.write(f"{script}\n")
-            script_list_file = f.name
-
-        try:
-            with patch('scheduler.cli.submit_batch.click.echo'), \
-                 patch('scheduler.cli.submit_batch.time.sleep'):
-                # Test with async_submit=False (should wait for last job)
-                result = submit_batch_command(
-                    script_list=script_list_file,
-                    req="1"
-                )
-                assert result == 0
-                # Should check job status when not async
-                mock_client.get_job.assert_called()
-        finally:
-            os.unlink(script_list_file)
-            for script in test_scripts:
-                os.unlink(script)
-
     @pytest.mark.skip(reason="log_to_driver mode not implemented in current version")
     @patch('scheduler.cli.submit_batch.load_config', autospec=True)
     @patch('scheduler.cli.submit_batch.SchedulerClient', autospec=True)
