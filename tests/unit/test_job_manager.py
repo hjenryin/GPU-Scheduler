@@ -347,3 +347,176 @@ class TestJobManager:
         job2 = job_manager.submit_job("/script2.py", "1", dependencies=["^", explicit_job_id])
 
         assert job2.dependencies == [job1.job_id, explicit_job_id]
+
+    def test_purge_job_success(self, job_manager):
+        """Test purging a specific job"""
+        job = job_manager.submit_job("/script.py", "2")
+        job_manager.complete_job(job.job_id, exit_code=0)
+
+        # Purge the job
+        job_manager.purge_job(job.job_id)
+
+        # Job should be gone
+        assert job_manager.get_job(job.job_id) is None
+
+    def test_purge_job_not_found(self, job_manager):
+        """Test purging non-existent job raises exception"""
+        with pytest.raises(JobNotFoundException):
+            job_manager.purge_job("nonexistent")
+
+    def test_purge_jobs_by_criteria_with_status_filter(self, job_manager):
+        """Test purging jobs by status"""
+        # Create various jobs
+        job1 = job_manager.submit_job("/script1.py", "2")
+        job2 = job_manager.submit_job("/script2.py", "2")
+        job3 = job_manager.submit_job("/script3.py", "2")
+
+        # Complete and fail jobs
+        job_manager.complete_job(job1.job_id, exit_code=0)
+        job_manager.fail_job(job2.job_id, "error")
+        # job3 remains pending
+
+        # Purge completed jobs only
+        count = job_manager.purge_jobs_by_criteria(status_filter=['completed'])
+
+        assert count == 1
+        assert job_manager.get_job(job1.job_id) is None
+        assert job_manager.get_job(job2.job_id) is not None  # failed, not purged
+        assert job_manager.get_job(job3.job_id) is not None  # pending, not purged
+
+    def test_purge_jobs_by_criteria_with_time_filter(self, job_manager):
+        """Test purging jobs by time"""
+        from datetime import datetime, timedelta
+
+        job1 = job_manager.submit_job("/script1.py", "2")
+        job_manager.complete_job(job1.job_id, exit_code=0)
+
+        # Set completed_at to past
+        job1_obj = job_manager.get_job(job1.job_id)
+        job1_obj.completed_at = datetime.now() - timedelta(days=10)
+        job_manager.persistence.save_job(job1_obj)
+
+        job2 = job_manager.submit_job("/script2.py", "2")
+        job_manager.complete_job(job2.job_id, exit_code=0)
+
+        # Purge jobs completed before 5 days ago
+        before_time = datetime.now() - timedelta(days=5)
+        count = job_manager.purge_jobs_by_criteria(before_time=before_time, status_filter=['completed'])
+
+        assert count == 1
+        assert job_manager.get_job(job1.job_id) is None  # old, purged
+        assert job_manager.get_job(job2.job_id) is not None  # recent, not purged
+
+    def test_purge_jobs_by_criteria_invalid_status(self, job_manager):
+        """Test purging with invalid status is handled gracefully"""
+        job = job_manager.submit_job("/script.py", "2")
+        job_manager.complete_job(job.job_id, exit_code=0)
+
+        # Invalid status should be ignored
+        count = job_manager.purge_jobs_by_criteria(status_filter=['invalid_status'])
+
+        assert count == 0
+        assert job_manager.get_job(job.job_id) is not None
+
+    def test_purge_jobs_by_criteria_no_time_filter(self, job_manager):
+        """Test purging all jobs matching status without time filter"""
+        job1 = job_manager.submit_job("/script1.py", "2")
+        job2 = job_manager.submit_job("/script2.py", "2")
+        job_manager.complete_job(job1.job_id, exit_code=0)
+        job_manager.fail_job(job2.job_id, "error")
+
+        # Purge all completed and failed jobs
+        count = job_manager.purge_jobs_by_criteria(status_filter=['completed', 'failed'])
+
+        assert count == 2
+        assert job_manager.get_job(job1.job_id) is None
+        assert job_manager.get_job(job2.job_id) is None
+
+    def test_get_active_jobs_for_node(self, job_manager):
+        """Test getting active jobs for a specific node"""
+        job1 = job_manager.submit_job("/script1.py", "2")
+        job2 = job_manager.submit_job("/script2.py", "2")
+        job3 = job_manager.submit_job("/script3.py", "2")
+
+        # Start jobs on different nodes
+        job_manager.start_job(job1.job_id, "node1", [0, 1])
+        job_manager.start_job(job2.job_id, "node1", [2, 3])
+        job_manager.start_job(job3.job_id, "node2", [0, 1])
+
+        # Get active jobs for node1
+        active_jobs = job_manager.get_active_jobs_for_node("node1")
+
+        assert len(active_jobs) == 2
+        assert job1.job_id in active_jobs
+        assert job2.job_id in active_jobs
+        assert job3.job_id not in active_jobs
+
+    def test_get_active_jobs_for_node_no_jobs(self, job_manager):
+        """Test getting active jobs for node with no jobs"""
+        active_jobs = job_manager.get_active_jobs_for_node("empty_node")
+        assert active_jobs == []
+
+    def test_untrack_job_success(self, job_manager):
+        """Test untracking a job (marks as UNTRACKED status)"""
+        job = job_manager.submit_job("/script.py", "2")
+        job_manager.start_job(job.job_id, "node1", [0])
+        
+        # Untrack the job
+        job_manager.untrack_job(job.job_id)
+
+        # Job should have UNTRACKED status
+        updated_job = job_manager.get_job(job.job_id)
+        assert updated_job.status == JobStatus.UNTRACKED
+
+    def test_untrack_job_not_found(self, job_manager):
+        """Test untracking non-existent job raises exception"""
+        with pytest.raises(JobNotFoundException):
+            job_manager.untrack_job("nonexistent")
+
+    def test_retry_job_inplace_success(self, job_manager):
+        """Test retrying a failed job in place"""
+        job = job_manager.submit_job("/script.py", "2", name="test-job")
+        job_manager.start_job(job.job_id, "node1", [0, 1])
+        job_manager.fail_job(job.job_id, "error message")
+
+        # Retry the job
+        retried_job = job_manager.retry_job_inplace(job.job_id)
+
+        assert retried_job.job_id == job.job_id  # Same ID
+        assert retried_job.status == JobStatus.PENDING
+        assert retried_job.error_message is None
+        assert retried_job.assigned_node is None
+        assert retried_job.assigned_gpus == []
+        assert retried_job.started_at is None
+        assert retried_job.completed_at is None
+
+    def test_retry_job_inplace_not_found(self, job_manager):
+        """Test retrying non-existent job raises exception"""
+        with pytest.raises(JobNotFoundException):
+            job_manager.retry_job_inplace("nonexistent")
+
+    def test_retry_job_inplace_not_failed_or_cancelled(self, job_manager):
+        """Test retrying job that is not in terminal state raises exception"""
+        job = job_manager.submit_job("/script.py", "2")
+
+        # Job is pending, should not be retryable
+        with pytest.raises(ValueError, match="Can only retry"):
+            job_manager.retry_job_inplace(job.job_id)
+
+    def test_retry_job_inplace_resets_execution_fields(self, job_manager):
+        """Test retrying job resets execution-related fields"""
+        job = job_manager.submit_job("/script.py", "2", name="test-job")
+        job_manager.start_job(job.job_id, "node1", [0])
+        job_manager.fail_job(job.job_id, "error")
+
+        # Retry the job
+        retried_job = job_manager.retry_job_inplace(job.job_id)
+
+        # Verify execution fields are reset
+        assert retried_job.started_at is None
+        assert retried_job.completed_at is None
+        assert retried_job.exit_code is None
+        assert retried_job.error_message is None
+        assert retried_job.assigned_node is None
+        assert retried_job.assigned_gpus == []
+        assert retried_job.after_commit_ref is None
