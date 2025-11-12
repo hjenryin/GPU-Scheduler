@@ -117,9 +117,17 @@ class MockVisitor(ast.NodeVisitor):
     def _check_bare_mock(self, node: ast.Call):
         """Check for bare Mock() without specs"""
         # Skip if it has spec, autospec, or spec_set
-        if (self._has_keyword(node, 'spec') or
-            self._has_keyword(node, 'autospec') or
-            self._has_keyword(node, 'spec_set')):
+        if self._has_keyword(node, 'spec') or self._has_keyword(node, 'autospec'):
+            return
+
+        # spec_set=[] is allowed for behavior-only mocks
+        if self._has_keyword(node, 'spec_set'):
+            spec_set_value = self._get_keyword_value(node, 'spec_set')
+            # Allow spec_set=[] (empty list) for behavior mocks
+            # but not spec_set=True or other values
+            if isinstance(spec_set_value, ast.List) and len(spec_set_value.elts) == 0:
+                return  # spec_set=[] is safe
+            # Other spec_set values are fine too (like spec_set=True)
             return
 
         # Skip behavior mocks (side_effect, return_value)
@@ -127,6 +135,7 @@ class MockVisitor(ast.NodeVisitor):
             return
 
         # Skip attribute assignments (e.g., app.method = Mock())
+        # These are acceptable when the parent object is already validated with spec_set=True
         if self._is_attribute_assignment(node):
             return
 
