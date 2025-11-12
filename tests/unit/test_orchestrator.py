@@ -298,11 +298,12 @@ class TestOrchestrator:
         orchestrator.node_manager.check_timeouts.assert_called_once()
 
     @patch('scheduler.core.utils.is_port_available')
-    @patch('subprocess.Popen')
+    @patch('subprocess.Popen', autospec=True)
     def test_rsync_daemon_starts_successfully(self, mock_popen, mock_is_port_available, orchestrator):
         """Test rsync daemon starts successfully when port is available"""
         mock_is_port_available.return_value = True
-        mock_process = create_autospec(subprocess.Popen, instance=True, spec_set=True)
+        # mock_popen is already an autospec'd Mock, just set return values
+        mock_process = Mock()
         mock_process.poll.return_value = None  # Process running
         mock_popen.return_value = mock_process
 
@@ -324,11 +325,12 @@ class TestOrchestrator:
 
     @patch('scheduler.core.utils.is_port_available')
     @patch('tempfile.mkstemp')
-    @patch('subprocess.Popen')
+    @patch('subprocess.Popen', autospec=True)
     def test_rsync_daemon_config_no_uid_gid(self, mock_popen, mock_mkstemp, mock_is_port_available, orchestrator, tmp_path):
         """Test rsync daemon config does not include uid/gid"""
         mock_is_port_available.return_value = True
-        mock_process = create_autospec(subprocess.Popen, instance=True, spec_set=True)
+        # mock_popen is already an autospec'd Mock, just set return values
+        mock_process = Mock()
         mock_process.poll.return_value = None
         mock_popen.return_value = mock_process
 
