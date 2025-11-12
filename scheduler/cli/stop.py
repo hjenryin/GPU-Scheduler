@@ -91,7 +91,7 @@ def _stop_all_nodes() -> int:
                 
                 # Request cluster shutdown to signal all workers
                 try:
-                    client.shutdown_cluster(graceful_timeout=60, force=False)
+                    client.shutdown_cluster()
                     click.echo("✓ Shutdown signal sent to all workers")
                     click.echo("Workers will shut down within 5-10 seconds via heartbeat mechanism")
                 except Exception as e:
@@ -145,7 +145,7 @@ def _stop_all_nodes() -> int:
         click.echo("\n✓ Requesting cluster shutdown from head node...")
         
         try:
-            success = client.shutdown_cluster(graceful_timeout=60, force=False)
+            success = client.shutdown_cluster()
             if success:
                 click.echo("✓ Cluster shutdown initiated successfully")
                 click.echo("Workers will shut down within 5-10 seconds via heartbeat mechanism")
