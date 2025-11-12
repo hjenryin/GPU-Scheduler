@@ -213,7 +213,7 @@ def mock_textual_app():
     """Create mock Textual App for testing."""
     app = create_autospec(App, instance=True, spec_set=True)
     # app.screen returns a Screen object
-    app.screen = Mock(spec=Screen)  # External library (Textual)
+    app.screen = Mock(spec=Screen)  # External C library (Textual)
     app.screen.name = "cluster"
     # These methods are called for side effects only
     app.switch_screen = Mock(spec=[])  # Behavior mock
@@ -250,7 +250,7 @@ def mock_data_table():
 @pytest.fixture
 def mock_static_widget():
     """Create mock Static widget."""
-    static = Mock(spec=Static)  # External library (Textual)
+    static = Mock(spec=Static)  # External C library (Textual)
     static.update = Mock(spec=[])  # Behavior mock
     return static
 
@@ -258,7 +258,7 @@ def mock_static_widget():
 @pytest.fixture
 def mock_input_widget():
     """Create mock Input widget."""
-    input_widget = Mock(spec=Input)  # External library (Textual)
+    input_widget = Mock(spec=Input)  # External C library (Textual)
     input_widget.focus = Mock(spec=[])  # Behavior mock
     input_widget.value = ""
     return input_widget
@@ -267,7 +267,7 @@ def mock_input_widget():
 @pytest.fixture
 def mock_container():
     """Create mock Container widget."""
-    container = Mock(spec=Container)  # External library (Textual)
+    container = Mock(spec=Container)  # External C library (Textual)
     container.id = "test-container"
     return container
 
@@ -305,7 +305,7 @@ def multi_node_cluster_data(mock_nodes, mock_jobs):
 def mock_input_changed_event():
     """Create mock input changed event."""
     event = Mock(spec=['input', 'value'])  # Event data structure
-    event.input = Mock(spec=Input)  # External library (Textual)
+    event.input = Mock(spec=Input)  # External C library (Textual)
     event.input.id = "search-input"
     event.value = "test search"
     return event
@@ -315,7 +315,7 @@ def mock_input_changed_event():
 def mock_row_selected_event():
     """Create mock row selected event."""
     event = Mock(spec=['data_table', 'row_key', 'row'])  # Event data structure
-    event.data_table = Mock(spec=DataTable)  # External library (Textual)
+    event.data_table = Mock(spec=DataTable)  # External C library (Textual)
     event.data_table.id = "jobs-table"
     event.row_key = "job_123"
     event.row = 0

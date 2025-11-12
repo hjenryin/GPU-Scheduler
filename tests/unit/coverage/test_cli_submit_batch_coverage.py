@@ -254,7 +254,7 @@ def test_submit_batch_sequential_stops_on_error(mock_file, mock_exists, mock_cli
     mock_client.submit_job.side_effect = [
         mock_job1,
         ValidationException("Invalid job"),
-        MagicMock()  # Should not reach this
+        MagicMock(spec=[])  # Mock - Should not reach this
     ]
     mock_client_class.return_value = mock_client
     

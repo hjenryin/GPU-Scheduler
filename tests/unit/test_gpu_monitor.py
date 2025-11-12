@@ -52,9 +52,9 @@ class TestGPUMonitorDetectGPUs:
     def monitor_pynvml(self):
         """Create monitor with mocked pynvml"""
         # Mock pynvml module - external C library interface
-        mock_pynvml = MagicMock()  # External library - pynvml C interface
-        mock_pynvml.nvmlInit = MagicMock()  # External library - pynvml C function
-        mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=2)  # External library - pynvml C function
+        mock_pynvml = MagicMock()  # External C library
+        mock_pynvml.nvmlInit = MagicMock()  # External C library
+        mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=2)  # External C library
         
         # Use test mode to avoid init calling detect_gpus
         with patch.dict(os.environ, {'SCHEDULER_TEST_MODE': '1'}):
@@ -150,9 +150,9 @@ class TestGPUMonitorPollGPUStats:
     def monitor_pynvml(self):
         """Create monitor with mocked pynvml"""
         # Mock pynvml module - external C library interface
-        mock_pynvml = MagicMock()  # External library - pynvml C interface
-        mock_pynvml.nvmlInit = MagicMock()  # External library - pynvml C function
-        mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=2)  # External library - pynvml C function
+        mock_pynvml = MagicMock()  # External C library
+        mock_pynvml.nvmlInit = MagicMock()  # External C library
+        mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=2)  # External C library
         
         # Use test mode to avoid init calling detect_gpus
         with patch.dict(os.environ, {'SCHEDULER_TEST_MODE': '1'}):
@@ -181,7 +181,7 @@ class TestGPUMonitorPollGPUStats:
         monitor_pynvml.pynvml.nvmlDeviceGetPowerManagementLimit.return_value = 200000
         
         monitor_pynvml.pynvml.nvmlDeviceGetComputeRunningProcesses.return_value = []
-        monitor_pynvml.pynvml.nvmlDeviceGetHandleByIndex = MagicMock(return_value=Mock(spec=[]))  # Opaque C handle
+        monitor_pynvml.pynvml.nvmlDeviceGetHandleByIndex = MagicMock(return_value=Mock(spec=[]))  # External C library
         
         stats = monitor_pynvml.poll_gpu_stats()
         assert len(stats) == 2
@@ -316,9 +316,10 @@ class TestGPUMonitorGetRunningJobID:
     @pytest.fixture
     def monitor_pynvml(self):
         """Create monitor with mocked pynvml"""
-        mock_pynvml = MagicMock()
-        mock_pynvml.nvmlInit = MagicMock()
-        mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=1)
+        # Mock pynvml module - external C library interface
+        mock_pynvml = MagicMock()  # External C library
+        mock_pynvml.nvmlInit = MagicMock()  # External C library
+        mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=1)  # External C library
         
         # Use test mode to avoid init calling detect_gpus
         with patch.dict(os.environ, {'SCHEDULER_TEST_MODE': '1'}):
@@ -335,7 +336,7 @@ class TestGPUMonitorGetRunningJobID:
         mock_process = Mock(spec=['pid'])  # pynvml process struct
         mock_process.pid = 12345
         monitor_pynvml.pynvml.nvmlDeviceGetComputeRunningProcesses.return_value = [mock_process]
-        monitor_pynvml.pynvml.nvmlDeviceGetHandleByIndex.return_value = Mock(spec=[])  # Opaque C handle
+        monitor_pynvml.pynvml.nvmlDeviceGetHandleByIndex.return_value = Mock(spec=[])  # External C library
 
         job_id = monitor_pynvml._get_running_job_id(0)
         assert job_id == "pid_12345"
@@ -343,7 +344,7 @@ class TestGPUMonitorGetRunningJobID:
     def test_get_running_job_id_no_processes(self, monitor_pynvml):
         """Test getting running job ID when no processes are running"""
         monitor_pynvml.pynvml.nvmlDeviceGetComputeRunningProcesses.return_value = []
-        monitor_pynvml.pynvml.nvmlDeviceGetHandleByIndex.return_value = Mock(spec=[])  # Opaque C handle
+        monitor_pynvml.pynvml.nvmlDeviceGetHandleByIndex.return_value = Mock(spec=[])  # External C library
         
         job_id = monitor_pynvml._get_running_job_id(0)
         assert job_id is None
@@ -361,7 +362,7 @@ class TestGPUMonitorGetRunningJobID:
     def test_get_running_job_id_error(self, monitor_pynvml):
         """Test getting running job ID when pynvml raises exception"""
         monitor_pynvml.pynvml.nvmlDeviceGetComputeRunningProcesses.side_effect = Exception("Test error")
-        monitor_pynvml.pynvml.nvmlDeviceGetHandleByIndex.return_value = Mock(spec=[])  # Opaque C handle
+        monitor_pynvml.pynvml.nvmlDeviceGetHandleByIndex.return_value = Mock(spec=[])  # External C library
         
         job_id = monitor_pynvml._get_running_job_id(0)
         assert job_id is None
@@ -372,10 +373,10 @@ class TestGPUMonitorCleanup:
 
     def test_del_shutdowns_pynvml(self):
         """Test __del__ shuts down pynvml"""
-        mock_pynvml = MagicMock()
-        mock_pynvml.nvmlInit = MagicMock()
-        mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=1)
-        mock_pynvml.nvmlShutdown = MagicMock()
+        mock_pynvml = MagicMock()  # External C library
+        mock_pynvml.nvmlInit = MagicMock()  # External C library
+        mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=1)  # External C library
+        mock_pynvml.nvmlShutdown = MagicMock()  # External C library
         
         # Use test mode to avoid init calling detect_gpus
         with patch.dict(os.environ, {'SCHEDULER_TEST_MODE': '1'}):

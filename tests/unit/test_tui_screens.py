@@ -41,7 +41,7 @@ class TestClusterScreen:
         # Mock the static widgets (use spec_set for Textual widgets)
         mock_summary = create_autospec(Static, instance=True, spec_set=True)
         mock_node_table = create_autospec(DataTable, instance=True, spec_set=True)
-        mock_gpu_bars = create_autospec(Static, instance=True, spec_set=True)  # External library (Textual)
+        mock_gpu_bars = create_autospec(Static, instance=True, spec_set=True)  # External C library (Textual)
         mock_job_table = create_autospec(DataTable, instance=True, spec_set=True)
 
         mock_query_one.side_effect = lambda self, selector, widget_type: {
@@ -88,7 +88,7 @@ class TestClusterScreen:
         
         mock_summary = create_autospec(Static, instance=True, spec_set=True)
         mock_node_table = create_autospec(DataTable, instance=True, spec_set=True)
-        mock_gpu_bars = create_autospec(Static, instance=True, spec_set=True)  # External library (Textual)
+        mock_gpu_bars = create_autospec(Static, instance=True, spec_set=True)  # External C library (Textual)
         mock_job_table = create_autospec(DataTable, instance=True, spec_set=True)
         
         mock_query_one.side_effect = lambda self, selector, widget_type: {
@@ -116,7 +116,7 @@ class TestClusterScreen:
         """Test GPU bars update."""
         screen = ClusterScreen()
         
-        mock_gpu_bars = create_autospec(Static, instance=True, spec_set=True)  # External library (Textual)
+        mock_gpu_bars = create_autospec(Static, instance=True, spec_set=True)  # External C library (Textual)
         mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#gpu-bars": mock_gpu_bars,
             "#cluster-summary": create_autospec(Static, instance=True, spec_set=True),

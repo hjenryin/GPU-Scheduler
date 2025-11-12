@@ -17,10 +17,10 @@ def mock_config():
     """Create a mock config object"""
     config = Mock(spec=Config)
     # Add necessary attributes for JobExecutor
-    config.node = Mock()
+    config.node = Mock(spec=[])  # Mock
     config.node.log_dir = tempfile.mkdtemp()
     config.node.temp_dir = tempfile.mkdtemp()
-    config.worker = Mock()
+    config.worker = Mock(spec=[])  # Mock
     config.worker.work_dir = tempfile.mkdtemp()
     config.worker.log_dir = tempfile.mkdtemp()
     return config

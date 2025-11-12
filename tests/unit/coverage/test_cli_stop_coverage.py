@@ -34,7 +34,7 @@ def test_stop_command_no_workers_found(mock_listdir, mock_exists, mock_is_daemon
 @patch('scheduler.cli.stop.is_daemon_running', autospec=True)
 @patch('scheduler.cli.stop.os.path.exists', autospec=True)
 @patch('scheduler.cli.stop.os.listdir', autospec=True)
-@patch('scheduler.cli.stop._stop_daemon')
+@patch('scheduler.cli.stop._stop_daemon', autospec=True)
 def test_stop_command_with_head_warning(mock_stop_daemon, mock_listdir, mock_exists, mock_is_daemon):
     """Test stop_command shows warning when head is still running"""
     mock_exists.return_value = True
@@ -47,7 +47,7 @@ def test_stop_command_with_head_warning(mock_stop_daemon, mock_listdir, mock_exi
     mock_stop_daemon.assert_called_once()
 
 
-@patch('scheduler.cli.stop._stop_all_nodes')
+@patch('scheduler.cli.stop._stop_all_nodes', autospec=True)
 def test_stop_command_all_nodes(mock_stop_all):
     """Test stop_command with all_nodes=True"""
     mock_stop_all.return_value = 0
@@ -57,10 +57,10 @@ def test_stop_command_all_nodes(mock_stop_all):
     mock_stop_all.assert_called_once()
 
 
-@patch('scheduler.cli.stop._is_running_on_head_node')
-@patch('scheduler.cli.stop.load_config')
-@patch('scheduler.cli.stop.SchedulerClient')
-@patch('scheduler.cli.stop._stop_local_worker_nodes')
+@patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+@patch('scheduler.cli.stop.load_config', autospec=True)
+@patch('scheduler.cli.stop.SchedulerClient', autospec=True)
+@patch('scheduler.cli.stop._stop_local_worker_nodes', autospec=True)
 @patch('scheduler.cli.stop.os.path.exists', autospec=True)
 def test_stop_all_nodes_from_head_success(mock_exists, mock_stop_local, mock_client_class, mock_load_config, mock_is_head):
     """Test _stop_all_nodes when running from head node - successful API call"""
@@ -77,10 +77,10 @@ def test_stop_all_nodes_from_head_success(mock_exists, mock_stop_local, mock_cli
     mock_client.shutdown_cluster.assert_called_once()
 
 
-@patch('scheduler.cli.stop._is_running_on_head_node')
-@patch('scheduler.cli.stop.load_config')
-@patch('scheduler.cli.stop.SchedulerClient')
-@patch('scheduler.cli.stop._stop_local_worker_nodes')
+@patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+@patch('scheduler.cli.stop.load_config', autospec=True)
+@patch('scheduler.cli.stop.SchedulerClient', autospec=True)
+@patch('scheduler.cli.stop._stop_local_worker_nodes', autospec=True)
 def test_stop_all_nodes_from_head_api_fails(mock_stop_local, mock_client_class, mock_load_config, mock_is_head):
     """Test _stop_all_nodes when API call fails, falls back to local stop"""
     mock_is_head.return_value = True
@@ -95,9 +95,9 @@ def test_stop_all_nodes_from_head_api_fails(mock_stop_local, mock_client_class, 
     mock_stop_local.assert_called()
 
 
-@patch('scheduler.cli.stop._is_running_on_head_node')
-@patch('scheduler.cli.stop.load_config')
-@patch('scheduler.cli.stop.SchedulerClient')
+@patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+@patch('scheduler.cli.stop.load_config', autospec=True)
+@patch('scheduler.cli.stop.SchedulerClient', autospec=True)
 def test_stop_all_nodes_from_worker_success(mock_client_class, mock_load_config, mock_is_head):
     """Test _stop_all_nodes when running from worker node"""
     mock_is_head.return_value = False
@@ -117,9 +117,9 @@ def test_stop_all_nodes_from_worker_success(mock_client_class, mock_load_config,
     mock_client.shutdown_cluster.assert_called_once()
 
 
-@patch('scheduler.cli.stop._is_running_on_head_node')
-@patch('scheduler.cli.stop.load_config')
-@patch('scheduler.cli.stop.SchedulerClient')
+@patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+@patch('scheduler.cli.stop.load_config', autospec=True)
+@patch('scheduler.cli.stop.SchedulerClient', autospec=True)
 def test_stop_all_nodes_from_worker_no_nodes(mock_client_class, mock_load_config, mock_is_head):
     """Test _stop_all_nodes when no nodes are found"""
     mock_is_head.return_value = False
@@ -132,9 +132,9 @@ def test_stop_all_nodes_from_worker_no_nodes(mock_client_class, mock_load_config
     assert result == 1
 
 
-@patch('scheduler.cli.stop._is_running_on_head_node')
-@patch('scheduler.cli.stop.load_config')
-@patch('scheduler.cli.stop.SchedulerClient')
+@patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+@patch('scheduler.cli.stop.load_config', autospec=True)
+@patch('scheduler.cli.stop.SchedulerClient', autospec=True)
 def test_stop_all_nodes_connection_exception(mock_client_class, mock_load_config, mock_is_head):
     """Test _stop_all_nodes when ConnectionException is raised"""
     mock_is_head.return_value = False
@@ -144,9 +144,9 @@ def test_stop_all_nodes_connection_exception(mock_client_class, mock_load_config
     assert result == 1
 
 
-@patch('scheduler.cli.stop._is_running_on_head_node')
-@patch('scheduler.cli.stop.load_config')
-@patch('scheduler.cli.stop.SchedulerClient')
+@patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+@patch('scheduler.cli.stop.load_config', autospec=True)
+@patch('scheduler.cli.stop.SchedulerClient', autospec=True)
 def test_stop_all_nodes_generic_exception(mock_client_class, mock_load_config, mock_is_head):
     """Test _stop_all_nodes when generic exception is raised"""
     mock_is_head.return_value = False
@@ -179,7 +179,7 @@ def test_is_running_on_head_node_false(mock_exists, mock_is_daemon):
 
 @patch('scheduler.cli.stop.os.path.exists', autospec=True)
 @patch('scheduler.cli.stop.os.listdir', autospec=True)
-@patch('scheduler.cli.stop._stop_daemon')
+@patch('scheduler.cli.stop._stop_daemon', autospec=True)
 def test_stop_local_worker_nodes_success(mock_stop_daemon, mock_listdir, mock_exists):
     """Test _stop_local_worker_nodes stops workers successfully"""
     mock_exists.return_value = True
@@ -285,9 +285,9 @@ def test_stop_daemon_lockfile_remove_fails(mock_remove, mock_kill, mock_file, mo
     assert result is True  # Daemon was stopped even if lockfile removal failed
 
 
-@patch('scheduler.cli.stop._is_running_on_head_node')
-@patch('scheduler.cli.stop.load_config')
-@patch('scheduler.cli.stop.SchedulerClient')
+@patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+@patch('scheduler.cli.stop.load_config', autospec=True)
+@patch('scheduler.cli.stop.SchedulerClient', autospec=True)
 def test_stop_all_nodes_from_worker_shutdown_fails(mock_client_class, mock_load_config, mock_is_head):
     """Test _stop_all_nodes when shutdown_cluster returns False"""
     mock_is_head.return_value = False
@@ -302,9 +302,9 @@ def test_stop_all_nodes_from_worker_shutdown_fails(mock_client_class, mock_load_
     assert result == 1
 
 
-@patch('scheduler.cli.stop._is_running_on_head_node')
-@patch('scheduler.cli.stop.load_config')
-@patch('scheduler.cli.stop.SchedulerClient')
+@patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+@patch('scheduler.cli.stop.load_config', autospec=True)
+@patch('scheduler.cli.stop.SchedulerClient', autospec=True)
 def test_stop_all_nodes_from_worker_connection_exception_on_shutdown(mock_client_class, mock_load_config, mock_is_head):
     """Test _stop_all_nodes when ConnectionException during shutdown"""
     mock_is_head.return_value = False
@@ -319,10 +319,10 @@ def test_stop_all_nodes_from_worker_connection_exception_on_shutdown(mock_client
     assert result == 1
 
 
-@patch('scheduler.cli.stop._is_running_on_head_node')
-@patch('scheduler.cli.stop.load_config')
-@patch('scheduler.cli.stop.SchedulerClient')
-@patch('scheduler.cli.stop._stop_local_worker_nodes')
+@patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+@patch('scheduler.cli.stop.load_config', autospec=True)
+@patch('scheduler.cli.stop.SchedulerClient', autospec=True)
+@patch('scheduler.cli.stop._stop_local_worker_nodes', autospec=True)
 def test_stop_all_nodes_from_head_list_nodes_fails(mock_stop_local, mock_client_class, mock_load_config, mock_is_head):
     """Test _stop_all_nodes when list_nodes fails but shutdown continues"""
     mock_is_head.return_value = True
@@ -336,10 +336,10 @@ def test_stop_all_nodes_from_head_list_nodes_fails(mock_stop_local, mock_client_
     assert result == 0
 
 
-@patch('scheduler.cli.stop._is_running_on_head_node')
-@patch('scheduler.cli.stop.load_config')
-@patch('scheduler.cli.stop.SchedulerClient')
-@patch('scheduler.cli.stop._stop_local_worker_nodes')
+@patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+@patch('scheduler.cli.stop.load_config', autospec=True)
+@patch('scheduler.cli.stop.SchedulerClient', autospec=True)
+@patch('scheduler.cli.stop._stop_local_worker_nodes', autospec=True)
 @patch('scheduler.cli.stop.os.path.exists', autospec=True)
 def test_stop_all_nodes_from_head_no_lockfile(mock_exists, mock_stop_local, mock_client_class, mock_load_config, mock_is_head):
     """Test _stop_all_nodes when head lockfile doesn't exist after shutdown"""
@@ -354,8 +354,8 @@ def test_stop_all_nodes_from_head_no_lockfile(mock_exists, mock_stop_local, mock
     assert result == 0
 
 
-@patch('scheduler.cli.stop._is_running_on_head_node')
-@patch('scheduler.cli.stop.load_config')
+@patch('scheduler.cli.stop._is_running_on_head_node', autospec=True)
+@patch('scheduler.cli.stop.load_config', autospec=True)
 def test_stop_all_nodes_from_head_cannot_connect(mock_load_config, mock_is_head):
     """Test _stop_all_nodes when cannot connect to API from head node"""
     mock_is_head.return_value = True

@@ -176,7 +176,7 @@ class TestAPIServer:
             api_server = APIServer(mock_job_manager, mock_node_manager, test_config)
 
             # Setup server and thread
-            mock_server = Mock(spec=uvicorn.Server)  # External library
+            mock_server = Mock(spec=uvicorn.Server)  # External C library
             mock_thread = create_autospec(threading.Thread, instance=True, spec_set=True)
             mock_thread.is_alive.return_value = True
             api_server.server = mock_server
@@ -202,7 +202,7 @@ class TestAPIServer:
             api_server = APIServer(mock_job_manager, mock_node_manager, test_config)
 
             # Setup server and thread
-            mock_server = Mock(spec=uvicorn.Server)  # External library
+            mock_server = Mock(spec=uvicorn.Server)  # External C library
             mock_thread = create_autospec(threading.Thread, instance=True, spec_set=True)
             mock_thread.is_alive.return_value = False
             api_server.server = mock_server

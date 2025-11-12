@@ -25,10 +25,10 @@ class TestGPUMonitorFinalCoverage:
 
     def test_init_with_pynvml_success(self, test_config):
         """Test initialization when pynvml is available and succeeds (lines 41-43)"""
-        mock_pynvml = MagicMock()
-        mock_pynvml.nvmlInit = MagicMock()
-        mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=2)
-        mock_pynvml.nvmlShutdown = MagicMock()
+        mock_pynvml = MagicMock()  # External C library
+        mock_pynvml.nvmlInit = MagicMock()  # External C library
+        mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=2)  # External C library
+        mock_pynvml.nvmlShutdown = MagicMock()  # External C library
         
         with patch.dict('sys.modules', {'pynvml': mock_pynvml}):
             with patch.object(GPUMonitor, 'detect_gpus', return_value=2):
@@ -128,10 +128,10 @@ class TestGPUMonitorFinalCoverage:
 
     def test_cleanup_pynvml_shutdown_exception(self, test_config):
         """Test cleanup when pynvml shutdown fails (lines 329-330)"""
-        mock_pynvml = MagicMock()
-        mock_pynvml.nvmlInit = MagicMock()
-        mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=1)
-        mock_pynvml.nvmlShutdown = MagicMock(side_effect=Exception("Shutdown failed"))
+        mock_pynvml = MagicMock()  # External C library
+        mock_pynvml.nvmlInit = MagicMock()  # External C library
+        mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=1)  # External C library
+        mock_pynvml.nvmlShutdown = MagicMock(side_effect=Exception("Shutdown failed"))  # External C library
         
         with patch.dict('sys.modules', {'pynvml': mock_pynvml}):
             with patch.object(GPUMonitor, 'detect_gpus', return_value=1):

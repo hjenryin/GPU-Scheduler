@@ -303,7 +303,7 @@ class TestOrchestrator:
         """Test rsync daemon starts successfully when port is available"""
         mock_is_port_available.return_value = True
         # mock_popen is already an autospec'd Mock, just set return values
-        mock_process = Mock()
+        mock_process = Mock(spec=['poll'])  # Mock
         mock_process.poll.return_value = None  # Process running
         mock_popen.return_value = mock_process
 
@@ -330,7 +330,7 @@ class TestOrchestrator:
         """Test rsync daemon config does not include uid/gid"""
         mock_is_port_available.return_value = True
         # mock_popen is already an autospec'd Mock, just set return values
-        mock_process = Mock()
+        mock_process = Mock(spec=['poll'])  # Mock
         mock_process.poll.return_value = None
         mock_popen.return_value = mock_process
 

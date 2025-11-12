@@ -128,6 +128,11 @@ class MockVisitor(ast.NodeVisitor):
         if any('mock_open' in l for l in context_lines):
             return
 
+        # Check for explanatory comment for external C libraries
+        source_line = self._get_line(node.lineno)
+        if any(marker in source_line for marker in ['# External C library', '# Cannot use', '# Mock']):
+            return
+
         # Otherwise, this is a violation - bare Mock() should NEVER happen
         func_name = self._get_func_name(node.func)
 

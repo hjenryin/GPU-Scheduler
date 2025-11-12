@@ -275,7 +275,9 @@ class TestWorkerDaemon:
         daemon.start()
 
         # Set a current job
-        daemon.current_job = Mock(job_id="job-001")
+        mock_job = Mock(spec=[])  # Mock
+        mock_job.job_id = "job-001"
+        daemon.current_job = mock_job
         daemon.current_job_pid = 12345
 
         daemon.stop(graceful=True)
@@ -330,7 +332,9 @@ class TestWorkerDaemon:
         daemon = WorkerDaemon(test_config, node_name="test-node")
         # Don't actually start (to avoid thread issues)
         daemon.running = True
-        daemon.current_job = Mock(job_id="job-001")
+        mock_job = Mock(spec=[])  # Mock
+        mock_job.job_id = "job-001"
+        daemon.current_job = mock_job
         daemon.current_job_pid = 12345
 
         daemon.stop(graceful=True)
