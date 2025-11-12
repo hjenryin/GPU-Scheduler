@@ -128,9 +128,9 @@ class MockVisitor(ast.NodeVisitor):
         if any('mock_open' in l for l in context_lines):
             return
 
-        # Check for explanatory comment for external C libraries
+        # Check for explanatory comment for external C libraries only
         source_line = self._get_line(node.lineno)
-        if any(marker in source_line for marker in ['# External C library', '# Cannot use', '# Mock']):
+        if '# External C library' in source_line:
             return
 
         # Otherwise, this is a violation - bare Mock() should NEVER happen
@@ -174,9 +174,13 @@ class MockVisitor(ast.NodeVisitor):
             if self._has_keyword(decorator, 'new_callable'):
                 return
 
-            # Check for explanatory comment
+            # Auto-detect side_effect - cannot use autospec with side_effect
+            if self._has_keyword(decorator, 'side_effect'):
+                return
+
+            # Check for explanatory comment (only for External C library)
             source_line = self._get_line(decorator.lineno)
-            if any(marker in source_line for marker in ['# Mock', '# Cannot use', '# External']):
+            if '# External C library' in source_line:
                 return
 
             # Check if near mock_open

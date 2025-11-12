@@ -22,7 +22,7 @@ def test_submit_batch_file_not_found(mock_exists):
 
 
 @patch('scheduler.cli.submit_batch.os.path.exists', autospec=True)
-@patch('builtins.open', side_effect=IOError("Cannot read file"))  # Cannot use autospec with side_effect
+@patch('builtins.open', side_effect=IOError("Cannot read file"))
 def test_submit_batch_cannot_read_file(mock_file, mock_exists):
     """Test submit_batch_command when file cannot be read"""
     mock_exists.return_value = True
@@ -254,7 +254,7 @@ def test_submit_batch_sequential_stops_on_error(mock_file, mock_exists, mock_cli
     mock_client.submit_job.side_effect = [
         mock_job1,
         ValidationException("Invalid job"),
-        MagicMock(spec=[])  # Mock - Should not reach this
+        MagicMock(spec_set=[])  # Unreachable - test stops after exception
     ]
     mock_client_class.return_value = mock_client
     

@@ -302,10 +302,8 @@ class TestOrchestrator:
     def test_rsync_daemon_starts_successfully(self, mock_popen, mock_is_port_available, orchestrator):
         """Test rsync daemon starts successfully when port is available"""
         mock_is_port_available.return_value = True
-        # mock_popen is already an autospec'd Mock, just set return values
-        mock_process = Mock(spec=['poll'])  # Mock
-        mock_process.poll.return_value = None  # Process running
-        mock_popen.return_value = mock_process
+        # mock_popen is already an autospec'd Mock with return_value
+        mock_popen.return_value.poll.return_value = None  # Process running
 
         orchestrator._start_rsync_daemon()
 
@@ -329,10 +327,8 @@ class TestOrchestrator:
     def test_rsync_daemon_config_no_uid_gid(self, mock_popen, mock_mkstemp, mock_is_port_available, orchestrator, tmp_path):
         """Test rsync daemon config does not include uid/gid"""
         mock_is_port_available.return_value = True
-        # mock_popen is already an autospec'd Mock, just set return values
-        mock_process = Mock(spec=['poll'])  # Mock
-        mock_process.poll.return_value = None
-        mock_popen.return_value = mock_process
+        # mock_popen is already an autospec'd Mock with return_value
+        mock_popen.return_value.poll.return_value = None
 
         # Mock mkstemp to return a temp file path
         config_path = str(tmp_path / 'rsync.conf')
