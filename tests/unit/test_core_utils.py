@@ -449,3 +449,130 @@ class TestGetLocalIPException:
         # Should either return a valid IP or fallback to 127.0.0.1
         assert isinstance(result, str)
         assert len(result) > 0
+
+
+class TestParseRequirementsEdgeCases:
+    """Tests for parse_requirements edge cases to improve coverage"""
+
+    def test_invalid_node_specific_format_missing_colon_part(self):
+        """Test parsing invalid node-specific requirement with bad format"""
+        with pytest.raises(InvalidRequirementException, match="Invalid GPU count"):
+            parse_requirements("gpu1:")
+
+    def test_any_node_negative_gpu_count(self):
+        """Test parsing any-node requirement with negative GPU count"""
+        with pytest.raises(InvalidRequirementException, match="GPU count must be positive"):
+            parse_requirements("-2")
+
+
+class TestFormatTimestampRelative:
+    """Tests for format_timestamp with relative=True to improve coverage"""
+
+    def test_format_timestamp_just_now(self):
+        """Test formatting timestamp less than 60 seconds ago"""
+        now = datetime.now()
+        dt = now - timedelta(seconds=30)
+        result = format_timestamp(dt, relative=True)
+        assert result == "just now"
+
+    def test_format_timestamp_minutes_ago_singular(self):
+        """Test formatting timestamp 1 minute ago"""
+        now = datetime.now()
+        dt = now - timedelta(minutes=1)
+        result = format_timestamp(dt, relative=True)
+        assert result == "1 minute ago"
+
+    def test_format_timestamp_minutes_ago_plural(self):
+        """Test formatting timestamp multiple minutes ago"""
+        now = datetime.now()
+        dt = now - timedelta(minutes=45)
+        result = format_timestamp(dt, relative=True)
+        assert "minute" in result and "ago" in result
+
+    def test_format_timestamp_hours_ago_singular(self):
+        """Test formatting timestamp 1 hour ago"""
+        now = datetime.now()
+        dt = now - timedelta(hours=1)
+        result = format_timestamp(dt, relative=True)
+        assert result == "1 hour ago"
+
+    def test_format_timestamp_hours_ago_plural(self):
+        """Test formatting timestamp multiple hours ago"""
+        now = datetime.now()
+        dt = now - timedelta(hours=5)
+        result = format_timestamp(dt, relative=True)
+        assert "hour" in result and "ago" in result
+
+    def test_format_timestamp_days_ago_singular(self):
+        """Test formatting timestamp 1 day ago"""
+        now = datetime.now()
+        dt = now - timedelta(days=1)
+        result = format_timestamp(dt, relative=True)
+        assert result == "1 day ago"
+
+    def test_format_timestamp_days_ago_plural(self):
+        """Test formatting timestamp multiple days ago"""
+        now = datetime.now()
+        dt = now - timedelta(days=7)
+        result = format_timestamp(dt, relative=True)
+        assert "day" in result and "ago" in result
+
+
+class TestGenerateVersionedFilenameWithPermissionError:
+    """Tests for generate_versioned_filename when file cannot be read"""
+
+    def test_generate_versioned_filename_with_permission_error(self, tmp_path, monkeypatch):
+        """Test generate_versioned_filename handles permission errors gracefully"""
+        import tempfile
+        
+        # Create a temporary script file
+        script_file = tmp_path / "test_script.py"
+        script_file.write_text("print('hello')")
+        
+        # Mock open to raise PermissionError
+        original_open = open
+        def mock_open(path, *args, **kwargs):
+            if str(path) == str(script_file):
+                raise PermissionError("Permission denied")
+            return original_open(path, *args, **kwargs)
+        
+        monkeypatch.setattr("builtins.open", mock_open)
+        
+        # Should still generate a versioned filename using timestamp-based hash
+        versioned = generate_versioned_filename(str(script_file), "job_abc123")
+        assert "test_script" in versioned
+        assert "job_abc123" in versioned
+
+
+class TestEnsureDirExistsExceptions:
+    """Tests for ensure_dir_exists exception handling"""
+
+    def test_ensure_dir_exists_permission_error(self, monkeypatch, tmp_path):
+        """Test ensure_dir_exists raises PermissionDeniedException on permission error"""
+        import pathlib
+        from scheduler.core.exceptions import PermissionDeniedException
+        
+        # Mock mkdir to raise PermissionError
+        original_mkdir = pathlib.Path.mkdir
+        def mock_mkdir(self, *args, **kwargs):
+            raise PermissionError("Permission denied")
+        
+        monkeypatch.setattr(pathlib.Path, "mkdir", mock_mkdir)
+        
+        with pytest.raises(PermissionDeniedException, match="Cannot create directory"):
+            ensure_dir_exists(str(tmp_path / "test_dir"))
+
+    def test_ensure_dir_exists_generic_exception(self, monkeypatch, tmp_path):
+        """Test ensure_dir_exists handles generic exceptions"""
+        import pathlib
+        from scheduler.core.exceptions import PermissionDeniedException
+        
+        # Mock mkdir to raise generic Exception
+        original_mkdir = pathlib.Path.mkdir
+        def mock_mkdir(self, *args, **kwargs):
+            raise RuntimeError("Some error")
+        
+        monkeypatch.setattr(pathlib.Path, "mkdir", mock_mkdir)
+        
+        with pytest.raises(PermissionDeniedException, match="Error creating directory"):
+            ensure_dir_exists(str(tmp_path / "test_dir"))
