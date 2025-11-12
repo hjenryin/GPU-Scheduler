@@ -73,6 +73,10 @@ scheduler stop --all
 - [Codebase Structure](docs/CODEBASE_STRUCTURE.md) - Architecture and code organization
 - [Test Documentation](tests/README.md) - Testing guidelines and coverage
 
+**🔧 Development Tools:**
+- `check_imports.py` - Linter to prevent circular imports
+- `check_mocks.py` - Linter to enforce mock specification best practices
+
 ---
 
 ## Architecture
