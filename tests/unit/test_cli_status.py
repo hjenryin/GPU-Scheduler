@@ -34,7 +34,7 @@ class TestStatusCommand:
     @patch('scheduler.cli.status.load_config', autospec=True)
     @patch('scheduler.cli.status.SchedulerClient', autospec=True)
     def test_status_connection_error(self, mock_client_class, mock_load_config):
-        """Test handling connection error"""
+        """Test handling connection error with detailed error messages"""
         config = Config(
             address="localhost:8265",
             head=HeadConfig(port=8265)
@@ -42,13 +42,20 @@ class TestStatusCommand:
         mock_load_config.return_value = config
         
         mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
-        mock_client.list_nodes.side_effect = Exception("Cannot connect")
+        mock_client.list_nodes.side_effect = Exception("Connection refused")
+        # Configure head_address as a property
+        type(mock_client).head_address = property(lambda self: "localhost:8265")
         mock_client_class.return_value = mock_client
 
         with patch('scheduler.cli.status.click.echo', autospec=True) as mock_echo:
             result = status_command()
             assert result == 1
-            mock_echo.assert_called()
+            # Verify all error message lines are called
+            calls = [str(call) for call in mock_echo.call_args_list]
+            assert any("Error: Cannot connect" in str(call) for call in calls)
+            assert any("Details:" in str(call) or "Connection refused" in str(call) for call in calls)
+            assert any("Make sure the head node is running" in str(call) for call in calls)
+            assert any("scheduler start --head" in str(call) for call in calls)
 
     @patch('scheduler.cli.status.load_config', autospec=True)
     @patch('scheduler.cli.status.SchedulerClient', autospec=True)
