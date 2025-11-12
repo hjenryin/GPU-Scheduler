@@ -433,31 +433,31 @@ def _daemonize_head(config: Config, singleton: SingletonDaemon) -> int:
         sys.exit(1)
 
 
-def _daemonize_worker(config: Config, node_name: str, num_gpus: Optional[int], singleton: SingletonDaemon) -> int:
+def _daemonize_worker(config: Config, node_name: str, num_gpus: Optional[int], lockfile_path: str) -> int:
     """Fork and daemonize the worker node process."""
     import sys
     import json
-    
+
     # Create a status file to communicate startup success/failure
     status_file = os.path.expanduser(f"~/.scheduler/worker-{node_name}.status")
-    
+
     # First fork
     try:
         pid = os.fork()
         if pid > 0:
             # Parent process - wait for daemon to report status
             import time
-            
+
             # Wait up to 10 seconds for the daemon to start and report status
             max_wait = 10
             start_time = time.time()
-            
+
             while time.time() - start_time < max_wait:
                 if os.path.exists(status_file):
                     try:
                         with open(status_file, 'r') as f:
                             status_data = json.load(f)
-                        
+
                         if status_data.get('status') == 'running':
                             daemon_pid = status_data.get('pid')
                             click.echo(f"\n✓ Worker node started in background (PID: {daemon_pid})")
@@ -480,16 +480,15 @@ def _daemonize_worker(config: Config, node_name: str, num_gpus: Optional[int], s
                     except (json.JSONDecodeError, IOError):
                         # File might be partially written, wait a bit more
                         pass
-                
+
                 time.sleep(0.2)
-            
+
             # Timeout - daemon didn't report status
             click.echo("\n✗ Worker node failed to start: Timeout waiting for daemon status")
             click.echo("Check logs in ~/.scheduler/logs/ for details")
             return 1
     except OSError as e:
         click.echo(f"Fork failed: {e}")
-        singleton.release_lock()
         return 1
     
     # Child process continues
@@ -505,14 +504,28 @@ def _daemonize_worker(config: Config, node_name: str, num_gpus: Optional[int], s
         sys.exit(1)
     
     # Grandchild process - the daemon
-    # Update the lockfile with the actual daemon PID and head address
-    lockfile_path = os.path.expanduser(f"~/.scheduler/worker-{node_name}.lock")
+    # Now acquire the lock in THIS process (the actual daemon)
+    daemon_singleton = SingletonDaemon(lockfile_path)
+    if not daemon_singleton.acquire_lock():
+        # Another daemon started between our check and fork
+        error_msg = f"Worker '{node_name}' is already running"
+        try:
+            with open(status_file, 'w') as f:
+                json.dump({'status': 'failed', 'error': error_msg}, f)
+        except Exception:
+            pass
+        sys.exit(1)
+
+    # Update the lockfile with head address (PID already set by acquire_lock)
     try:
         import json
+        with open(lockfile_path, 'r') as f:
+            data = json.load(f)
+        data['address'] = config.address
         with open(lockfile_path, 'w') as f:
-            json.dump({'pid': os.getpid(), 'address': config.address}, f)
+            json.dump(data, f)
     except Exception as e:
-        logger.error(f"Failed to update lockfile with daemon PID: {e}")
+        logger.error(f"Failed to update lockfile with head address: {e}")
     
     sys.stdout.flush()
     sys.stderr.flush()
@@ -547,13 +560,13 @@ def _daemonize_worker(config: Config, node_name: str, num_gpus: Optional[int], s
         
         # Continue running
         daemon.run_main_loop()  # Run without calling start() again
-        
+
         # Clean up lock file when daemon exits
-        singleton.release_lock()
+        daemon_singleton.release_lock()
         sys.exit(0)
     except Exception as e:
         logger.error(f"Worker daemon failed: {e}", exc_info=True)
-        
+
         # Write failure status
         try:
             error_msg = str(e)
@@ -565,13 +578,13 @@ def _daemonize_worker(config: Config, node_name: str, num_gpus: Optional[int], s
                     error_msg = f"Cannot connect to head node at '{config.address}' (connection refused)"
                 else:
                     error_msg = f"Cannot connect to head node at '{config.address}'"
-            
+
             with open(status_file, 'w') as f:
                 json.dump({'status': 'failed', 'error': error_msg}, f)
         except Exception as status_error:
             logger.error(f"Failed to write status file: {status_error}")
-        
-        singleton.release_lock()
+
+        daemon_singleton.release_lock()
         sys.exit(1)
 
 
@@ -621,22 +634,28 @@ def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optio
     # Check for existing worker
     # Use hardcoded location for lock files as documented
     os.makedirs(os.path.expanduser("~/.scheduler"), exist_ok=True)
-    lockfile = os.path.expanduser(f"~/.scheduler/worker-{node_name}.lock")
-    singleton = SingletonDaemon(lockfile)
+    lockfile_path = os.path.expanduser(f"~/.scheduler/worker-{node_name}.lock")
 
+    # Check if already running (don't acquire lock yet for daemon mode)
+    from scheduler.worker.singleton import is_daemon_running
+    if is_daemon_running(lockfile_path):
+        click.echo(f"\nError: Worker '{node_name}' is already running on this machine")
+        click.echo("Use 'scheduler stop' to stop it first")
+        return 1
+
+    # If non-blocking mode, fork a background process
+    # The daemon process will acquire the lock after forking
+    if not block:
+        return _daemonize_worker(config, node_name, num_gpus, lockfile_path)
+    
+    # Blocking mode - run in foreground
+    # Acquire lock in this process
+    singleton = SingletonDaemon(lockfile_path)
     if not singleton.acquire_lock():
         click.echo(f"\nError: Worker '{node_name}' is already running on this machine")
         click.echo("Use 'scheduler stop' to stop it first")
         return 1
 
-    # Save head node address for CLI commands (after lock is acquired)
-    save_head_info(config.address)
-
-    # If non-blocking mode, fork a background process
-    if not block:
-        return _daemonize_worker(config, node_name, num_gpus, singleton)
-    
-    # Blocking mode - run in foreground
     try:
         daemon = WorkerDaemon(config, node_name, num_gpus)
         click.echo("\nWorker node started. Press Ctrl+C to stop.")
