@@ -1,9 +1,10 @@
 """Tests for heartbeat sender functionality"""
 import pytest
 import time
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock, create_autospec
 
 from scheduler.worker.heartbeat import HeartbeatSender
+from scheduler.worker.gpu_monitor import GPUMonitor
 from scheduler.core.models import GPUStats, Job, JobRequirement, JobStatus
 from scheduler.api.client import SchedulerClient
 from scheduler.api.schemas import HeartbeatResponse
@@ -16,7 +17,7 @@ class TestHeartbeatSender:
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
     def test_init(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test heartbeat sender initialization"""
-        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         node_name = "test-node"
         head_address = "localhost:8265"
 
@@ -41,14 +42,14 @@ class TestHeartbeatSender:
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
     def test_send_heartbeat_success(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test successful heartbeat sending"""
-        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_stats = [
             GPUStats(gpu_id=0, utilization=50.0, memory_used=1024, memory_total=2048, temperature=60, power_draw=100, power_limit=250),
             GPUStats(gpu_id=1, utilization=75.0, memory_used=1536, memory_total=2048, temperature=65, power_draw=150, power_limit=250)
         ]
         mock_gpu_monitor_instance.get_latest_stats.return_value = mock_stats
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_response = HeartbeatResponse(status="ok", shutdown_requested=True, log_requests=[])
         mock_client_instance.send_heartbeat.return_value = mock_response
         mock_client_class.return_value = mock_client_instance
@@ -71,10 +72,10 @@ class TestHeartbeatSender:
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
     def test_send_heartbeat_failure(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test heartbeat sending failure"""
-        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_gpu_monitor_instance.get_latest_stats.return_value = []
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_instance.send_heartbeat.side_effect = Exception("Connection error")
         mock_client_class.return_value = mock_client_instance
 
@@ -93,8 +94,8 @@ class TestHeartbeatSender:
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
     def test_poll_for_job_with_job(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test polling for job when job is available"""
-        mock_gpu_monitor_instance = Mock()
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
 
         mock_job = Job(
             job_id="job-001",
@@ -126,8 +127,8 @@ class TestHeartbeatSender:
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
     def test_poll_for_job_no_job(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test polling for job when no job available"""
-        mock_gpu_monitor_instance = Mock()
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_instance.poll_for_job.return_value = None
         mock_client_class.return_value = mock_client_instance
 
@@ -146,8 +147,8 @@ class TestHeartbeatSender:
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
     def test_poll_for_job_error(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test polling for job with error"""
-        mock_gpu_monitor_instance = Mock()
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_instance.poll_for_job.side_effect = Exception("Network error")
         mock_client_class.return_value = mock_client_instance
 
@@ -166,10 +167,10 @@ class TestHeartbeatSender:
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
     def test_start_heartbeat(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test starting heartbeat thread"""
-        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_gpu_monitor_instance.get_latest_stats.return_value = []
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_response = HeartbeatResponse(status="ok", shutdown_requested=False, log_requests=[])
         mock_client_instance.send_heartbeat.return_value = mock_response
         mock_client_class.return_value = mock_client_instance
@@ -194,10 +195,10 @@ class TestHeartbeatSender:
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
     def test_stop_heartbeat(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test stopping heartbeat thread"""
-        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_gpu_monitor_instance.get_latest_stats.return_value = []
         
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_response = HeartbeatResponse(status="ok", shutdown_requested=False, log_requests=[])
         mock_client_instance.send_heartbeat.return_value = mock_response
         mock_client_class.return_value = mock_client_instance
@@ -223,10 +224,10 @@ class TestHeartbeatSender:
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
     def test_start_already_running(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test starting heartbeat when already running"""
-        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_gpu_monitor_instance.get_latest_stats.return_value = []
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_response = HeartbeatResponse(status="ok", shutdown_requested=False, log_requests=[])
         mock_client_instance.send_heartbeat.return_value = mock_response
         mock_client_class.return_value = mock_client_instance
@@ -250,8 +251,8 @@ class TestHeartbeatSender:
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
     def test_stop_not_running(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test stopping heartbeat when not running"""
-        mock_gpu_monitor_instance = Mock()
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_class.return_value = mock_client_instance
 
         sender = HeartbeatSender(
@@ -271,10 +272,10 @@ class TestHeartbeatSender:
     @patch('time.sleep', autospec=True)
     def test_heartbeat_loop_sends_periodically(self, mock_sleep, mock_gpu_monitor, mock_client_class, test_config):
         """Test that heartbeat loop sends heartbeats periodically"""
-        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_gpu_monitor_instance.get_latest_stats.return_value = []
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_response = HeartbeatResponse(status="ok", shutdown_requested=False, log_requests=[])
         mock_client_instance.send_heartbeat.return_value = mock_response
         mock_client_class.return_value = mock_client_instance
@@ -310,10 +311,10 @@ class TestHeartbeatSender:
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
     def test_heartbeat_loop_error_handling(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test that heartbeat loop handles errors gracefully"""
-        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_gpu_monitor_instance.get_latest_stats.side_effect = Exception("GPU error")
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_class.return_value = mock_client_instance
 
         sender = HeartbeatSender(
@@ -343,8 +344,8 @@ class TestHeartbeatSender:
         """Test that heartbeat interval is read from configuration"""
         from scheduler.core.config import Config, WorkerConfig
 
-        mock_gpu_monitor_instance = Mock()
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_class.return_value = mock_client_instance
 
         # Create config with specific interval
@@ -364,13 +365,13 @@ class TestHeartbeatSender:
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
     def test_send_heartbeat_with_shutdown_requested(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test heartbeat detects shutdown request from head node"""
-        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_stats = [
             GPUStats(gpu_id=0, utilization=50.0, memory_used=1024, memory_total=2048, temperature=60, power_draw=100, power_limit=250)
         ]
         mock_gpu_monitor_instance.get_latest_stats.return_value = mock_stats
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_response = HeartbeatResponse(status="ok", shutdown_requested=True, log_requests=[])
         mock_client_instance.send_heartbeat.return_value = mock_response
         mock_client_class.return_value = mock_client_instance
@@ -392,13 +393,13 @@ class TestHeartbeatSender:
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
     def test_send_heartbeat_without_shutdown_requested(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test heartbeat when no shutdown is requested"""
-        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_stats = [
             GPUStats(gpu_id=0, utilization=50.0, memory_used=1024, memory_total=2048, temperature=60, power_draw=100, power_limit=250)
         ]
         mock_gpu_monitor_instance.get_latest_stats.return_value = mock_stats
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_response = HeartbeatResponse(status="ok", shutdown_requested=False, log_requests=[])
         mock_client_instance.send_heartbeat.return_value = mock_response
         mock_client_class.return_value = mock_client_instance
@@ -419,8 +420,8 @@ class TestHeartbeatSender:
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
     def test_is_shutdown_requested(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test is_shutdown_requested method"""
-        mock_gpu_monitor_instance = Mock()
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_class.return_value = mock_client_instance
 
         sender = HeartbeatSender(
@@ -447,17 +448,17 @@ class TestHeartbeatSender:
         """Test send_heartbeat calls cleanup callback with job IDs"""
         from scheduler.api.schemas import HeartbeatResponse
         
-        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_gpu_monitor_instance.get_latest_stats.return_value = []
         mock_gpu_monitor.return_value = mock_gpu_monitor_instance
 
         # Create mock response with recorded and running job IDs
-        mock_response = Mock(spec=HeartbeatResponse)
+        mock_response = create_autospec(HeartbeatResponse, instance=True, spec_set=True)
         mock_response.shutdown_requested = False
         mock_response.recorded_job_ids = ["job-1", "job-2", "job-3"]
         mock_response.running_job_ids = ["job-1"]
         
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_instance.send_heartbeat.return_value = mock_response
         mock_client_class.return_value = mock_client_instance
 
@@ -489,18 +490,18 @@ class TestHeartbeatSender:
         """Test send_heartbeat uses active_job_ids for backward compatibility"""
         from scheduler.api.schemas import HeartbeatResponse
         
-        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_gpu_monitor_instance.get_latest_stats.return_value = []
         mock_gpu_monitor.return_value = mock_gpu_monitor_instance
 
         # Create mock response with old active_job_ids field (no recorded_job_ids)
-        mock_response = Mock(spec=HeartbeatResponse)
+        mock_response = create_autospec(HeartbeatResponse, instance=True, spec_set=True)
         mock_response.shutdown_requested = False
         mock_response.recorded_job_ids = []  # Empty
         mock_response.running_job_ids = []
         mock_response.active_job_ids = ["job-old-1", "job-old-2"]  # Old field
         
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_instance.send_heartbeat.return_value = mock_response
         mock_client_class.return_value = mock_client_instance
 
@@ -531,14 +532,14 @@ class TestHeartbeatSender:
         """Test send_heartbeat handles failure in shutdown confirmation gracefully"""
         from scheduler.api.schemas import HeartbeatResponse
         
-        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_gpu_monitor_instance.get_latest_stats.return_value = []
         mock_gpu_monitor.return_value = mock_gpu_monitor_instance
 
-        mock_response = Mock(spec=HeartbeatResponse)
+        mock_response = create_autospec(HeartbeatResponse, instance=True, spec_set=True)
         mock_response.shutdown_requested = True
         
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         # First call returns shutdown request, second call (confirmation) fails
         mock_client_instance.send_heartbeat.side_effect = [
             mock_response,  # Initial heartbeat
@@ -563,10 +564,10 @@ class TestHeartbeatSender:
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
     def test_set_purge_callback_backward_compatibility(self, mock_gpu_monitor, mock_client_class, test_config):
         """Test set_purge_callback calls set_cleanup_callback for backward compatibility"""
-        mock_gpu_monitor_instance = Mock()
+        mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_gpu_monitor.return_value = mock_gpu_monitor_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_class.return_value = mock_client_instance
 
         sender = HeartbeatSender(

@@ -2,9 +2,10 @@
 import pytest
 import os
 import tempfile
-from unittest.mock import Mock, patch, MagicMock, mock_open
+from unittest.mock import Mock, patch, MagicMock, mock_open, create_autospec
 
 from scheduler.worker.job_executor import JobExecutor
+from scheduler.worker.git_snapshot import GitSnapshotManager
 from scheduler.core.models import Job, JobRequirement, JobStatus
 from scheduler.core.exceptions import JobNotFoundException
 import subprocess
@@ -402,7 +403,7 @@ class TestJobExecutor:
         executor = JobExecutor(test_config)
         
         # Mock git snapshot manager
-        executor.git_snapshot.restore_snapshot = Mock(return_value=True)
+        executor.git_snapshot.restore_snapshot = create_autospec(GitSnapshotManager.restore_snapshot, return_value=True)
         
         # Create job with snapshot
         job = Job(
@@ -440,7 +441,7 @@ class TestJobExecutor:
         executor = JobExecutor(test_config)
         
         # Mock git snapshot manager
-        executor.git_snapshot.restore_snapshot = Mock(return_value=True)
+        executor.git_snapshot.restore_snapshot = create_autospec(GitSnapshotManager.restore_snapshot, return_value=True)
         
         # Create job with script in subdirectory
         job = Job(
@@ -503,7 +504,7 @@ class TestJobExecutor:
         executor = JobExecutor(test_config)
         
         # Mock git snapshot manager
-        executor.git_snapshot.cleanup_snapshot = Mock(return_value="completion_ref")
+        executor.git_snapshot.cleanup_snapshot = create_autospec(GitSnapshotManager.cleanup_snapshot, return_value="completion_ref")
         
         # Create job with snapshot
         job = Job(
@@ -564,8 +565,8 @@ class TestJobExecutor:
         executor = JobExecutor(test_config)
         
         # Mock git snapshot manager to fail completion snapshot
-        executor.git_snapshot.create_snapshot = Mock(side_effect=Exception("Snapshot failed"))
-        executor.git_snapshot.cleanup_snapshot = Mock()
+        executor.git_snapshot.create_snapshot = create_autospec(GitSnapshotManager.create_snapshot, side_effect=Exception("Snapshot failed"))
+        executor.git_snapshot.cleanup_snapshot = create_autospec(GitSnapshotManager.cleanup_snapshot)
         
         # Create job with snapshot
         job = Job(
@@ -601,8 +602,8 @@ class TestJobExecutor:
         executor = JobExecutor(test_config)
         
         # Mock git snapshot manager
-        executor.git_snapshot.restore_snapshot = Mock(return_value=True)
-        executor.git_snapshot.cleanup_snapshot = Mock()
+        executor.git_snapshot.restore_snapshot = create_autospec(GitSnapshotManager.restore_snapshot, return_value=True)
+        executor.git_snapshot.cleanup_snapshot = create_autospec(GitSnapshotManager.cleanup_snapshot)
         
         # Create job with snapshot
         job = Job(

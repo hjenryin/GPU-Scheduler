@@ -68,7 +68,10 @@ scheduler logs job_abc123
 scheduler stop --all
 ```
 
-**📖 For complete usage instructions, see [API_REFERENCE.md](API_REFERENCE.md)**
+**📖 Documentation:**
+- [API Reference](docs/API_REFERENCE.md) - Complete CLI and API documentation
+- [Codebase Structure](docs/CODEBASE_STRUCTURE.md) - Architecture and code organization
+- [Test Documentation](tests/README.md) - Testing guidelines and coverage
 
 ---
 
@@ -230,17 +233,17 @@ This is a **coordination system**, not an enforcement system. It works well when
 
 | Command | Purpose | Details |
 |---------|---------|---------|
-| `scheduler start` | Start head or worker node | [→ Docs](API_REFERENCE.md#starting-the-scheduler) |
-| `scheduler stop` | Stop nodes | [→ Docs](API_REFERENCE.md#stopping-the-scheduler) |
-| `scheduler submit` | Submit jobs | [→ Docs](API_REFERENCE.md#job-submission) |
-| `scheduler submit-batch` | Submit multiple jobs from file | [→ Docs](API_REFERENCE.md#batch-job-submission) |
-| `scheduler status` | Interactive TUI monitor | [→ Docs](API_REFERENCE.md#cluster-status) |
-| `scheduler jobs` | List jobs (non-interactive) | [→ Docs](API_REFERENCE.md#scheduler-jobs) |
-| `scheduler logs` | View job logs | [→ Docs](API_REFERENCE.md#scheduler-logs) |
-| `scheduler cancel` | Cancel jobs | [→ Docs](API_REFERENCE.md#scheduler-cancel) |
-| `scheduler freeze` | Freeze GPUs temporarily | [→ Docs](API_REFERENCE.md#gpu-freeze-unfreeze) |
-| `scheduler unfreeze` | Unfreeze GPUs | [→ Docs](API_REFERENCE.md#gpu-freeze-unfreeze) |
-| `scheduler config` | Manage configuration | [→ Docs](API_REFERENCE.md#configuration) |
+| `scheduler start` | Start head or worker node | [→ Docs](docs/API_REFERENCE.md#starting-the-scheduler) |
+| `scheduler stop` | Stop nodes | [→ Docs](docs/API_REFERENCE.md#stopping-the-scheduler) |
+| `scheduler submit` | Submit jobs | [→ Docs](docs/API_REFERENCE.md#job-submission) |
+| `scheduler submit-batch` | Submit multiple jobs from file | [→ Docs](docs/API_REFERENCE.md#batch-job-submission) |
+| `scheduler status` | Interactive TUI monitor | [→ Docs](docs/API_REFERENCE.md#cluster-status) |
+| `scheduler jobs` | List jobs (non-interactive) | [→ Docs](docs/API_REFERENCE.md#scheduler-jobs) |
+| `scheduler logs` | View job logs | [→ Docs](docs/API_REFERENCE.md#scheduler-logs) |
+| `scheduler cancel` | Cancel jobs | [→ Docs](docs/API_REFERENCE.md#scheduler-cancel) |
+| `scheduler freeze` | Freeze GPUs temporarily | [→ Docs](docs/API_REFERENCE.md#gpu-freeze-unfreeze) |
+| `scheduler unfreeze` | Unfreeze GPUs | [→ Docs](docs/API_REFERENCE.md#gpu-freeze-unfreeze) |
+| `scheduler config` | Manage configuration | [→ Docs](docs/API_REFERENCE.md#configuration) |
 
 ### Job Management
 
@@ -317,7 +320,7 @@ logs = client.get_job_logs(job.job_id)
 - `health_check()` - Check head node status
 - `shutdown_cluster()` - Programmatic cluster shutdown
 
-**[→ Complete Python API Reference](API_REFERENCE.md#python-api)**
+**[→ Complete Python API Reference](docs/API_REFERENCE.md#python-api)**
 
 ### HTTP REST API
 
@@ -336,7 +339,7 @@ curl http://head:8265/api/v1/jobs/job_abc123
 curl http://head:8265/api/v1/nodes
 ```
 
-**[→ Complete HTTP API Reference](API_REFERENCE.md#api-endpoint-reference-advanced)**
+**[→ Complete HTTP API Reference](docs/API_REFERENCE.md#api-endpoint-reference-advanced)**
 
 ---
 
@@ -449,7 +452,7 @@ while any(client.get_job(j.job_id).status == JobStatus.RUNNING for j in jobs):
 print("All experiments complete!")
 ```
 
-**[→ More Examples in API_REFERENCE.md](API_REFERENCE.md#common-workflows)**
+**[→ More Examples in API_REFERENCE.md](docs/API_REFERENCE.md#common-workflows)**
 
 ---
 
@@ -479,7 +482,7 @@ head:
   graceful_shutdown_timeout: 60
 ```
 
-**[→ Complete Configuration Reference](API_REFERENCE.md#configuration)**
+**[→ Complete Configuration Reference](docs/API_REFERENCE.md#configuration)**
 
 ---
 
@@ -511,8 +514,8 @@ pytest --cov=scheduler --cov-report=html
 
 ## Documentation
 
-- **[API_REFERENCE.md](API_REFERENCE.md)** - Complete technical reference for all commands and APIs
-- **[CODEBASE_STRUCTURE.md](CODEBASE_STRUCTURE.md)** - Architecture and code organization
+- **[API_REFERENCE.md](docs/API_REFERENCE.md)** - Complete technical reference for all commands and APIs
+- **[CODEBASE_STRUCTURE.md](docs/CODEBASE_STRUCTURE.md)** - Architecture and code organization
 - **[tests/README.md](tests/README.md)** - Testing guide and patterns
 - **[DOCUMENTATION_AUDIT.md](DOCUMENTATION_AUDIT.md)** - Documentation verification report
 
@@ -547,5 +550,5 @@ MIT License - see [LICENSE](LICENSE) file for details
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/hjenryin/GPU-Scheduler/issues)
-- **Documentation**: [API_REFERENCE.md](API_REFERENCE.md)
+- **Documentation**: [API_REFERENCE.md](docs/API_REFERENCE.md)
 - **Email**: hjenryin@example.com (update with actual contact)

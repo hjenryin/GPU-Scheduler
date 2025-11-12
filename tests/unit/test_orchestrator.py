@@ -4,11 +4,13 @@ import signal
 import threading
 import time
 import os
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock, create_autospec
+import subprocess
 
 from scheduler.head.orchestrator import Orchestrator
 from scheduler.core import Config
 from scheduler.core.config import HeadConfig, WorkerConfig, StorageConfig
+from scheduler.core.models import Job, Node
 
 
 class TestOrchestrator:
@@ -131,7 +133,7 @@ class TestOrchestrator:
     def test_stop_success(self, orchestrator):
         """Test successful orchestrator stop"""
         orchestrator.running = True
-        orchestrator.scheduler_thread = Mock()
+        orchestrator.scheduler_thread = create_autospec(threading.Thread, instance=True, spec_set=True)
         orchestrator.scheduler_thread.is_alive.return_value = True
         
         orchestrator.job_manager.get_running_jobs.return_value = []
@@ -221,11 +223,11 @@ class TestOrchestrator:
     def test_graceful_shutdown(self, orchestrator):
         """Test graceful shutdown with job timeout"""
         orchestrator.running = True
-        orchestrator.scheduler_thread = Mock()
+        orchestrator.scheduler_thread = create_autospec(threading.Thread, instance=True, spec_set=True)
         orchestrator.scheduler_thread.is_alive.return_value = True
-        
+
         # Mock job manager to have running jobs
-        orchestrator.job_manager.get_running_jobs.return_value = [Mock()]
+        orchestrator.job_manager.get_running_jobs.return_value = [create_autospec(Job, instance=True, spec_set=True)]
         
         with patch('time.sleep', autospec=True) as mock_sleep:
             
@@ -237,7 +239,7 @@ class TestOrchestrator:
     def test_graceful_shutdown_no_jobs(self, orchestrator):
         """Test graceful shutdown with no running jobs"""
         orchestrator.running = True
-        orchestrator.scheduler_thread = Mock()
+        orchestrator.scheduler_thread = create_autospec(threading.Thread, instance=True, spec_set=True)
         orchestrator.scheduler_thread.is_alive.return_value = True
         
         # Mock job manager to have no running jobs
@@ -252,15 +254,22 @@ class TestOrchestrator:
 
     def test_get_status(self, orchestrator):
         """Test get_status method"""
-        mock_nodes = [Mock(), Mock()]
+        mock_nodes = [
+            create_autospec(Node, instance=True, spec_set=True),
+            create_autospec(Node, instance=True, spec_set=True)
+        ]
         mock_nodes[0].num_gpus = 4
         mock_nodes[0].status.value = 'connected'
         mock_nodes[0].get_free_gpus.return_value = [0, 1]
         mock_nodes[1].num_gpus = 2
         mock_nodes[1].status.value = 'connected'
         mock_nodes[1].get_free_gpus.return_value = [0]
-        
-        mock_jobs = [Mock(), Mock(), Mock()]
+
+        mock_jobs = [
+            create_autospec(Job, instance=True, spec_set=True),
+            create_autospec(Job, instance=True, spec_set=True),
+            create_autospec(Job, instance=True, spec_set=True)
+        ]
         mock_jobs[0].status.value = 'pending'
         mock_jobs[1].status.value = 'running'
         mock_jobs[2].status.value = 'completed'
@@ -293,7 +302,7 @@ class TestOrchestrator:
     def test_rsync_daemon_starts_successfully(self, mock_popen, mock_is_port_available, orchestrator):
         """Test rsync daemon starts successfully when port is available"""
         mock_is_port_available.return_value = True
-        mock_process = Mock()
+        mock_process = create_autospec(subprocess.Popen, instance=True, spec_set=True)
         mock_process.poll.return_value = None  # Process running
         mock_popen.return_value = mock_process
 
@@ -319,7 +328,7 @@ class TestOrchestrator:
     def test_rsync_daemon_config_no_uid_gid(self, mock_popen, mock_mkstemp, mock_is_port_available, orchestrator, tmp_path):
         """Test rsync daemon config does not include uid/gid"""
         mock_is_port_available.return_value = True
-        mock_process = Mock()
+        mock_process = create_autospec(subprocess.Popen, instance=True, spec_set=True)
         mock_process.poll.return_value = None
         mock_popen.return_value = mock_process
 

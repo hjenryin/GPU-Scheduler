@@ -3,7 +3,7 @@ Comprehensive tests for cli/stop.py to improve coverage to 90%+
 """
 import os
 import pytest
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch, mock_open, create_autospec
 from click.testing import CliRunner
 
 from scheduler.cli.stop import (
@@ -14,6 +14,8 @@ from scheduler.cli.stop import (
     _stop_daemon
 )
 from scheduler.core import ConnectionException
+from scheduler.api.client import SchedulerClient
+from scheduler.core.models import Node
 
 
 @patch('scheduler.cli.stop.is_daemon_running')
@@ -64,9 +66,9 @@ def test_stop_all_nodes_from_head_success(mock_exists, mock_stop_local, mock_cli
     """Test _stop_all_nodes when running from head node - successful API call"""
     mock_is_head.return_value = True
     mock_exists.return_value = True
-    
-    mock_client = MagicMock()
-    mock_client.list_nodes.return_value = [MagicMock(), MagicMock()]
+
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
+    mock_client.list_nodes.return_value = [create_autospec(Node, instance=True, spec_set=True), create_autospec(Node, instance=True, spec_set=True)]
     mock_client.shutdown_cluster.return_value = True
     mock_client_class.return_value = mock_client
     
@@ -83,8 +85,8 @@ def test_stop_all_nodes_from_head_api_fails(mock_stop_local, mock_client_class, 
     """Test _stop_all_nodes when API call fails, falls back to local stop"""
     mock_is_head.return_value = True
     mock_stop_local.return_value = True
-    
-    mock_client = MagicMock()
+
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.shutdown_cluster.side_effect = Exception("API error")
     mock_client_class.return_value = mock_client
     
@@ -100,12 +102,12 @@ def test_stop_all_nodes_from_worker_success(mock_client_class, mock_load_config,
     """Test _stop_all_nodes when running from worker node"""
     mock_is_head.return_value = False
     
-    mock_node1 = MagicMock()
+    mock_node1 = create_autospec(Node, instance=True, spec_set=True)
     mock_node1.node_name = "node1"
     mock_node1.address = "localhost:5001"
     mock_node1.status.value = "connected"
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.list_nodes.return_value = [mock_node1]
     mock_client.shutdown_cluster.return_value = True
     mock_client_class.return_value = mock_client
@@ -122,7 +124,7 @@ def test_stop_all_nodes_from_worker_no_nodes(mock_client_class, mock_load_config
     """Test _stop_all_nodes when no nodes are found"""
     mock_is_head.return_value = False
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.list_nodes.return_value = []
     mock_client_class.return_value = mock_client
     
@@ -290,8 +292,8 @@ def test_stop_all_nodes_from_worker_shutdown_fails(mock_client_class, mock_load_
     """Test _stop_all_nodes when shutdown_cluster returns False"""
     mock_is_head.return_value = False
     
-    mock_node1 = MagicMock()
-    mock_client = MagicMock()
+    mock_node1 = create_autospec(Node, instance=True, spec_set=True)
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.list_nodes.return_value = [mock_node1]
     mock_client.shutdown_cluster.return_value = False
     mock_client_class.return_value = mock_client
@@ -307,8 +309,8 @@ def test_stop_all_nodes_from_worker_connection_exception_on_shutdown(mock_client
     """Test _stop_all_nodes when ConnectionException during shutdown"""
     mock_is_head.return_value = False
     
-    mock_node1 = MagicMock()
-    mock_client = MagicMock()
+    mock_node1 = create_autospec(Node, instance=True, spec_set=True)
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.list_nodes.return_value = [mock_node1]
     mock_client.shutdown_cluster.side_effect = ConnectionException("Connection lost")
     mock_client_class.return_value = mock_client
@@ -325,7 +327,7 @@ def test_stop_all_nodes_from_head_list_nodes_fails(mock_stop_local, mock_client_
     """Test _stop_all_nodes when list_nodes fails but shutdown continues"""
     mock_is_head.return_value = True
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.list_nodes.side_effect = Exception("Cannot list nodes")
     mock_client.shutdown_cluster.return_value = True
     mock_client_class.return_value = mock_client
@@ -344,7 +346,7 @@ def test_stop_all_nodes_from_head_no_lockfile(mock_exists, mock_stop_local, mock
     mock_is_head.return_value = True
     mock_exists.return_value = False
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.shutdown_cluster.return_value = True
     mock_client_class.return_value = mock_client
     

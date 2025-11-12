@@ -1,6 +1,7 @@
 """Final tests for gpu_monitor.py to reach 90%+ coverage"""
 import os
 import pytest
+import subprocess
 from unittest.mock import Mock, patch, MagicMock
 
 from scheduler.worker.gpu_monitor import GPUMonitor
@@ -42,7 +43,7 @@ class TestGPUMonitorFinalCoverage:
         with patch.dict('os.environ', {'SCHEDULER_TEST_MODE': '0'}):
             with patch('scheduler.worker.gpu_monitor.subprocess.run') as mock_run:
                 # Make nvidia-smi fail
-                mock_result = Mock()
+                mock_result = Mock(spec=subprocess.CompletedProcess)
                 mock_result.returncode = 1
                 mock_result.stdout = ""
                 mock_run.return_value = mock_result
@@ -58,7 +59,7 @@ class TestGPUMonitorFinalCoverage:
             
             with patch('scheduler.worker.gpu_monitor.subprocess.run') as mock_run:
                 # Return data with unparseable power draw
-                mock_result = Mock()
+                mock_result = Mock(spec=subprocess.CompletedProcess)
                 mock_result.returncode = 0
                 mock_result.stdout = "0, 50, 1024, 8192, 0, invalid_value, 200\n"
                 mock_run.return_value = mock_result
@@ -77,7 +78,7 @@ class TestGPUMonitorFinalCoverage:
             
             with patch('scheduler.worker.gpu_monitor.subprocess.run') as mock_run:
                 # Simulate AttributeError by returning None for power draw field
-                mock_result = Mock()
+                mock_result = Mock(spec=subprocess.CompletedProcess)
                 mock_result.returncode = 0
                 # Create a line where parts[5] could cause AttributeError
                 mock_result.stdout = "0, 50, 1024, 8192, 0, , 200\n"
@@ -96,7 +97,7 @@ class TestGPUMonitorFinalCoverage:
             
             with patch('scheduler.worker.gpu_monitor.subprocess.run') as mock_run:
                 # Return data with unparseable power limit
-                mock_result = Mock()
+                mock_result = Mock(spec=subprocess.CompletedProcess)
                 mock_result.returncode = 0
                 mock_result.stdout = "0, 50, 1024, 8192, 0, 150, invalid_limit\n"
                 mock_run.return_value = mock_result
@@ -115,7 +116,7 @@ class TestGPUMonitorFinalCoverage:
             
             with patch('scheduler.worker.gpu_monitor.subprocess.run') as mock_run:
                 # Return data that could cause AttributeError
-                mock_result = Mock()
+                mock_result = Mock(spec=subprocess.CompletedProcess)
                 mock_result.returncode = 0
                 mock_result.stdout = "0, 50, 1024, 8192, 0, 150, \n"
                 mock_run.return_value = mock_result

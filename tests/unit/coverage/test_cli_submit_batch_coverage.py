@@ -4,10 +4,12 @@ Comprehensive tests for cli/submit_batch.py to improve coverage to 90%+
 import os
 import pytest
 import tempfile
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch, mock_open, create_autospec
 
 from scheduler.cli.submit_batch import submit_batch_command
 from scheduler.core import ValidationException, ConnectionException
+from scheduler.api.client import SchedulerClient
+from scheduler.core.models import Job
 
 
 @patch('scheduler.cli.submit_batch.os.path.exists')
@@ -70,18 +72,18 @@ def test_submit_batch_invalid_env_var_format():
 def test_submit_batch_success(mock_file, mock_exists, mock_client_class, mock_load_config):
     """Test submit_batch_command successful batch submission"""
     mock_exists.return_value = True
-    
-    mock_job1 = MagicMock()
+
+    mock_job1 = create_autospec(Job, instance=True, spec_set=True)
     mock_job1.job_id = "job1"
     mock_job1.status.value = "pending"
     mock_job1.dependencies = []
-    
-    mock_job2 = MagicMock()
+
+    mock_job2 = create_autospec(Job, instance=True, spec_set=True)
     mock_job2.job_id = "job2"
     mock_job2.status.value = "pending"
     mock_job2.dependencies = []
-    
-    mock_client = MagicMock()
+
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.submit_job.side_effect = [mock_job1, mock_job2]
     mock_client_class.return_value = mock_client
     
@@ -98,17 +100,17 @@ def test_submit_batch_with_script_args(mock_file, mock_exists, mock_client_class
     """Test submit_batch_command with script arguments"""
     mock_exists.return_value = True
     
-    mock_job1 = MagicMock()
+    mock_job1 = create_autospec(Job, instance=True, spec_set=True)
     mock_job1.job_id = "job1"
     mock_job1.status.value = "pending"
     mock_job1.dependencies = []
     
-    mock_job2 = MagicMock()
+    mock_job2 = create_autospec(Job, instance=True, spec_set=True)
     mock_job2.job_id = "job2"
     mock_job2.status.value = "pending"
     mock_job2.dependencies = []
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.submit_job.side_effect = [mock_job1, mock_job2]
     mock_client_class.return_value = mock_client
     
@@ -128,17 +130,17 @@ def test_submit_batch_with_env_vars(mock_file, mock_exists, mock_client_class, m
     """Test submit_batch_command with environment variables"""
     mock_exists.return_value = True
     
-    mock_job1 = MagicMock()
+    mock_job1 = create_autospec(Job, instance=True, spec_set=True)
     mock_job1.job_id = "job1"
     mock_job1.status.value = "pending"
     mock_job1.dependencies = []
     
-    mock_job2 = MagicMock()
+    mock_job2 = create_autospec(Job, instance=True, spec_set=True)
     mock_job2.job_id = "job2"
     mock_job2.status.value = "pending"
     mock_job2.dependencies = []
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.submit_job.side_effect = [mock_job1, mock_job2]
     mock_client_class.return_value = mock_client
     
@@ -158,22 +160,22 @@ def test_submit_batch_sequential_mode(mock_file, mock_exists, mock_client_class,
     """Test submit_batch_command in sequential mode"""
     mock_exists.return_value = True
     
-    mock_job1 = MagicMock()
+    mock_job1 = create_autospec(Job, instance=True, spec_set=True)
     mock_job1.job_id = "job1"
     mock_job1.status.value = "pending"
     mock_job1.dependencies = []
     
-    mock_job2 = MagicMock()
+    mock_job2 = create_autospec(Job, instance=True, spec_set=True)
     mock_job2.job_id = "job2"
     mock_job2.status.value = "pending"
     mock_job2.dependencies = ["job1"]
     
-    mock_job3 = MagicMock()
+    mock_job3 = create_autospec(Job, instance=True, spec_set=True)
     mock_job3.job_id = "job3"
     mock_job3.status.value = "pending"
     mock_job3.dependencies = ["job2"]
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.submit_job.side_effect = [mock_job1, mock_job2, mock_job3]
     mock_client_class.return_value = mock_client
     
@@ -196,17 +198,17 @@ def test_submit_batch_with_initial_dependencies(mock_file, mock_exists, mock_cli
     """Test submit_batch_command with initial dependencies"""
     mock_exists.return_value = True
     
-    mock_job1 = MagicMock()
+    mock_job1 = create_autospec(Job, instance=True, spec_set=True)
     mock_job1.job_id = "job1"
     mock_job1.status.value = "pending"
     mock_job1.dependencies = ["dep1", "dep2"]
     
-    mock_job2 = MagicMock()
+    mock_job2 = create_autospec(Job, instance=True, spec_set=True)
     mock_job2.job_id = "job2"
     mock_job2.status.value = "pending"
     mock_job2.dependencies = ["dep1", "dep2"]
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.submit_job.side_effect = [mock_job1, mock_job2]
     mock_client_class.return_value = mock_client
     
@@ -227,7 +229,7 @@ def test_submit_batch_validation_error(mock_file, mock_exists, mock_client_class
     """Test submit_batch_command when job submission fails with ValidationException"""
     mock_exists.return_value = True
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.submit_job.side_effect = ValidationException("Invalid job")
     mock_client_class.return_value = mock_client
     
@@ -243,12 +245,12 @@ def test_submit_batch_sequential_stops_on_error(mock_file, mock_exists, mock_cli
     """Test submit_batch_command stops in sequential mode after error"""
     mock_exists.return_value = True
     
-    mock_job1 = MagicMock()
+    mock_job1 = create_autospec(Job, instance=True, spec_set=True)
     mock_job1.job_id = "job1"
     mock_job1.status.value = "pending"
     mock_job1.dependencies = []
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.submit_job.side_effect = [
         mock_job1,
         ValidationException("Invalid job"),
@@ -269,12 +271,12 @@ def test_submit_batch_connection_error(mock_file, mock_exists, mock_client_class
     """Test submit_batch_command when ConnectionException occurs"""
     mock_exists.return_value = True
     
-    mock_job1 = MagicMock()
+    mock_job1 = create_autospec(Job, instance=True, spec_set=True)
     mock_job1.job_id = "job1"
     mock_job1.status.value = "pending"
     mock_job1.dependencies = []
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.submit_job.side_effect = [
         mock_job1,
         ConnectionException("Connection lost")
@@ -293,12 +295,12 @@ def test_submit_batch_generic_exception(mock_file, mock_exists, mock_client_clas
     """Test submit_batch_command when generic exception occurs"""
     mock_exists.return_value = True
     
-    mock_job1 = MagicMock()
+    mock_job1 = create_autospec(Job, instance=True, spec_set=True)
     mock_job1.job_id = "job1"
     mock_job1.status.value = "pending"
     mock_job1.dependencies = []
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.submit_job.side_effect = [
         mock_job1,
         RuntimeError("Unexpected error")
@@ -368,18 +370,18 @@ def test_submit_batch_with_resolved_dependencies(mock_file, mock_exists, mock_cl
     """Test submit_batch_command displays resolved dependencies"""
     mock_exists.return_value = True
     
-    mock_job1 = MagicMock()
+    mock_job1 = create_autospec(Job, instance=True, spec_set=True)
     mock_job1.job_id = "job1"
     mock_job1.status.value = "pending"
     # Simulate server resolving "latest" to actual job ID
     mock_job1.dependencies = ["actual-job-123", "dep2"]
     
-    mock_job2 = MagicMock()
+    mock_job2 = create_autospec(Job, instance=True, spec_set=True)
     mock_job2.job_id = "job2"
     mock_job2.status.value = "pending"
     mock_job2.dependencies = ["actual-job-456", "dep2"]
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.submit_job.side_effect = [mock_job1, mock_job2]
     mock_client_class.return_value = mock_client
     
@@ -399,17 +401,17 @@ def test_submit_batch_path_resolution(mock_abspath, mock_dirname, mock_file, moc
     mock_dirname.side_effect = lambda x: "/path/to" if x == "/path/to/script1.py" else ""
     mock_abspath.return_value = "/absolute/path/to/script1.py"
     
-    mock_job1 = MagicMock()
+    mock_job1 = create_autospec(Job, instance=True, spec_set=True)
     mock_job1.job_id = "job1"
     mock_job1.status.value = "pending"
     mock_job1.dependencies = []
     
-    mock_job2 = MagicMock()
+    mock_job2 = create_autospec(Job, instance=True, spec_set=True)
     mock_job2.job_id = "job2"
     mock_job2.status.value = "pending"
     mock_job2.dependencies = []
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.submit_job.side_effect = [mock_job1, mock_job2]
     mock_client_class.return_value = mock_client
     
@@ -425,12 +427,12 @@ def test_submit_batch_sequential_with_connection_error(mock_file, mock_exists, m
     """Test submit_batch_command stops in sequential mode on ConnectionException"""
     mock_exists.return_value = True
     
-    mock_job1 = MagicMock()
+    mock_job1 = create_autospec(Job, instance=True, spec_set=True)
     mock_job1.job_id = "job1"
     mock_job1.status.value = "pending"
     mock_job1.dependencies = []
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.submit_job.side_effect = [
         mock_job1,
         ConnectionException("Connection lost")
@@ -450,12 +452,12 @@ def test_submit_batch_sequential_with_generic_error(mock_file, mock_exists, mock
     """Test submit_batch_command stops in sequential mode on generic exception"""
     mock_exists.return_value = True
     
-    mock_job1 = MagicMock()
+    mock_job1 = create_autospec(Job, instance=True, spec_set=True)
     mock_job1.job_id = "job1"
     mock_job1.status.value = "pending"
     mock_job1.dependencies = []
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.submit_job.side_effect = [
         mock_job1,
         RuntimeError("Unexpected error")
@@ -475,17 +477,17 @@ def test_submit_batch_with_working_dir(mock_file, mock_exists, mock_client_class
     """Test submit_batch_command with specified working directory"""
     mock_exists.return_value = True
     
-    mock_job1 = MagicMock()
+    mock_job1 = create_autospec(Job, instance=True, spec_set=True)
     mock_job1.job_id = "job1"
     mock_job1.status.value = "pending"
     mock_job1.dependencies = []
     
-    mock_job2 = MagicMock()
+    mock_job2 = create_autospec(Job, instance=True, spec_set=True)
     mock_job2.job_id = "job2"
     mock_job2.status.value = "pending"
     mock_job2.dependencies = []
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.submit_job.side_effect = [mock_job1, mock_job2]
     mock_client_class.return_value = mock_client
     
@@ -507,12 +509,12 @@ def test_submit_batch_default_working_dir(mock_file, mock_getcwd, mock_exists, m
     mock_exists.return_value = True
     mock_getcwd.return_value = "/current/dir"
     
-    mock_job1 = MagicMock()
+    mock_job1 = create_autospec(Job, instance=True, spec_set=True)
     mock_job1.job_id = "job1"
     mock_job1.status.value = "pending"
     mock_job1.dependencies = []
     
-    mock_client = MagicMock()
+    mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     mock_client.submit_job.return_value = mock_job1
     mock_client_class.return_value = mock_client
     

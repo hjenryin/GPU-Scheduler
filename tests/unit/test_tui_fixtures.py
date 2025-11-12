@@ -8,6 +8,8 @@ from typing import List
 from scheduler.core import Node, Job, GPU, GPUStats, JobStatus, NodeStatus, JobRequirement
 from scheduler.api import SchedulerClient
 from textual.app import App
+from textual.screen import Screen
+from textual.widgets import DataTable
 from scheduler.api.client import SchedulerClient
 
 
@@ -186,7 +188,7 @@ def mock_jobs(mock_job_pending, mock_job_running, mock_job_completed, mock_job_f
 @pytest.fixture
 def mock_scheduler_client(mock_nodes, mock_jobs):
     """Create mock SchedulerClient."""
-    client = Mock(spec_set=SchedulerClient)
+    client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     client.list_nodes.return_value = mock_nodes
     client.list_jobs.return_value = mock_jobs
     client.get_job.return_value = mock_jobs[0]
@@ -197,7 +199,7 @@ def mock_scheduler_client(mock_nodes, mock_jobs):
 @pytest.fixture
 def mock_scheduler_client_error():
     """Create mock SchedulerClient that raises errors."""
-    client = Mock(spec_set=SchedulerClient)
+    client = create_autospec(SchedulerClient, instance=True, spec_set=True)
     client.list_nodes.side_effect = Exception("Connection failed")
     client.list_jobs.side_effect = Exception("Connection failed")
     client.get_job.side_effect = Exception("Job not found")
@@ -208,7 +210,7 @@ def mock_scheduler_client_error():
 @pytest.fixture
 def mock_textual_app():
     """Create mock Textual App for testing."""
-    app = Mock(spec_set=App)
+    app = create_autospec(App, instance=True, spec_set=True)
     app.screen = Mock()
     app.screen.name = "cluster"
     app.switch_screen = Mock()
@@ -221,7 +223,7 @@ def mock_textual_app():
 @pytest.fixture
 def mock_textual_screen():
     """Create mock Textual Screen for testing."""
-    screen = Mock(spec_set=Screen)
+    screen = create_autospec(Screen, instance=True, spec_set=True)
     screen.query_one = Mock()
     screen.update_data = Mock()
     screen.on_mount = Mock()
@@ -231,7 +233,7 @@ def mock_textual_screen():
 @pytest.fixture
 def mock_data_table():
     """Create mock DataTable widget."""
-    table = Mock(spec_set=DataTable)
+    table = create_autospec(DataTable, instance=True, spec_set=True)
     table.add_columns = Mock()
     table.clear = Mock()
     table.add_row = Mock()

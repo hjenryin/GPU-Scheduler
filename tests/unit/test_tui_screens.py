@@ -392,7 +392,7 @@ class TestJobsScreen:
         
         with patch.object(screen, 'query_one') as mock_query:
             # Create mock input widget
-            mock_input = Mock(spec=Input)
+            mock_input = create_autospec(Input, instance=True, spec_set=True)
             mock_input.has_focus = True
             mock_query.return_value = mock_input
             
@@ -415,7 +415,7 @@ class TestJobsScreen:
         
         with patch.object(screen, 'query_one') as mock_query:
             # Create mock input widget that is not focused
-            mock_input = Mock(spec=Input)
+            mock_input = create_autospec(Input, instance=True, spec_set=True)
             mock_input.has_focus = False
             mock_query.return_value = mock_input
             

@@ -5,6 +5,9 @@ import time
 from unittest.mock import Mock, patch, MagicMock, call, create_autospec
 
 from scheduler.worker.daemon import WorkerDaemon
+from scheduler.worker.gpu_monitor import GPUMonitor
+from scheduler.worker.heartbeat import HeartbeatSender
+from scheduler.worker.job_executor import JobExecutor
 from scheduler.core.exceptions import ConnectionException
 from scheduler.core.models import Job, JobRequirement, JobStatus
 from scheduler.api.client import SchedulerClient
@@ -21,7 +24,7 @@ class TestWorkerDaemon:
     def test_init_with_auto_detect_gpus(self, mock_file_handler, mock_gpu_monitor,
                                        mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test daemon initialization with GPU auto-detection"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 4
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -49,7 +52,7 @@ class TestWorkerDaemon:
     def test_init_with_specified_gpus(self, mock_file_handler, mock_gpu_monitor,
                                       mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test daemon initialization with specified GPU count"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_gpu_monitor.return_value = mock_monitor_instance
 
         # Mock file handler with create_autospec
@@ -76,7 +79,7 @@ class TestWorkerDaemon:
         from scheduler.core.config import Config, HeadConfig
 
         mock_get_ip.return_value = "192.168.1.100"
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -107,9 +110,7 @@ class TestWorkerDaemon:
     def test_start_success(self, mock_file_handler, mock_gpu_monitor,
                           mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test successful daemon start"""
-        mock_monitor_instance = Mock()
-        mock_monitor_instance.stop_monitoring = Mock()
-        mock_monitor_instance.start_monitoring = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -119,12 +120,10 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_heartbeat_instance = Mock()
-        mock_heartbeat_instance.stop = Mock()
-        mock_heartbeat_instance.start = Mock()
+        mock_heartbeat_instance = create_autospec(HeartbeatSender, instance=True, spec_set=True)
         mock_heartbeat.return_value = mock_heartbeat_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_instance.register_node.return_value = {"status": "ok"}
         mock_client.return_value = mock_client_instance
 
@@ -151,7 +150,7 @@ class TestWorkerDaemon:
     def test_start_registration_failure(self, mock_file_handler, mock_gpu_monitor,
                                        mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test daemon start with registration failure"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -161,7 +160,7 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_instance.register_node.side_effect = Exception("Connection refused")
         mock_client.return_value = mock_client_instance
 
@@ -181,8 +180,7 @@ class TestWorkerDaemon:
     def test_start_already_running(self, mock_file_handler, mock_gpu_monitor,
                                    mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test starting daemon when already running"""
-        mock_monitor_instance = Mock()
-        mock_monitor_instance.stop_monitoring = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -192,11 +190,10 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
         
-        mock_heartbeat_instance = Mock()
-        mock_heartbeat_instance.stop = Mock()
+        mock_heartbeat_instance = create_autospec(HeartbeatSender, instance=True, spec_set=True)
         mock_heartbeat.return_value = mock_heartbeat_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
@@ -218,7 +215,7 @@ class TestWorkerDaemon:
     def test_stop_graceful_no_job(self, mock_file_handler, mock_gpu_monitor,
                                   mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test graceful daemon stop with no running job"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -228,10 +225,10 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_heartbeat_instance = Mock()
+        mock_heartbeat_instance = create_autospec(HeartbeatSender, instance=True, spec_set=True)
         mock_heartbeat.return_value = mock_heartbeat_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
@@ -253,7 +250,7 @@ class TestWorkerDaemon:
     def test_stop_graceful_with_completing_job(self, mock_sleep, mock_file_handler, mock_gpu_monitor,
                                                mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test graceful stop waits for job to complete"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -263,7 +260,7 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_executor_instance = Mock()
+        mock_executor_instance = create_autospec(JobExecutor, instance=True, spec_set=True)
         # First call: still running, second call: completed
         mock_executor_instance.get_job_status.side_effect = [
             (True, None),
@@ -271,7 +268,7 @@ class TestWorkerDaemon:
         ]
         mock_job_executor.return_value = mock_executor_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
@@ -298,8 +295,7 @@ class TestWorkerDaemon:
                                                   mock_gpu_monitor, mock_job_executor,
                                                   mock_heartbeat, mock_client, test_config):
         """Test graceful stop terminates job after timeout"""
-        mock_monitor_instance = Mock()
-        mock_monitor_instance.stop_monitoring = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -309,16 +305,15 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_executor_instance = Mock()
+        mock_executor_instance = create_autospec(JobExecutor, instance=True, spec_set=True)
         # Job never completes
         mock_executor_instance.get_job_status.return_value = (True, None)
         mock_job_executor.return_value = mock_executor_instance
 
-        mock_heartbeat_instance = Mock()
-        mock_heartbeat_instance.stop = Mock()
+        mock_heartbeat_instance = create_autospec(HeartbeatSender, instance=True, spec_set=True)
         mock_heartbeat.return_value = mock_heartbeat_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.return_value = mock_client_instance
 
         # Mock time to simulate timeout: start_time=0, then after timeout it becomes 61
@@ -351,7 +346,7 @@ class TestWorkerDaemon:
     def test_stop_not_running(self, mock_file_handler, mock_gpu_monitor,
                               mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test stopping daemon when not running"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -377,7 +372,7 @@ class TestWorkerDaemon:
     def test_execute_job_success(self, mock_file_handler, mock_gpu_monitor,
                                  mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test successful job execution"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -387,13 +382,13 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_executor_instance = Mock()
+        mock_executor_instance = create_autospec(JobExecutor, instance=True, spec_set=True)
         mock_executor_instance.execute_job.return_value = 12345
         # Job completes successfully
         mock_executor_instance.get_job_status.return_value = (False, 0)
         mock_job_executor.return_value = mock_executor_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
@@ -428,7 +423,7 @@ class TestWorkerDaemon:
     def test_execute_job_failure(self, mock_file_handler, mock_gpu_monitor,
                                  mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test job execution failure"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -438,13 +433,13 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_executor_instance = Mock()
+        mock_executor_instance = create_autospec(JobExecutor, instance=True, spec_set=True)
         mock_executor_instance.execute_job.return_value = 12345
         # Job fails
         mock_executor_instance.get_job_status.return_value = (False, 1)
         mock_job_executor.return_value = mock_executor_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
@@ -474,7 +469,7 @@ class TestWorkerDaemon:
     def test_execute_job_no_assigned_gpus(self, mock_file_handler, mock_gpu_monitor,
                                           mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test job execution when no GPUs are assigned (use all)"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 4
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -484,12 +479,12 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_executor_instance = Mock()
+        mock_executor_instance = create_autospec(JobExecutor, instance=True, spec_set=True)
         mock_executor_instance.execute_job.return_value = 12345
         mock_executor_instance.get_job_status.return_value = (False, 0)
         mock_job_executor.return_value = mock_executor_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node", num_gpus=4)
@@ -519,7 +514,7 @@ class TestWorkerDaemon:
                                                     mock_job_executor, mock_heartbeat,
                                                     mock_client, test_config):
         """Test handling of exception during job execution"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -529,11 +524,11 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_executor_instance = Mock()
+        mock_executor_instance = create_autospec(JobExecutor, instance=True, spec_set=True)
         mock_executor_instance.execute_job.side_effect = Exception("Execution failed")
         mock_job_executor.return_value = mock_executor_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
@@ -563,7 +558,7 @@ class TestWorkerDaemon:
     def test_register_with_head(self, mock_file_handler, mock_gpu_monitor,
                                 mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test worker registration with head node"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -573,7 +568,7 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_instance.register_node.return_value = {"status": "registered"}
         mock_client.return_value = mock_client_instance
 
@@ -595,7 +590,7 @@ class TestWorkerDaemon:
     def test_signal_handler(self, mock_file_handler, mock_gpu_monitor,
                            mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test signal handler for graceful shutdown"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -605,10 +600,10 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_heartbeat_instance = Mock()
+        mock_heartbeat_instance = create_autospec(HeartbeatSender, instance=True, spec_set=True)
         mock_heartbeat.return_value = mock_heartbeat_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
@@ -630,7 +625,7 @@ class TestWorkerDaemon:
                                                      mock_gpu_monitor, mock_job_executor,
                                                      mock_heartbeat, mock_client, test_config, sample_job):
         """Test that cleanup_job is called when job completes successfully"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -640,13 +635,13 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_executor_instance = Mock()
+        mock_executor_instance = create_autospec(JobExecutor, instance=True, spec_set=True)
         mock_executor_instance.execute_job.return_value = 12345
         # Job completes immediately
         mock_executor_instance.get_job_status.return_value = (False, 0)
         mock_job_executor.return_value = mock_executor_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
@@ -668,7 +663,7 @@ class TestWorkerDaemon:
                                                    mock_gpu_monitor, mock_job_executor,
                                                    mock_heartbeat, mock_client, test_config, sample_job):
         """Test that cleanup_job is called when job fails"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -678,13 +673,13 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_executor_instance = Mock()
+        mock_executor_instance = create_autospec(JobExecutor, instance=True, spec_set=True)
         mock_executor_instance.execute_job.return_value = 12345
         # Job fails with exit code 1
         mock_executor_instance.get_job_status.return_value = (False, 1)
         mock_job_executor.return_value = mock_executor_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
@@ -706,7 +701,7 @@ class TestWorkerDaemon:
                                                     mock_gpu_monitor, mock_job_executor,
                                                     mock_heartbeat, mock_client, test_config, sample_job):
         """Test that cleanup_job is called when job execution raises exception"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -716,12 +711,12 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_executor_instance = Mock()
+        mock_executor_instance = create_autospec(JobExecutor, instance=True, spec_set=True)
         # Simulate exception during execution
         mock_executor_instance.execute_job.side_effect = RuntimeError("Test error")
         mock_job_executor.return_value = mock_executor_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.return_value = mock_client_instance
 
         daemon = WorkerDaemon(test_config, node_name="test-node")
@@ -741,7 +736,7 @@ class TestWorkerDaemon:
     def test_register_with_head_extracts_rsync_port(self, mock_file_handler, mock_gpu_monitor,
                                                       mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test that worker extracts rsync_port from registration response"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -751,11 +746,11 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_file_handler_instance = Mock()
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_instance.register_node.return_value = {
             "status": "registered",
             "node_name": "test-node",
@@ -776,7 +771,7 @@ class TestWorkerDaemon:
     def test_register_with_head_handles_no_rsync_port(self, mock_file_handler, mock_gpu_monitor,
                                                         mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test that worker handles registration response without rsync_port"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
         mock_gpu_monitor.return_value = mock_monitor_instance
 
@@ -786,11 +781,11 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_file_handler_instance = Mock()
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_instance.register_node.return_value = {
             "status": "registered",
             "node_name": "test-node"
@@ -810,9 +805,8 @@ class TestWorkerDaemon:
     def test_start_sets_running_before_starting_threads(self, mock_file_handler, mock_gpu_monitor,
                                                          mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test that daemon.running is set to True before starting threads (race condition fix)"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
-        mock_monitor_instance.start_monitoring = Mock()
         mock_gpu_monitor.return_value = mock_monitor_instance
 
         # Mock file handler with create_autospec
@@ -821,15 +815,14 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_file_handler_instance = Mock()
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_heartbeat_instance = Mock()
-        mock_heartbeat_instance.start = Mock()
+        mock_heartbeat_instance = create_autospec(HeartbeatSender, instance=True, spec_set=True)
         mock_heartbeat.return_value = mock_heartbeat_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_instance.register_node.return_value = {
             "status": "registered",
             "node_name": "test-node",
@@ -860,9 +853,8 @@ class TestWorkerDaemon:
     def test_start_log_sync_not_called_when_rsync_port_none(self, mock_file_handler, mock_gpu_monitor,
                                                               mock_job_executor, mock_heartbeat, mock_client, test_config):
         """Test that log sync is not started when rsync_port is None"""
-        mock_monitor_instance = Mock()
+        mock_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_monitor_instance.detect_gpus.return_value = 2
-        mock_monitor_instance.start_monitoring = Mock()
         mock_gpu_monitor.return_value = mock_monitor_instance
 
         # Mock file handler with create_autospec
@@ -871,15 +863,14 @@ class TestWorkerDaemon:
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_file_handler_instance = Mock()
+        mock_file_handler_instance = create_autospec(FileHandler, instance=True, spec_set=True)
         mock_file_handler_instance.cleanup_old_logs.return_value = 0
         mock_file_handler.return_value = mock_file_handler_instance
 
-        mock_heartbeat_instance = Mock()
-        mock_heartbeat_instance.start = Mock()
+        mock_heartbeat_instance = create_autospec(HeartbeatSender, instance=True, spec_set=True)
         mock_heartbeat.return_value = mock_heartbeat_instance
 
-        mock_client_instance = Mock(spec_set=SchedulerClient)
+        mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_instance.register_node.return_value = {
             "status": "registered",
             "node_name": "test-node",

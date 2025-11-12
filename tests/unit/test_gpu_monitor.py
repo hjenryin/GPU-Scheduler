@@ -80,7 +80,7 @@ class TestGPUMonitorDetectGPUs:
 
     def test_detect_gpus_with_nvidia_smi(self):
         """Test detecting GPUs with nvidia-smi"""
-        mock_result = Mock()
+        mock_result = Mock(spec=subprocess.CompletedProcess)
         mock_result.returncode = 0
         mock_result.stdout = "GPU 0: NVIDIA A100\nGPU 1: NVIDIA A100\n"
         
@@ -126,7 +126,7 @@ class TestGPUMonitorDetectGPUs:
 
     def test_detect_gpus_nvidia_smi_fails(self):
         """Test detecting GPUs when nvidia-smi returns error"""
-        mock_result = Mock()
+        mock_result = Mock(spec=subprocess.CompletedProcess)
         mock_result.returncode = 1
         mock_result.stderr = "Test error"
         
@@ -193,9 +193,9 @@ class TestGPUMonitorPollGPUStats:
     def test_poll_gpu_stats_with_pynvml_exception(self, monitor_pynvml):
         """Test polling GPU stats when pynvml fails"""
         monitor_pynvml.pynvml.nvmlDeviceGetCount.side_effect = Exception("Test error")
-        
+
         # Fallback to nvidia-smi
-        mock_result = Mock()
+        mock_result = Mock(spec=subprocess.CompletedProcess)
         mock_result.returncode = 0
         mock_result.stdout = "0, 50, 1024, 8192, 60, 150, 200"
         
@@ -205,7 +205,7 @@ class TestGPUMonitorPollGPUStats:
 
     def test_poll_gpu_stats_with_nvidia_smi(self):
         """Test polling GPU stats with nvidia-smi"""
-        mock_result = Mock()
+        mock_result = Mock(spec=subprocess.CompletedProcess)
         mock_result.returncode = 0
         mock_result.stdout = "0, 50, 1024, 8192, 60, 150, 200\n"
         
@@ -222,7 +222,7 @@ class TestGPUMonitorPollGPUStats:
 
     def test_poll_gpu_stats_with_nvidia_smi_na(self):
         """Test polling GPU stats when nvidia-smi returns [N/A]"""
-        mock_result = Mock()
+        mock_result = Mock(spec=subprocess.CompletedProcess)
         mock_result.returncode = 0
         mock_result.stdout = "0, 50, 1024, 8192, 60, [N/A], [N/A]\n"
         

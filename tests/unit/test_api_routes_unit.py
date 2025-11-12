@@ -28,8 +28,9 @@ from scheduler.api.schemas import (
     JobSubmitRequest, NodeRegisterRequest, NodeHeartbeat,
     NodeRegisterResponse, GPUFreezeRequest
 )
-from scheduler.core.models import Job, JobStatus, JobRequirement, Node, NodeStatus, GPUStats
+from scheduler.core.models import Job, JobStatus, JobRequirement, Node, NodeStatus, GPUStats, GPU
 from scheduler.core.exceptions import JobNotFoundException, NodeNotFoundException
+from scheduler.head.orchestrator import Orchestrator
 
 
 class TestNodeRegisterResponseSchema:
@@ -422,7 +423,7 @@ class TestRegisterNodeRoute:
         mock_node_manager.register_node.return_value = mock_node
 
         # Mock orchestrator with rsync_port
-        mock_orchestrator = MagicMock()
+        mock_orchestrator = create_autospec(Orchestrator, instance=True, spec_set=True)
         mock_orchestrator.rsync_port = 8873
 
         with patch.object(Orchestrator, 'get_instance', return_value=mock_orchestrator):
@@ -449,7 +450,7 @@ class TestRegisterNodeRoute:
         mock_node_manager.register_node.return_value = mock_node
 
         # Mock orchestrator with no rsync_port
-        mock_orchestrator = MagicMock()
+        mock_orchestrator = create_autospec(Orchestrator, instance=True, spec_set=True)
         mock_orchestrator.rsync_port = None
 
         with patch.object(Orchestrator, 'get_instance', return_value=mock_orchestrator):
@@ -510,7 +511,7 @@ class TestHeartbeatRoute:
         request = NodeHeartbeat(gpu_stats=[], timeout=1)  # With timeout to trigger long-poll
         
         # Mock node with shutdown requested
-        mock_node = Mock()
+        mock_node = create_autospec(Node, instance=True, spec_set=True)
         mock_node.shutdown_state = ShutdownState.SENT
         mock_node_manager.get_node.return_value = mock_node
         
@@ -528,7 +529,7 @@ class TestHeartbeatRoute:
         request = NodeHeartbeat(gpu_stats=[])
         
         # Mock node without shutdown requested
-        mock_node = Mock()
+        mock_node = create_autospec(Node, instance=True, spec_set=True)
         mock_node.shutdown_requested = False
         mock_node_manager.get_node.return_value = mock_node
         
@@ -635,7 +636,7 @@ class TestPollJobRoute:
         from scheduler.api.routes import poll_job_route
         
         mock_job_manager.get_running_jobs.return_value = []  # No running jobs
-        mock_node_manager.get_node.return_value = Mock()  # Need a valid node
+        mock_node_manager.get_node.return_value = create_autospec(Node, instance=True, spec_set=True)  # Need a valid node
         
         result = await poll_job_route("node1")
         
@@ -649,12 +650,12 @@ class TestCompleteJobRoute:
     async def test_complete_job_success(self, mock_job_manager, mock_node_manager):
         """Test successful job completion"""
         from scheduler.api.routes import complete_job_route
-        
+
         # Mock both managers
-        mock_job = Mock()
+        mock_job = create_autospec(Job, instance=True, spec_set=True)
         mock_job.assigned_node = "node1"
         mock_job_manager.get_job.return_value = mock_job
-        mock_node_manager.get_node.return_value = Mock()
+        mock_node_manager.get_node.return_value = create_autospec(Node, instance=True, spec_set=True)
         
         result = await complete_job_route("job_123", exit_code=0)
         
@@ -682,12 +683,12 @@ class TestFailJobRoute:
     async def test_fail_job_success(self, mock_job_manager, mock_node_manager):
         """Test successful job failure"""
         from scheduler.api.routes import fail_job_route
-        
+
         # Mock both managers
-        mock_job = Mock()
+        mock_job = create_autospec(Job, instance=True, spec_set=True)
         mock_job.assigned_node = "node1"
         mock_job_manager.get_job.return_value = mock_job
-        mock_node_manager.get_node.return_value = Mock()
+        mock_node_manager.get_node.return_value = create_autospec(Node, instance=True, spec_set=True)
         
         result = await fail_job_route("job_123", "Error occurred")
         
@@ -737,7 +738,10 @@ class TestShutdownClusterRoute:
         from unittest.mock import patch, create_autospec, Mock
         from fastapi import BackgroundTasks
 
-        mock_node_manager.get_connected_nodes.return_value = [Mock(), Mock()]
+        mock_node_manager.get_connected_nodes.return_value = [
+            create_autospec(Node, instance=True, spec_set=True),
+            create_autospec(Node, instance=True, spec_set=True)
+        ]
         mock_background_tasks = create_autospec(BackgroundTasks, instance=True, spec_set=True)
         
         # Use create_autospec for Orchestrator (internal class)
@@ -823,8 +827,8 @@ class TestFreezeGPURoute:
         from datetime import datetime, timedelta
         
         # Create mock node with GPUs
-        mock_node = Mock()
-        mock_gpu = Mock()
+        mock_node = create_autospec(Node, instance=True, spec_set=True)
+        mock_gpu = create_autospec(GPU, instance=True, spec_set=True)
         mock_gpu.frozen_until = datetime.now() + timedelta(seconds=3600)
         mock_node.gpus = [mock_gpu]
         mock_node_manager.get_node.return_value = mock_node
@@ -851,8 +855,8 @@ class TestFreezeGPURoute:
     @pytest.mark.asyncio
     async def test_freeze_gpu_invalid_gpu_id(self, mock_node_manager):
         """Test freezing with invalid GPU ID"""
-        mock_node = Mock()
-        mock_node.gpus = [Mock()]  # Only 1 GPU (ID 0)
+        mock_node = create_autospec(Node, instance=True, spec_set=True)
+        mock_node.gpus = [create_autospec(GPU, instance=True, spec_set=True)]  # Only 1 GPU (ID 0)
         mock_node_manager.get_node.return_value = mock_node
 
         with pytest.raises(HTTPException) as exc_info:
@@ -867,8 +871,8 @@ class TestUnfreezeGPURoute:
     @pytest.mark.asyncio
     async def test_unfreeze_gpu_success(self, mock_node_manager):
         """Test unfreezing a GPU successfully"""
-        mock_node = Mock()
-        mock_gpu = Mock()
+        mock_node = create_autospec(Node, instance=True, spec_set=True)
+        mock_gpu = create_autospec(GPU, instance=True, spec_set=True)
         mock_node.gpus = [mock_gpu]
         mock_node_manager.get_node.return_value = mock_node
 
@@ -898,16 +902,16 @@ class TestUnfreezeAllGPUsRoute:
     async def test_unfreeze_all_gpus_success(self, mock_node_manager):
         """Test unfreezing all GPUs"""
         # Create 2 nodes with frozen GPUs
-        mock_gpu1 = Mock()
+        mock_gpu1 = create_autospec(GPU, instance=True, spec_set=True)
         mock_gpu1.is_frozen.return_value = True
-        mock_gpu2 = Mock()
+        mock_gpu2 = create_autospec(GPU, instance=True, spec_set=True)
         mock_gpu2.is_frozen.return_value = True
-        mock_gpu3 = Mock()
+        mock_gpu3 = create_autospec(GPU, instance=True, spec_set=True)
         mock_gpu3.is_frozen.return_value = False  # Not frozen
-        
-        mock_node1 = Mock()
+
+        mock_node1 = create_autospec(Node, instance=True, spec_set=True)
         mock_node1.gpus = [mock_gpu1, mock_gpu2]
-        mock_node2 = Mock()
+        mock_node2 = create_autospec(Node, instance=True, spec_set=True)
         mock_node2.gpus = [mock_gpu3]
         
         mock_node_manager.list_nodes.return_value = [mock_node1, mock_node2]
