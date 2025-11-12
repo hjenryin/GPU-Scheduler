@@ -2,8 +2,11 @@
 import pytest
 import tempfile
 import shutil
+import sys
+import os
 from datetime import datetime
 from typing import List
+from pathlib import Path
 
 from scheduler.core.models import (
     Job, Node, GPU, GPUStats, JobRequirement,
@@ -15,6 +18,41 @@ from scheduler.manager import NodeManager
 from scheduler.manager import Scheduler
 from scheduler.manager import PersistenceManager
 from scheduler.storage import FileBackend
+
+
+def pytest_sessionstart(session):
+    """Run linters before test session starts"""
+    # Add project root to path to import linters
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root))
+
+    # Import and run check_imports.py
+    try:
+        import check_imports
+        print("\n" + "="*80)
+        print("Running import linter...")
+        print("="*80)
+        result = check_imports.main()
+        if result != 0:
+            pytest.exit("Import linter failed. Fix violations before running tests.", returncode=1)
+    except Exception as e:
+        pytest.exit(f"Failed to run import linter: {e}", returncode=1)
+
+    # Import and run check_mocks.py
+    try:
+        import check_mocks
+        print("\n" + "="*80)
+        print("Running mock specification linter...")
+        print("="*80)
+        result = check_mocks.main()
+        if result != 0:
+            pytest.exit("Mock linter failed. Fix violations before running tests.", returncode=1)
+    except Exception as e:
+        pytest.exit(f"Failed to run mock linter: {e}", returncode=1)
+
+    print("\n" + "="*80)
+    print("All linters passed! Starting tests...")
+    print("="*80 + "\n")
 
 
 @pytest.fixture

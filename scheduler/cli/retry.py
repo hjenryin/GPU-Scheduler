@@ -5,7 +5,7 @@ from typing import Optional
 
 import click
 
-from scheduler.api.client import SchedulerClient
+from scheduler.api import SchedulerClient
 from scheduler.core import JobNotFoundException, ValidationException, ConnectionException
 
 logger = logging.getLogger(__name__)
