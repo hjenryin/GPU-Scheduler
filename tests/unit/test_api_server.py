@@ -46,7 +46,7 @@ class TestAPIServer:
             mock_app = create_autospec(App, instance=True, spec_set=True)
             mock_create_app.return_value = mock_app
             
-            mock_server = Mock()
+            mock_server = mock_server_class.return_value  # Already autospec'd by @patch
             mock_server_class.return_value = mock_server
             
             mock_thread_instance = mock_thread_class.return_value
@@ -83,7 +83,7 @@ class TestAPIServer:
             mock_app = create_autospec(App, instance=True, spec_set=True)
             mock_create_app.return_value = mock_app
             
-            mock_server = Mock()
+            mock_server = mock_server_class.return_value  # Already autospec'd by @patch
             mock_server_class.return_value = mock_server
             
             mock_thread_instance = mock_thread_class.return_value
@@ -174,9 +174,9 @@ class TestAPIServer:
             mock_create_app.return_value = mock_app
             
             api_server = APIServer(mock_job_manager, mock_node_manager, test_config)
-            
+
             # Setup server and thread
-            mock_server = Mock()
+            mock_server = Mock(spec=uvicorn.Server)  # External library
             mock_thread = create_autospec(threading.Thread, instance=True, spec_set=True)
             mock_thread.is_alive.return_value = True
             api_server.server = mock_server
@@ -200,9 +200,9 @@ class TestAPIServer:
             mock_create_app.return_value = mock_app
             
             api_server = APIServer(mock_job_manager, mock_node_manager, test_config)
-            
+
             # Setup server and thread
-            mock_server = Mock()
+            mock_server = Mock(spec=uvicorn.Server)  # External library
             mock_thread = create_autospec(threading.Thread, instance=True, spec_set=True)
             mock_thread.is_alive.return_value = False
             api_server.server = mock_server
@@ -260,7 +260,7 @@ class TestAPIServer:
             mock_app = create_autospec(App, instance=True, spec_set=True)
             mock_create_app.return_value = mock_app
             
-            mock_server = Mock()
+            mock_server = mock_server_class.return_value  # Already autospec'd by @patch
             mock_server_class.return_value = mock_server
             
             mock_thread_instance = mock_thread_class.return_value
@@ -288,7 +288,7 @@ class TestAPIServer:
             mock_app = create_autospec(App, instance=True, spec_set=True)
             mock_create_app.return_value = mock_app
             
-            mock_server = Mock()
+            mock_server = mock_server_class.return_value  # Already autospec'd by @patch
             mock_server_class.return_value = mock_server
             
             mock_thread_instance = mock_thread_class.return_value
@@ -318,7 +318,7 @@ class TestAPIServer:
             mock_app = create_autospec(App, instance=True, spec_set=True)
             mock_create_app.return_value = mock_app
             
-            mock_server = Mock()
+            mock_server = mock_server_class.return_value  # Already autospec'd by @patch
             mock_server_class.return_value = mock_server
             
             mock_thread_instance = mock_thread_class.return_value

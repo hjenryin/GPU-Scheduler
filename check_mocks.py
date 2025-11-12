@@ -115,51 +115,35 @@ class MockVisitor(ast.NodeVisitor):
         return False
 
     def _check_bare_mock(self, node: ast.Call):
-        """Check for bare Mock() without specs"""
-        # Skip if it has spec, autospec, or spec_set
-        if self._has_keyword(node, 'spec') or self._has_keyword(node, 'autospec'):
+        """Check for bare Mock() without specs - STRICT MODE"""
+        # ONLY allow if it has spec, autospec, or spec_set
+        if (self._has_keyword(node, 'spec') or
+            self._has_keyword(node, 'autospec') or
+            self._has_keyword(node, 'spec_set')):
             return
 
-        # spec_set=[] is allowed for behavior-only mocks
-        if self._has_keyword(node, 'spec_set'):
-            spec_set_value = self._get_keyword_value(node, 'spec_set')
-            # Allow spec_set=[] (empty list) for behavior mocks
-            # but not spec_set=True or other values
-            if isinstance(spec_set_value, ast.List) and len(spec_set_value.elts) == 0:
-                return  # spec_set=[] is safe
-            # Other spec_set values are fine too (like spec_set=True)
-            return
-
-        # Skip behavior mocks (side_effect, return_value)
-        if self._is_behavior_mock(node):
-            return
-
-        # Skip attribute assignments (e.g., app.method = Mock())
-        # These are acceptable when the parent object is already validated with spec_set=True
-        if self._is_attribute_assignment(node):
-            return
-
-        # Skip if near mock_open (check 3 lines before and after)
+        # Special case: mock_open() is a factory function, not a bare Mock
         line = node.lineno
         context_lines = self.source_lines[max(0, line-4):min(len(self.source_lines), line+3)]
         if any('mock_open' in l for l in context_lines):
             return
 
-        # Check for explanatory comment
-        source_line = self._get_line(line)
-        if any(marker in source_line for marker in ['# Mock', '# Cannot use', '# External']):
-            return
-
+        # Otherwise, this is a violation - bare Mock() should NEVER happen
         func_name = self._get_func_name(node.func)
+
+        # Provide helpful error message based on context
+        error_msg = (
+            f'Bare {func_name}() without spec. '
+            'Use create_autospec(ClassName, instance=True, spec_set=True) for internal classes, '
+            'or Mock(spec=ClassName) for external libraries.'
+        )
+
         self.violations.append({
             'file': '<will be set by caller>',
             'line': node.lineno,
             'code': self._get_line(node.lineno),
             'type': 'bare_mock',
-            'error': (
-                f'Bare {func_name}() without spec. Use create_autospec(ClassName, instance=True, spec_set=True) '
-                'or Mock(spec=ClassName) instead.'
-            )
+            'error': error_msg
         })
 
     def _check_patch_decorator(self, decorator: ast.expr):

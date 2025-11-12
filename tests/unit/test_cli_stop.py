@@ -15,7 +15,7 @@ from scheduler.cli.stop import (
 )
 from scheduler.core.exceptions import ConnectionException
 from scheduler.api.client import SchedulerClient
-from scheduler.core.config import Config
+from scheduler.core.config import Config, HeadConfig
 from scheduler.core.models import Node
 
 
@@ -103,8 +103,10 @@ class TestStopAllNodes:
 
         mock_config = create_autospec(Config, instance=True, spec_set=True)
         mock_config.address = "localhost:9000"
-        # head is set in __init__, need to use PropertyMock
-        type(mock_config).head = PropertyMock(return_value=Mock(port=9000))
+        # head is set in __init__, need to use PropertyMock with properly spec'd HeadConfig
+        mock_head = create_autospec(HeadConfig, instance=True, spec_set=True)
+        mock_head.port = 9000
+        type(mock_config).head = PropertyMock(return_value=mock_head)
         mock_load.return_value = mock_config
 
         mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
@@ -131,8 +133,10 @@ class TestStopAllNodes:
 
         mock_config = create_autospec(Config, instance=True, spec_set=True)
         mock_config.address = "configured:9000"
-        # head is set in __init__, need to use PropertyMock
-        type(mock_config).head = PropertyMock(return_value=Mock(port=9000))
+        # head is set in __init__, need to use PropertyMock with properly spec'd HeadConfig
+        mock_head = create_autospec(HeadConfig, instance=True, spec_set=True)
+        mock_head.port = 9000
+        type(mock_config).head = PropertyMock(return_value=mock_head)
         mock_load.return_value = mock_config
 
         mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
@@ -158,8 +162,10 @@ class TestStopAllNodes:
 
         mock_config = create_autospec(Config, instance=True, spec_set=True)
         mock_config.address = "localhost:99999"
-        # head is set in __init__, need to use PropertyMock
-        type(mock_config).head = PropertyMock(return_value=Mock(port=99999))
+        # head is set in __init__, need to use PropertyMock with properly spec'd HeadConfig
+        mock_head = create_autospec(HeadConfig, instance=True, spec_set=True)
+        mock_head.port = 99999
+        type(mock_config).head = PropertyMock(return_value=mock_head)
         mock_load.return_value = mock_config
 
         mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
