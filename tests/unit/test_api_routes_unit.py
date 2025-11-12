@@ -1,6 +1,6 @@
 """Unit tests for API route functions with proper mocking"""
 import pytest
-from unittest.mock import Mock, patch, MagicMock, create_autospec
+from unittest.mock import Mock, patch, MagicMock, create_autospec, PropertyMock
 from fastapi import HTTPException
 
 from scheduler.api.routes import (
@@ -423,8 +423,9 @@ class TestRegisterNodeRoute:
         mock_node_manager.register_node.return_value = mock_node
 
         # Mock orchestrator with rsync_port
-        mock_orchestrator = create_autospec(Orchestrator, instance=True, spec_set=True)
-        mock_orchestrator.rsync_port = 8873
+        # Use PropertyMock to set instance attribute that's created in __init__
+        mock_orchestrator = create_autospec(Orchestrator, instance=True)
+        type(mock_orchestrator).rsync_port = PropertyMock(return_value=8873)
 
         with patch.object(Orchestrator, 'get_instance', return_value=mock_orchestrator):
             request = NodeRegisterRequest(
@@ -450,8 +451,8 @@ class TestRegisterNodeRoute:
         mock_node_manager.register_node.return_value = mock_node
 
         # Mock orchestrator with no rsync_port
-        mock_orchestrator = create_autospec(Orchestrator, instance=True, spec_set=True)
-        mock_orchestrator.rsync_port = None
+        mock_orchestrator = create_autospec(Orchestrator, instance=True)
+        type(mock_orchestrator).rsync_port = PropertyMock(return_value=None)
 
         with patch.object(Orchestrator, 'get_instance', return_value=mock_orchestrator):
             request = NodeRegisterRequest(
@@ -526,15 +527,16 @@ class TestHeartbeatRoute:
     async def test_heartbeat_no_shutdown_requested(self, mock_job_manager, mock_node_manager):
         """Test heartbeat when shutdown not requested"""
         from unittest.mock import Mock
+        from scheduler.core.models import ShutdownState
         request = NodeHeartbeat(gpu_stats=[])
-        
+
         # Mock node without shutdown requested
         mock_node = create_autospec(Node, instance=True, spec_set=True)
-        mock_node.shutdown_requested = False
+        mock_node.shutdown_state = ShutdownState.NONE
         mock_node_manager.get_node.return_value = mock_node
-        
+
         result = await heartbeat_route("node1", request)
-        
+
         assert result.status == "ok"
         assert result.shutdown_requested == False
 

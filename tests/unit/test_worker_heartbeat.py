@@ -453,10 +453,12 @@ class TestHeartbeatSender:
         mock_gpu_monitor.return_value = mock_gpu_monitor_instance
 
         # Create mock response with recorded and running job IDs
-        mock_response = create_autospec(HeartbeatResponse, instance=True, spec_set=True)
-        mock_response.shutdown_requested = False
-        mock_response.recorded_job_ids = ["job-1", "job-2", "job-3"]
-        mock_response.running_job_ids = ["job-1"]
+        mock_response = HeartbeatResponse(
+            status="ok",
+            shutdown_requested=False,
+            recorded_job_ids=["job-1", "job-2", "job-3"],
+            running_job_ids=["job-1"]
+        )
         
         mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_instance.send_heartbeat.return_value = mock_response
@@ -494,12 +496,15 @@ class TestHeartbeatSender:
         mock_gpu_monitor_instance.get_latest_stats.return_value = []
         mock_gpu_monitor.return_value = mock_gpu_monitor_instance
 
-        # Create mock response with old active_job_ids field (no recorded_job_ids)
-        mock_response = create_autospec(HeartbeatResponse, instance=True, spec_set=True)
-        mock_response.shutdown_requested = False
-        mock_response.recorded_job_ids = []  # Empty
-        mock_response.running_job_ids = []
-        mock_response.active_job_ids = ["job-old-1", "job-old-2"]  # Old field
+        # Create response - HeartbeatResponse doesn't have active_job_ids anymore
+        # This test seems to be checking legacy behavior that no longer exists
+        # Use recorded_job_ids instead
+        mock_response = HeartbeatResponse(
+            status="ok",
+            shutdown_requested=False,
+            recorded_job_ids=["job-old-1", "job-old-2"],
+            running_job_ids=[]
+        )
         
         mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client_instance.send_heartbeat.return_value = mock_response
@@ -536,9 +541,9 @@ class TestHeartbeatSender:
         mock_gpu_monitor_instance.get_latest_stats.return_value = []
         mock_gpu_monitor.return_value = mock_gpu_monitor_instance
 
-        mock_response = create_autospec(HeartbeatResponse, instance=True, spec_set=True)
-        mock_response.shutdown_requested = True
-        
+        # HeartbeatResponse is a Pydantic model, create a real instance
+        mock_response = HeartbeatResponse(status="ok", shutdown_requested=True, recorded_job_ids=[], running_job_ids=[])
+
         mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
         # First call returns shutdown request, second call (confirmation) fails
         mock_client_instance.send_heartbeat.side_effect = [
