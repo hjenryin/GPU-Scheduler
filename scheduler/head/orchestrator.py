@@ -12,7 +12,7 @@ from scheduler.core import Config, PermissionDeniedException, ShutdownState
 from scheduler.storage import FileBackend, SQLiteBackend
 from scheduler.manager import PersistenceManager, JobManager, NodeManager, Scheduler
 from scheduler.head.api_server import APIServer
-from scheduler.worker.file_handler import FileHandler
+from scheduler.worker import FileHandler
 
 logger = logging.getLogger(__name__)
 
@@ -352,8 +352,7 @@ class Orchestrator:
 
     def _start_rsync_daemon(self):
         """Start rsync daemon as subprocess for log syncing (no sudo required)."""
-        from scheduler.core.constants import RSYNC_PORT
-        from scheduler.core.utils import is_port_available
+        from scheduler.core import RSYNC_PORT, is_port_available
 
         # Try to find an available port, starting with the default
         # If default port is in use, try the next 10 ports

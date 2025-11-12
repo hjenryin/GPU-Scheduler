@@ -6,23 +6,28 @@ import shutil
 from unittest.mock import Mock, create_autospec
 import pytest
 
-from scheduler.core.config import Config
+from scheduler.core.config import Config, WorkerConfig
 from scheduler.core.models import Job, JobStatus, JobRequirement
 from scheduler.worker.job_executor import JobExecutor
 from scheduler.worker.git_snapshot import GitSnapshotManager
 
 
 @pytest.fixture
-def mock_config():
-    """Create a mock config object"""
-    config = Mock(spec=Config)
-    # Add necessary attributes for JobExecutor
-    config.node = Mock()
-    config.node.log_dir = tempfile.mkdtemp()
-    config.node.temp_dir = tempfile.mkdtemp()
-    config.worker = Mock()
-    config.worker.work_dir = tempfile.mkdtemp()
-    config.worker.log_dir = tempfile.mkdtemp()
+def test_config():
+    """Create real config instance with temp directories - Config is a frozen dataclass"""
+    # Create temporary directories for this test session
+    temp_log_dir = tempfile.mkdtemp()
+    temp_temp_dir = tempfile.mkdtemp()
+    temp_work_dir = tempfile.mkdtemp()
+
+    # Create config with WorkerConfig containing temp directories
+    config = Config(
+        worker=WorkerConfig(
+            work_dir=temp_work_dir,
+            log_dir=temp_log_dir,
+            temp_dir=temp_temp_dir
+        )
+    )
     return config
 
 
@@ -63,9 +68,9 @@ def temp_workspace():
 class TestWorkingDirectoryWithoutSnapshot:
     """Test working directory when no snapshot is used"""
     
-    def test_job_executes_in_working_dir(self, mock_config, temp_workspace):
+    def test_job_executes_in_working_dir(self, test_config, temp_workspace):
         """Test that job executes in the specified working directory"""
-        executor = JobExecutor(mock_config)
+        executor = JobExecutor(test_config)
         
         # Create a job with working_dir set to subdirectory
         job = Job(
@@ -101,10 +106,10 @@ class TestWorkingDirectoryWithoutSnapshot:
 class TestWorkingDirectoryWithSnapshot:
     """Test working directory when snapshot is used"""
     
-    def test_job_executes_in_subdirectory_of_worktree(self, mock_config, temp_workspace):
+    def test_job_executes_in_subdirectory_of_worktree(self, test_config, temp_workspace):
         """Test that job executes in correct subdirectory when snapshot is restored"""
-        executor = JobExecutor(mock_config)
-        git_manager = GitSnapshotManager(mock_config)
+        executor = JobExecutor(test_config)
+        git_manager = GitSnapshotManager(test_config)
         
         # Create snapshot from workspace root
         result = git_manager.create_snapshot('test_job_2', temp_workspace['workspace'])
@@ -155,9 +160,9 @@ class TestWorkingDirectoryWithSnapshot:
 class TestWorkspaceRootDiscovery:
     """Test workspace root discovery for snapshots"""
     
-    def test_finds_workspace_root_from_subdirectory(self, mock_config):
+    def test_finds_workspace_root_from_subdirectory(self, test_config):
         """Test that workspace root is found by searching upward"""
-        git_manager = GitSnapshotManager(mock_config)
+        git_manager = GitSnapshotManager(test_config)
         
         # Create workspace with nested directories
         workspace = tempfile.mkdtemp()
@@ -183,9 +188,9 @@ class TestWorkspaceRootDiscovery:
         finally:
             shutil.rmtree(workspace, ignore_errors=True)
     
-    def test_creates_scheduler_git_at_workspace_root(self, mock_config):
+    def test_creates_scheduler_git_at_workspace_root(self, test_config):
         """Test that .scheduler-git is created at workspace root when .git exists"""
-        git_manager = GitSnapshotManager(mock_config)
+        git_manager = GitSnapshotManager(test_config)
         
         workspace = tempfile.mkdtemp()
         try:
@@ -217,9 +222,9 @@ class TestWorkspaceRootDiscovery:
         finally:
             shutil.rmtree(workspace, ignore_errors=True)
     
-    def test_creates_scheduler_git_in_current_dir_when_no_git(self, mock_config):
+    def test_creates_scheduler_git_in_current_dir_when_no_git(self, test_config):
         """Test that .scheduler-git is created in current dir when no .git is found"""
-        git_manager = GitSnapshotManager(mock_config)
+        git_manager = GitSnapshotManager(test_config)
         
         workspace = tempfile.mkdtemp()
         try:

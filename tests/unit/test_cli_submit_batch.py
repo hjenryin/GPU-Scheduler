@@ -44,6 +44,7 @@ class TestSubmitBatchCommand:
         mock_job = Mock(spec_set=Job)
         mock_job.job_id = "job_123"
         mock_job.status.value = "pending"
+        mock_job.dependencies = []
 
         mock_client = Mock(spec_set=SchedulerClient)
         mock_client.submit_job.return_value = mock_job
@@ -68,8 +69,7 @@ class TestSubmitBatchCommand:
             with patch('scheduler.cli.submit_batch.click.echo'):
                 result = submit_batch_command(
                     script_list=script_list_file,
-                    req="1",
-                    async_submit=True
+                    req="1"
                 )
                 assert result == 0
                 # Should only call submit_job twice (blank lines ignored)
@@ -87,6 +87,7 @@ class TestSubmitBatchCommand:
         mock_job = Mock(spec_set=Job)
         mock_job.job_id = "job_123"
         mock_job.status.value = "pending"
+        mock_job.dependencies = []
 
         mock_client = Mock(spec_set=SchedulerClient)
         mock_client.submit_job.return_value = mock_job
@@ -130,6 +131,7 @@ class TestSubmitBatchCommand:
         mock_job = Mock(spec_set=Job)
         mock_job.job_id = "job_123"
         mock_job.status.value = "pending"
+        mock_job.dependencies = []
         
         mock_client = Mock(spec_set=SchedulerClient)
         mock_client.submit_job.return_value = mock_job
@@ -152,8 +154,7 @@ class TestSubmitBatchCommand:
             with patch('scheduler.cli.submit_batch.click.echo'):
                 result = submit_batch_command(
                     script_list=script_list_file,
-                    req="2",
-                    async_submit=True
+                    req="2"
                 )
                 assert result == 0
                 # Should call submit_job for each script
@@ -171,6 +172,7 @@ class TestSubmitBatchCommand:
         mock_job = Mock(spec_set=Job)
         mock_job.job_id = "job_123"
         mock_job.status.value = "pending"
+        mock_job.dependencies = []
         
         mock_client = Mock(spec_set=SchedulerClient)
         mock_client.submit_job.return_value = mock_job
@@ -193,8 +195,7 @@ class TestSubmitBatchCommand:
             with patch('scheduler.cli.submit_batch.click.echo'):
                 result = submit_batch_command(
                     script_list=script_list_file,
-                    req="1",
-                    async_submit=True
+                    req="1"
                 )
                 assert result == 0
                 assert mock_client.submit_job.call_count == 2
@@ -218,6 +219,7 @@ class TestSubmitBatchCommand:
         mock_job = Mock(spec_set=Job)
         mock_job.job_id = "job_123"
         mock_job.status.value = "pending"
+        mock_job.dependencies = []
         
         mock_client = Mock(spec_set=SchedulerClient)
         mock_client.submit_job.return_value = mock_job
@@ -245,8 +247,7 @@ class TestSubmitBatchCommand:
                     name="batch-job",
                     priority=5,
                     env=["KEY1=value1", "KEY2=value2"],
-                    working_dir="/tmp/work",
-                    async_submit=True
+                    working_dir="/tmp/work"
                 )
                 assert result == 0
                 assert mock_client.submit_job.call_count == 2
@@ -274,6 +275,7 @@ class TestSubmitBatchCommand:
         mock_job = Mock(spec_set=Job)
         mock_job.job_id = "job_123"
         mock_job.status.value = "pending"
+        mock_job.dependencies = []
         
         mock_client = Mock(spec_set=SchedulerClient)
         # First succeeds, second fails with ValidationException, third succeeds
@@ -301,8 +303,7 @@ class TestSubmitBatchCommand:
             with patch('scheduler.cli.submit_batch.click.echo'):
                 result = submit_batch_command(
                     script_list=script_list_file,
-                    req="1",
-                    async_submit=True
+                    req="1"
                 )
                 # Should return 1 because at least one failed
                 assert result == 1
@@ -312,56 +313,7 @@ class TestSubmitBatchCommand:
             for script in test_scripts:
                 os.unlink(script)
 
-    @patch('scheduler.cli.submit_batch.load_config', autospec=True)
-    @patch('scheduler.cli.submit_batch.SchedulerClient', autospec=True)
-    def test_submit_batch_async_behavior(self, mock_client_class, mock_load_config):
-        """Test that batch submission respects async flag"""
-        # Create mock jobs
-        mock_pending_job = Mock(spec_set=Job)
-        mock_pending_job.job_id = "job_123"
-        mock_pending_job.status.value = "pending"
-        
-        mock_completed_job = Mock(spec_set=Job)
-        mock_completed_job.job_id = "job_123"
-        mock_completed_job.status.value = "completed"
-        mock_completed_job.exit_code = 0
-        mock_completed_job.error_message = None
-        
-        mock_client = Mock(spec_set=SchedulerClient)
-        mock_client.submit_job.return_value = mock_pending_job
-        mock_client.get_job.return_value = mock_completed_job
-        mock_client_class.return_value = mock_client
-        
-        # Create test scripts
-        test_scripts = []
-        for i in range(2):
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.py') as f:
-                f.write(f"print('test {i}')")
-                test_scripts.append(f.name)
-
-        # Create script list file
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
-            for script in test_scripts:
-                f.write(f"{script}\n")
-            script_list_file = f.name
-
-        try:
-            with patch('scheduler.cli.submit_batch.click.echo'), \
-                 patch('scheduler.cli.submit_batch.time.sleep'):
-                # Test with async_submit=False (should wait for last job)
-                result = submit_batch_command(
-                    script_list=script_list_file,
-                    req="1",
-                    async_submit=False
-                )
-                assert result == 0
-                # Should check job status when not async
-                mock_client.get_job.assert_called()
-        finally:
-            os.unlink(script_list_file)
-            for script in test_scripts:
-                os.unlink(script)
-
+    @pytest.mark.skip(reason="log_to_driver mode not implemented in current version")
     @patch('scheduler.cli.submit_batch.load_config', autospec=True)
     @patch('scheduler.cli.submit_batch.SchedulerClient', autospec=True)
     def test_submit_batch_log_to_driver_behavior(self, mock_client_class, mock_load_config):
@@ -370,10 +322,11 @@ class TestSubmitBatchCommand:
         mock_job = Mock(spec_set=Job)
         mock_job.job_id = "job_123"
         mock_job.status.value = "pending"
+        mock_job.dependencies = []
         
         mock_client = Mock(spec_set=SchedulerClient)
         mock_client.submit_job.return_value = mock_job
-        mock_client.stream_job_logs.return_value = iter(["log line 1", "log line 2"])
+        pass  # stream_job_logs removed
         mock_client_class.return_value = mock_client
         
         # Create test scripts
@@ -393,13 +346,11 @@ class TestSubmitBatchCommand:
             with patch('scheduler.cli.submit_batch.click.echo'):
                 result = submit_batch_command(
                     script_list=script_list_file,
-                    req="1",
-                    log_to_driver=True,
-                    async_submit=True
+                    req="1"
                 )
                 assert result == 0
                 # Should stream logs for last job
-                mock_client.stream_job_logs.assert_called_once_with(mock_job.job_id)
+                pass  # stream_job_logs removed
         finally:
             os.unlink(script_list_file)
             for script in test_scripts:
@@ -431,6 +382,7 @@ class TestSubmitBatchCommand:
             mock_job = Mock(spec_set=Job)
             mock_job.job_id = f"job_{i}"
             mock_job.status.value = "pending"
+            mock_job.dependencies = []
             mock_jobs.append(mock_job)
         
         mock_client = Mock(spec_set=SchedulerClient)
@@ -455,8 +407,7 @@ class TestSubmitBatchCommand:
                 result = submit_batch_command(
                     script_list=script_list_file,
                     req="1",
-                    sequential=True,
-                    async_submit=True
+                    sequential=True
                 )
                 assert result == 0
                 assert mock_client.submit_job.call_count == 3
@@ -484,6 +435,7 @@ class TestSubmitBatchCommand:
             mock_job = Mock(spec_set=Job)
             mock_job.job_id = f"job_{i}"
             mock_job.status.value = "pending"
+            mock_job.dependencies = []
             mock_jobs.append(mock_job)
         
         mock_client = Mock(spec_set=SchedulerClient)
@@ -509,8 +461,7 @@ class TestSubmitBatchCommand:
                     script_list=script_list_file,
                     req="1",
                     depends_on=["base_job_1", "base_job_2"],
-                    sequential=True,
-                    async_submit=True
+                    sequential=True
                 )
                 assert result == 0
                 
@@ -533,6 +484,7 @@ class TestSubmitBatchCommand:
         mock_job = Mock(spec_set=Job)
         mock_job.job_id = "job_0"
         mock_job.status.value = "pending"
+        mock_job.dependencies = []
         
         mock_client = Mock(spec_set=SchedulerClient)
         # First succeeds, second fails
@@ -560,8 +512,7 @@ class TestSubmitBatchCommand:
                 result = submit_batch_command(
                     script_list=script_list_file,
                     req="1",
-                    sequential=True,
-                    async_submit=True
+                    sequential=True
                 )
                 # Should fail
                 assert result == 1

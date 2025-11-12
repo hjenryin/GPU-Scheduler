@@ -2,9 +2,10 @@
 import pytest
 import os
 import tempfile
-from unittest.mock import Mock, patch, MagicMock, mock_open
+from unittest.mock import Mock, patch, MagicMock, mock_open, create_autospec
 
 from scheduler.worker.job_executor import JobExecutor
+from scheduler.worker.git_snapshot import GitSnapshotManager
 from scheduler.core.models import Job, JobRequirement, JobStatus
 from scheduler.core.exceptions import JobNotFoundException
 import subprocess
@@ -72,7 +73,8 @@ class TestJobExecutor:
             name="test",
             script="/path/to/script.py",
             requirements=JobRequirement("1"),
-            status=JobStatus.PENDING
+            status=JobStatus.PENDING,
+            working_dir="/tmp/test"
         )
 
         pid = executor.execute_job(job, [0])
@@ -97,7 +99,8 @@ class TestJobExecutor:
             name="test",
             script="/path/to/script.py",
             requirements=JobRequirement("1"),
-            status=JobStatus.PENDING
+            status=JobStatus.PENDING,
+            working_dir="/tmp/test"
         )
 
         pid = executor.execute_job(job, [2])
@@ -128,11 +131,10 @@ class TestJobExecutor:
     @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_execute_job_no_working_dir(self, mock_file, mock_popen, test_config):
-        """Test job execution without specified working directory"""
+        """Test that JobExecutor raises error when working_dir is None"""
         import os
         mock_process = mock_popen.return_value
         mock_process.pid = 12345
-
 
         executor = JobExecutor(test_config)
 
@@ -141,16 +143,13 @@ class TestJobExecutor:
             name="test",
             script="/path/to/script.py",
             requirements=JobRequirement("1"),
-            status=JobStatus.PENDING
-            # No working_dir specified
+            status=JobStatus.PENDING,
+            working_dir=None  # None working_dir should trigger assertion -> RuntimeError
         )
 
-        pid = executor.execute_job(job, [0])
-
-        # Should use directory of script
-        call_args = mock_popen.call_args
-        expected_cwd = os.path.dirname(os.path.abspath("/path/to/script.py"))
-        assert call_args[1]['cwd'] == expected_cwd
+        # Should raise RuntimeError due to None working_dir assertion
+        with pytest.raises(RuntimeError, match="working_dir must not be None"):
+            pid = executor.execute_job(job, [0])
 
     @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
@@ -403,8 +402,8 @@ class TestJobExecutor:
 
         executor = JobExecutor(test_config)
         
-        # Mock git snapshot manager
-        executor.git_snapshot.restore_snapshot = Mock(return_value=True)
+        # Mock git snapshot manager - use Mock with side_effect for correct signature
+        executor.git_snapshot.restore_snapshot = Mock(spec=[], side_effect=lambda job_id, snapshot_ref, working_dir, target_dir: True)
         
         # Create job with snapshot
         job = Job(
@@ -441,8 +440,8 @@ class TestJobExecutor:
 
         executor = JobExecutor(test_config)
         
-        # Mock git snapshot manager
-        executor.git_snapshot.restore_snapshot = Mock(return_value=True)
+        # Mock git snapshot manager - use Mock with side_effect for correct signature
+        executor.git_snapshot.restore_snapshot = Mock(spec=[], side_effect=lambda job_id, snapshot_ref, working_dir, target_dir: True)
         
         # Create job with script in subdirectory
         job = Job(
@@ -473,9 +472,9 @@ class TestJobExecutor:
         mock_process.pid = 12345
 
         executor = JobExecutor(test_config)
-        
+
         # Mock git snapshot manager to fail restore
-        executor.git_snapshot.restore_snapshot = Mock(return_value=False)
+        executor.git_snapshot.restore_snapshot = Mock(spec=[], side_effect=lambda job_id, snapshot_ref, working_dir, target_dir: False)
         
         # Create job with snapshot
         job = Job(
@@ -505,8 +504,7 @@ class TestJobExecutor:
         executor = JobExecutor(test_config)
         
         # Mock git snapshot manager
-        executor.git_snapshot.create_snapshot = Mock(return_value="completion_ref")
-        executor.git_snapshot.cleanup_snapshot = Mock()
+        executor.git_snapshot.cleanup_snapshot = Mock(spec=[], side_effect=lambda job_id, snapshot_ref, working_dir, worktree_path: "completion_ref")
         
         # Create job with snapshot
         job = Job(
@@ -516,7 +514,8 @@ class TestJobExecutor:
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING,
             snapshot_ref="abc123",
-            snapshot_working_dir="/workspace"
+            snapshot_working_dir="/workspace",
+            working_dir="/workspace"
         )
         
         # Add to worktrees tracking
@@ -524,13 +523,18 @@ class TestJobExecutor:
         executor.job_worktrees[job.job_id] = worktree_path
         
         # Cleanup
-        executor.cleanup_job(job)
+        result = executor.cleanup_job(job)
         
-        # Verify completion snapshot was created
-        executor.git_snapshot.create_snapshot.assert_called_once_with(
-            "test-job-completion",
+        # Verify cleanup_snapshot was called with correct parameters
+        executor.git_snapshot.cleanup_snapshot.assert_called_once_with(
+            "test-job",  # job_id
+            "abc123",  # snapshot_ref
+            "/workspace",  # snapshot_working_dir
             worktree_path
         )
+        
+        # Verify after_commit_ref is returned
+        assert result == "completion_ref"
         
         # Verify cleanup was called
         executor.git_snapshot.cleanup_snapshot.assert_called_once()
@@ -561,8 +565,10 @@ class TestJobExecutor:
         executor = JobExecutor(test_config)
         
         # Mock git snapshot manager to fail completion snapshot
-        executor.git_snapshot.create_snapshot = Mock(side_effect=Exception("Snapshot failed"))
-        executor.git_snapshot.cleanup_snapshot = Mock()
+        def raise_error(job_id, working_dir):
+            raise Exception("Snapshot failed")
+        executor.git_snapshot.create_snapshot = Mock(spec=[], side_effect=raise_error)
+        executor.git_snapshot.cleanup_snapshot = Mock(spec=[], side_effect=lambda job_id, snapshot_ref, working_dir, worktree_path: None)
         
         # Create job with snapshot
         job = Job(
@@ -597,9 +603,9 @@ class TestJobExecutor:
 
         executor = JobExecutor(test_config)
         
-        # Mock git snapshot manager
-        executor.git_snapshot.restore_snapshot = Mock(return_value=True)
-        executor.git_snapshot.cleanup_snapshot = Mock()
+        # Mock git snapshot manager - use Mock with side_effect for correct signature
+        executor.git_snapshot.restore_snapshot = Mock(spec=[], side_effect=lambda job_id, snapshot_ref, working_dir, target_dir: True)
+        executor.git_snapshot.cleanup_snapshot = create_autospec(GitSnapshotManager.cleanup_snapshot)
         
         # Create job with snapshot
         job = Job(

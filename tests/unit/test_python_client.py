@@ -1,10 +1,11 @@
 """Unit tests for Python API client (SchedulerClient)"""
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock, create_autospec
 from datetime import datetime
 import requests
 
 from scheduler.api.client import SchedulerClient
+from scheduler.core.config import Config
 from scheduler.core.exceptions import (
     ConnectionException,
     JobNotFoundException,
@@ -21,7 +22,7 @@ class TestSchedulerClientInitialization:
     def test_client_initialization_with_address(self):
         """Test client initializes with provided address"""
         with patch('scheduler.api.client.load_config', autospec=True) as mock_load_config:
-            mock_load_config.return_value = Mock()
+            mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
             client = SchedulerClient(address="test-host:9000")
 
             assert client.head_address == "test-host:9000"
@@ -63,7 +64,7 @@ class TestSchedulerClientInitialization:
     def test_client_session_has_retry_strategy(self):
         """Test client session is configured with retry logic"""
         with patch('scheduler.api.client.load_config', autospec=True) as mock_load_config:
-            mock_load_config.return_value = Mock()
+            mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
             client = SchedulerClient(address="test:9000")
 
             assert client.session is not None
@@ -78,7 +79,7 @@ class TestSubmitJob:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_submit_job_success(self, mock_load_config):
         """Test successful job submission"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -123,7 +124,7 @@ class TestSubmitJob:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_submit_job_connection_error(self, mock_load_config):
         """Test submit_job raises ConnectionException on network error"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         with patch.object(client.session, 'post', side_effect=requests.exceptions.ConnectionError("Connection failed")):
@@ -135,7 +136,7 @@ class TestSubmitJob:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_submit_job_invalid_response(self, mock_load_config):
         """Test submit_job raises ValidationException on invalid response"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -151,7 +152,7 @@ class TestSubmitJob:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_submit_job_all_parameters(self, mock_load_config):
         """Test submit_job with all optional parameters"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -202,7 +203,7 @@ class TestGetJob:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_get_job_success(self, mock_load_config):
         """Test successfully getting a job"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -239,7 +240,7 @@ class TestGetJob:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_get_job_not_found(self, mock_load_config):
         """Test get_job raises JobNotFoundException when job doesn't exist"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -254,7 +255,7 @@ class TestGetJob:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_get_job_connection_error(self, mock_load_config):
         """Test get_job raises ConnectionException on network error"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         with patch.object(client.session, 'get', side_effect=requests.exceptions.Timeout()):
@@ -268,7 +269,7 @@ class TestListJobs:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_list_jobs_success(self, mock_load_config):
         """Test successfully listing jobs"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -318,7 +319,7 @@ class TestListJobs:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_list_jobs_with_filter(self, mock_load_config):
         """Test listing jobs with status filter"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -337,7 +338,7 @@ class TestListJobs:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_list_jobs_empty(self, mock_load_config):
         """Test listing jobs returns empty list when no jobs"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -356,7 +357,7 @@ class TestCancelJob:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_cancel_job_success(self, mock_load_config):
         """Test successfully canceling a job"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -372,7 +373,7 @@ class TestCancelJob:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_cancel_job_not_found(self, mock_load_config):
         """Test cancel_job raises JobNotFoundException when job doesn't exist"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -389,7 +390,7 @@ class TestJobLogs:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_get_job_logs_success(self, mock_load_config):
         """Test successfully getting job logs"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -405,7 +406,7 @@ class TestJobLogs:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_get_job_logs_with_parameters(self, mock_load_config):
         """Test getting job logs with lines limit and stderr"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -424,7 +425,7 @@ class TestJobLogs:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_get_job_logs_not_found(self, mock_load_config):
         """Test get_job_logs raises JobNotFoundException"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -434,40 +435,6 @@ class TestJobLogs:
             with pytest.raises(JobNotFoundException):
                 client.get_job_logs("nonexistent")
 
-    @patch('scheduler.api.client.load_config', autospec=True)
-    def test_stream_job_logs_success(self, mock_load_config):
-        """Test successfully streaming job logs"""
-        mock_load_config.return_value = Mock()
-        client = SchedulerClient(address="test:9000")
-
-        mock_response = Mock(spec=requests.Response)
-        mock_response.status_code = 200
-        mock_response.iter_lines.return_value = iter([
-            "Line 1",
-            "Line 2",
-            "",  # Empty line should be filtered
-            "Line 3"
-        ])
-
-        with patch.object(client.session, 'get', return_value=mock_response):
-            lines = list(client.stream_job_logs("job_123"))
-
-        assert len(lines) == 3
-        assert lines[0] == "Line 1"
-        assert lines[2] == "Line 3"
-
-    @patch('scheduler.api.client.load_config', autospec=True)
-    def test_stream_job_logs_not_found(self, mock_load_config):
-        """Test stream_job_logs raises JobNotFoundException"""
-        mock_load_config.return_value = Mock()
-        client = SchedulerClient(address="test:9000")
-
-        mock_response = Mock(spec=requests.Response)
-        mock_response.status_code = 404
-
-        with patch.object(client.session, 'get', return_value=mock_response):
-            with pytest.raises(JobNotFoundException):
-                list(client.stream_job_logs("nonexistent"))
 
 
 class TestNodeMethods:
@@ -476,7 +443,7 @@ class TestNodeMethods:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_list_nodes_success(self, mock_load_config):
         """Test successfully listing nodes"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -515,7 +482,7 @@ class TestNodeMethods:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_get_node_success(self, mock_load_config):
         """Test successfully getting a node"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -538,7 +505,7 @@ class TestNodeMethods:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_get_node_not_found(self, mock_load_config):
         """Test get_node raises NodeNotFoundException"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -555,7 +522,7 @@ class TestWorkerMethods:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_register_node_success(self, mock_load_config):
         """Test successfully registering a node"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -575,11 +542,17 @@ class TestWorkerMethods:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_send_heartbeat_success(self, mock_load_config):
         """Test successfully sending heartbeat"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
         mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "ok",
+            "shutdown_requested": False,
+            "recorded_job_ids": [],
+            "running_job_ids": []
+        }
 
         gpu_stats = [
             GPUStats(gpu_id=0, utilization=50, memory_used=8000,
@@ -587,8 +560,12 @@ class TestWorkerMethods:
         ]
 
         with patch.object(client.session, 'post', return_value=mock_response) as mock_post:
-            client.send_heartbeat("worker-1", gpu_stats)
+            result = client.send_heartbeat("worker-1", gpu_stats)
 
+            # Verify it returned a HeartbeatResponse
+            assert result.status == "ok"
+            assert result.shutdown_requested is False
+            
             # Verify payload contains serialized stats
             call_kwargs = mock_post.call_args
             payload = call_kwargs[1]['json']
@@ -598,7 +575,7 @@ class TestWorkerMethods:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_poll_for_job_with_job(self, mock_load_config):
         """Test polling for job when job is available"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -628,7 +605,7 @@ class TestWorkerMethods:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_poll_for_job_no_job(self, mock_load_config):
         """Test polling for job when no job is available"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -642,7 +619,7 @@ class TestWorkerMethods:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_poll_for_job_timeout(self, mock_load_config):
         """Test polling for job returns None on timeout"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         with patch.object(client.session, 'get', side_effect=requests.exceptions.Timeout()):
@@ -653,7 +630,7 @@ class TestWorkerMethods:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_report_job_complete_success(self, mock_load_config):
         """Test successfully reporting job completion"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -670,7 +647,7 @@ class TestWorkerMethods:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_report_job_failed_success(self, mock_load_config):
         """Test successfully reporting job failure"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -691,7 +668,7 @@ class TestHealthCheck:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_health_check_healthy(self, mock_load_config):
         """Test health check returns True when server is healthy"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -705,7 +682,7 @@ class TestHealthCheck:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_health_check_unhealthy(self, mock_load_config):
         """Test health check returns False when server is unhealthy"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -719,7 +696,7 @@ class TestHealthCheck:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_health_check_connection_error(self, mock_load_config):
         """Test health check returns False on connection error"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         with patch.object(client.session, 'get', side_effect=requests.exceptions.ConnectionError()):
@@ -734,7 +711,7 @@ class TestResponseParsing:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_job_from_response_complete_job(self, mock_load_config):
         """Test parsing a completed job from response"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         data = {
@@ -770,7 +747,7 @@ class TestResponseParsing:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_node_from_response_with_gpus(self, mock_load_config):
         """Test parsing a node with GPUs from response"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         data = {
@@ -820,7 +797,7 @@ class TestExceptionHandling:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_http_500_raises_connection_exception(self, mock_load_config):
         """Test HTTP 500 errors raise ConnectionException"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         mock_response = Mock(spec=requests.Response)
@@ -834,7 +811,7 @@ class TestExceptionHandling:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_timeout_raises_connection_exception(self, mock_load_config):
         """Test timeout errors raise ConnectionException"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         with patch.object(client.session, 'get', side_effect=requests.exceptions.Timeout()):
@@ -844,7 +821,7 @@ class TestExceptionHandling:
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_network_error_raises_connection_exception(self, mock_load_config):
         """Test network errors raise ConnectionException"""
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         with patch.object(client.session, 'delete', side_effect=requests.exceptions.RequestException()):

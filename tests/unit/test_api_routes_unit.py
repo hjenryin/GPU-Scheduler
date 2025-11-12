@@ -1,6 +1,6 @@
 """Unit tests for API route functions with proper mocking"""
 import pytest
-from unittest.mock import Mock, patch, MagicMock, create_autospec
+from unittest.mock import Mock, patch, MagicMock, create_autospec, PropertyMock
 from fastapi import HTTPException
 
 from scheduler.api.routes import (
@@ -17,14 +17,20 @@ from scheduler.api.routes import (
     poll_job_route,
     complete_job_route,
     fail_job_route,
-    shutdown_cluster_route
+    shutdown_cluster_route,
+    purge_job_route,
+    purge_jobs_route,
+    freeze_gpu_route,
+    unfreeze_gpu_route,
+    unfreeze_all_gpus_route
 )
 from scheduler.api.schemas import (
     JobSubmitRequest, NodeRegisterRequest, NodeHeartbeat,
-    NodeRegisterResponse
+    NodeRegisterResponse, GPUFreezeRequest
 )
-from scheduler.core.models import Job, JobStatus, JobRequirement, Node, NodeStatus, GPUStats
+from scheduler.core.models import Job, JobStatus, JobRequirement, Node, NodeStatus, GPUStats, GPU
 from scheduler.core.exceptions import JobNotFoundException, NodeNotFoundException
+from scheduler.head.orchestrator import Orchestrator
 
 
 class TestNodeRegisterResponseSchema:
@@ -84,9 +90,12 @@ class TestNodeRegisterResponseSchema:
 @pytest.fixture
 def mock_job_manager():
     """Mocks the _job_manager in the routes file with autospec."""
-    # Use Mock with spec instead of autospec on already-mocked attributes
     from scheduler.manager import JobManager
-    mock_jm = MagicMock(spec=JobManager)
+    from unittest.mock import create_autospec
+    
+    # Use create_autospec with spec_set for internal classes
+    mock_jm = create_autospec(JobManager, instance=True, spec_set=True)
+    mock_jm.jobs = {}  # Add jobs attribute as empty dict
     
     with patch('scheduler.api.routes._job_manager', mock_jm):
         yield mock_jm
@@ -414,8 +423,9 @@ class TestRegisterNodeRoute:
         mock_node_manager.register_node.return_value = mock_node
 
         # Mock orchestrator with rsync_port
-        mock_orchestrator = MagicMock()
-        mock_orchestrator.rsync_port = 8873
+        # Use PropertyMock to set instance attribute that's created in __init__
+        mock_orchestrator = create_autospec(Orchestrator, instance=True, spec_set=True)
+        type(mock_orchestrator).rsync_port = PropertyMock(return_value=8873)
 
         with patch.object(Orchestrator, 'get_instance', return_value=mock_orchestrator):
             request = NodeRegisterRequest(
@@ -441,8 +451,8 @@ class TestRegisterNodeRoute:
         mock_node_manager.register_node.return_value = mock_node
 
         # Mock orchestrator with no rsync_port
-        mock_orchestrator = MagicMock()
-        mock_orchestrator.rsync_port = None
+        mock_orchestrator = create_autospec(Orchestrator, instance=True, spec_set=True)
+        type(mock_orchestrator).rsync_port = PropertyMock(return_value=None)
 
         with patch.object(Orchestrator, 'get_instance', return_value=mock_orchestrator):
             request = NodeRegisterRequest(
@@ -462,13 +472,13 @@ class TestHeartbeatRoute:
     """Tests for heartbeat_route"""
 
     @pytest.mark.asyncio
-    async def test_heartbeat_success(self, mock_node_manager):
+    async def test_heartbeat_success(self, mock_job_manager, mock_node_manager):
         """Test successful heartbeat"""
         request = NodeHeartbeat(gpu_stats=[])
         
         result = await heartbeat_route("node1", request)
         
-        assert result['status'] == "ok"
+        assert result.status == "ok"
         mock_node_manager.update_heartbeat.assert_called_once()
 
     @pytest.mark.asyncio
@@ -495,38 +505,40 @@ class TestHeartbeatRoute:
         assert exc_info.value.status_code == 400  # Route returns 400 for generic errors
 
     @pytest.mark.asyncio
-    async def test_heartbeat_returns_shutdown_flag(self, mock_node_manager):
+    async def test_heartbeat_returns_shutdown_flag(self, mock_job_manager, mock_node_manager):
         """Test heartbeat returns shutdown_requested flag"""
         from unittest.mock import Mock
-        request = NodeHeartbeat(gpu_stats=[])
+        from scheduler.core import ShutdownState
+        request = NodeHeartbeat(gpu_stats=[], timeout=1)  # With timeout to trigger long-poll
         
         # Mock node with shutdown requested
-        mock_node = Mock()
-        mock_node.shutdown_requested = True
+        mock_node = create_autospec(Node, instance=True, spec_set=True)
+        mock_node.shutdown_state = ShutdownState.SENT
         mock_node_manager.get_node.return_value = mock_node
         
-        result = await heartbeat_route("node1", request)
+        result = await heartbeat_route("node1", request, timeout=1)
         
-        assert result['status'] == "ok"
-        assert result['shutdown_requested'] == True
+        assert result.status == "ok"
+        assert result.shutdown_requested == True
         mock_node_manager.update_heartbeat.assert_called_once()
-        mock_node_manager.get_node.assert_called_once_with("node1")
+        mock_node_manager.get_node.assert_called()
 
     @pytest.mark.asyncio
-    async def test_heartbeat_no_shutdown_requested(self, mock_node_manager):
+    async def test_heartbeat_no_shutdown_requested(self, mock_job_manager, mock_node_manager):
         """Test heartbeat when shutdown not requested"""
         from unittest.mock import Mock
+        from scheduler.core.models import ShutdownState
         request = NodeHeartbeat(gpu_stats=[])
-        
+
         # Mock node without shutdown requested
-        mock_node = Mock()
-        mock_node.shutdown_requested = False
+        mock_node = create_autospec(Node, instance=True, spec_set=True)
+        mock_node.shutdown_state = ShutdownState.NONE
         mock_node_manager.get_node.return_value = mock_node
-        
+
         result = await heartbeat_route("node1", request)
-        
-        assert result['status'] == "ok"
-        assert result['shutdown_requested'] == False
+
+        assert result.status == "ok"
+        assert result.shutdown_requested == False
 
 
 class TestListNodesRoute:
@@ -626,7 +638,7 @@ class TestPollJobRoute:
         from scheduler.api.routes import poll_job_route
         
         mock_job_manager.get_running_jobs.return_value = []  # No running jobs
-        mock_node_manager.get_node.return_value = Mock()  # Need a valid node
+        mock_node_manager.get_node.return_value = create_autospec(Node, instance=True, spec_set=True)  # Need a valid node
         
         result = await poll_job_route("node1")
         
@@ -640,17 +652,17 @@ class TestCompleteJobRoute:
     async def test_complete_job_success(self, mock_job_manager, mock_node_manager):
         """Test successful job completion"""
         from scheduler.api.routes import complete_job_route
-        
+
         # Mock both managers
-        mock_job = Mock()
+        mock_job = create_autospec(Job, instance=True, spec_set=True)
         mock_job.assigned_node = "node1"
         mock_job_manager.get_job.return_value = mock_job
-        mock_node_manager.get_node.return_value = Mock()
+        mock_node_manager.get_node.return_value = create_autospec(Node, instance=True, spec_set=True)
         
         result = await complete_job_route("job_123", exit_code=0)
         
         assert result['status'] == "completed"
-        mock_job_manager.complete_job.assert_called_once_with("job_123", 0)
+        mock_job_manager.complete_job.assert_called_once_with("job_123", 0, None)
 
     @pytest.mark.asyncio
     async def test_complete_job_not_found(self, mock_job_manager, mock_node_manager):
@@ -673,17 +685,17 @@ class TestFailJobRoute:
     async def test_fail_job_success(self, mock_job_manager, mock_node_manager):
         """Test successful job failure"""
         from scheduler.api.routes import fail_job_route
-        
+
         # Mock both managers
-        mock_job = Mock()
+        mock_job = create_autospec(Job, instance=True, spec_set=True)
         mock_job.assigned_node = "node1"
         mock_job_manager.get_job.return_value = mock_job
-        mock_node_manager.get_node.return_value = Mock()
+        mock_node_manager.get_node.return_value = create_autospec(Node, instance=True, spec_set=True)
         
         result = await fail_job_route("job_123", "Error occurred")
         
         assert result['status'] == "failed"
-        mock_job_manager.fail_job.assert_called_once_with("job_123", "Error occurred")
+        mock_job_manager.fail_job.assert_called_once_with("job_123", "Error occurred", None)
 
     @pytest.mark.asyncio
     async def test_fail_job_not_found(self, mock_job_manager, mock_node_manager):
@@ -704,17 +716,19 @@ class TestShutdownClusterRoute:
 
     @pytest.mark.asyncio
     async def test_shutdown_cluster(self, mock_logger, mock_node_manager):
-        """Test shutdown cluster route"""
+        """Test shutdown cluster route when orchestrator not available"""
         from scheduler.api.routes import shutdown_cluster_route
         from scheduler.head import Orchestrator
-        from unittest.mock import patch
+        from unittest.mock import patch, create_autospec
+        from fastapi import BackgroundTasks
 
         mock_node_manager.get_connected_nodes.return_value = []
+        mock_background_tasks = create_autospec(BackgroundTasks, instance=True, spec_set=True)
 
         # Mock orchestrator instance as None
         with patch.object(Orchestrator, '_instance', None):
             with pytest.raises(HTTPException) as exc_info:
-                await shutdown_cluster_route(graceful_timeout=60, force=False)
+                await shutdown_cluster_route(background_tasks=mock_background_tasks)
 
             assert exc_info.value.status_code == 500
 
@@ -723,16 +737,192 @@ class TestShutdownClusterRoute:
         """Test successful cluster shutdown"""
         from scheduler.api.routes import shutdown_cluster_route
         from scheduler.head import Orchestrator
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch, create_autospec, Mock
+        from fastapi import BackgroundTasks
 
-        mock_node_manager.get_connected_nodes.return_value = [Mock(), Mock()]
-        mock_orchestrator = MagicMock()
-        mock_orchestrator.request_cluster_shutdown = MagicMock()
+        mock_node_manager.get_connected_nodes.return_value = [
+            create_autospec(Node, instance=True, spec_set=True),
+            create_autospec(Node, instance=True, spec_set=True)
+        ]
+        mock_background_tasks = create_autospec(BackgroundTasks, instance=True, spec_set=True)
+        
+        # Use create_autospec for Orchestrator (internal class)
+        mock_orchestrator = create_autospec(Orchestrator, instance=True, spec_set=True)
+        mock_orchestrator.shutdown_cluster_workers.return_value = True
 
         with patch.object(Orchestrator, '_instance', mock_orchestrator):
-            result = await shutdown_cluster_route(graceful_timeout=60, force=True)
+            result = await shutdown_cluster_route(background_tasks=mock_background_tasks)
 
-            assert result['status'] == "shutdown_initiated"
+            assert result['status'] == "shutdown_complete"
             assert result['nodes_count'] == 2
-            mock_orchestrator.request_cluster_shutdown.assert_called_once_with(60, True)
+            assert result['all_confirmed'] == True
+            mock_orchestrator.shutdown_cluster_workers.assert_called_once()
+            mock_background_tasks.add_task.assert_called_once_with(mock_orchestrator.stop)
+
+
+class TestPurgeJobRoute:
+    """Tests for purge_job_route"""
+
+    @pytest.mark.asyncio
+    async def test_purge_job_success(self, mock_job_manager):
+        """Test successful job purge"""
+        result = await purge_job_route("job_123")
+
+        assert result['status'] == "purge_initiated"
+        assert result['job_id'] == "job_123"
+        mock_job_manager.purge_job.assert_called_once_with("job_123")
+
+    @pytest.mark.asyncio
+    async def test_purge_job_not_found(self, mock_job_manager):
+        """Test purging non-existent job"""
+        from scheduler.core.exceptions import JobNotFoundException
+
+        mock_job_manager.purge_job.side_effect = JobNotFoundException("Job not found")
+
+        with pytest.raises(HTTPException) as exc_info:
+            await purge_job_route("nonexistent")
+
+        assert exc_info.value.status_code == 404
+
+
+class TestPurgeJobsRoute:
+    """Tests for purge_jobs_route (bulk purge)"""
+
+    @pytest.mark.asyncio
+    async def test_purge_jobs_with_status_filter(self, mock_job_manager):
+        """Test bulk purge with status filter"""
+        mock_job_manager.purge_jobs_by_criteria.return_value = 5
+
+        result = await purge_jobs_route({"status_filter": ["completed", "failed"]})
+
+        assert result['purged_count'] == 5
+        mock_job_manager.purge_jobs_by_criteria.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_purge_jobs_with_time_filter(self, mock_job_manager):
+        """Test bulk purge with time filter"""
+        from datetime import datetime
+
+        mock_job_manager.purge_jobs_by_criteria.return_value = 3
+
+        before_time = datetime.now().isoformat()
+        result = await purge_jobs_route({"before_time": before_time})
+
+        assert result['purged_count'] == 3
+
+    @pytest.mark.asyncio
+    async def test_purge_jobs_no_filters(self, mock_job_manager):
+        """Test bulk purge with no filters (defaults)"""
+        mock_job_manager.purge_jobs_by_criteria.return_value = 10
+
+        result = await purge_jobs_route({})
+
+        assert result['purged_count'] == 10
+
+
+class TestFreezeGPURoute:
+    """Tests for freeze_gpu_route"""
+
+    @pytest.mark.asyncio
+    async def test_freeze_gpu_success(self, mock_node_manager):
+        """Test freezing a GPU successfully"""
+        from datetime import datetime, timedelta
+        
+        # Create mock node with GPUs
+        mock_node = create_autospec(Node, instance=True, spec_set=True)
+        mock_gpu = create_autospec(GPU, instance=True, spec_set=True)
+        mock_gpu.frozen_until = datetime.now() + timedelta(seconds=3600)
+        mock_node.gpus = [mock_gpu]
+        mock_node_manager.get_node.return_value = mock_node
+
+        result = await freeze_gpu_route("node1", 0, GPUFreezeRequest(duration_seconds=3600))
+
+        assert result['status'] == "frozen"
+        assert result['node_name'] == "node1"
+        assert result['gpu_id'] == 0
+        assert 'frozen_until' in result
+        mock_gpu.freeze.assert_called_once_with(3600)
+        mock_node_manager.save_node.assert_called_once_with(mock_node)
+
+    @pytest.mark.asyncio
+    async def test_freeze_gpu_node_not_found(self, mock_node_manager):
+        """Test freezing GPU on non-existent node"""
+        mock_node_manager.get_node.return_value = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            await freeze_gpu_route("nonexistent", 0, GPUFreezeRequest(duration_seconds=3600))
+
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_freeze_gpu_invalid_gpu_id(self, mock_node_manager):
+        """Test freezing with invalid GPU ID"""
+        mock_node = create_autospec(Node, instance=True, spec_set=True)
+        mock_node.gpus = [create_autospec(GPU, instance=True, spec_set=True)]  # Only 1 GPU (ID 0)
+        mock_node_manager.get_node.return_value = mock_node
+
+        with pytest.raises(HTTPException) as exc_info:
+            await freeze_gpu_route("node1", 999, GPUFreezeRequest(duration_seconds=3600))
+
+        assert exc_info.value.status_code == 400
+
+
+class TestUnfreezeGPURoute:
+    """Tests for unfreeze_gpu_route"""
+
+    @pytest.mark.asyncio
+    async def test_unfreeze_gpu_success(self, mock_node_manager):
+        """Test unfreezing a GPU successfully"""
+        mock_node = create_autospec(Node, instance=True, spec_set=True)
+        mock_gpu = create_autospec(GPU, instance=True, spec_set=True)
+        mock_node.gpus = [mock_gpu]
+        mock_node_manager.get_node.return_value = mock_node
+
+        result = await unfreeze_gpu_route("node1", 0)
+
+        assert result['status'] == "unfrozen"
+        assert result['node_name'] == "node1"
+        assert result['gpu_id'] == 0
+        mock_gpu.unfreeze.assert_called_once()
+        mock_node_manager.save_node.assert_called_once_with(mock_node)
+
+    @pytest.mark.asyncio
+    async def test_unfreeze_gpu_node_not_found(self, mock_node_manager):
+        """Test unfreezing GPU on non-existent node"""
+        mock_node_manager.get_node.return_value = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            await unfreeze_gpu_route("nonexistent", 0)
+
+        assert exc_info.value.status_code == 404
+
+
+class TestUnfreezeAllGPUsRoute:
+    """Tests for unfreeze_all_gpus_route"""
+
+    @pytest.mark.asyncio
+    async def test_unfreeze_all_gpus_success(self, mock_node_manager):
+        """Test unfreezing all GPUs"""
+        # Create 2 nodes with frozen GPUs
+        mock_gpu1 = create_autospec(GPU, instance=True, spec_set=True)
+        mock_gpu1.is_frozen.return_value = True
+        mock_gpu2 = create_autospec(GPU, instance=True, spec_set=True)
+        mock_gpu2.is_frozen.return_value = True
+        mock_gpu3 = create_autospec(GPU, instance=True, spec_set=True)
+        mock_gpu3.is_frozen.return_value = False  # Not frozen
+
+        mock_node1 = create_autospec(Node, instance=True, spec_set=True)
+        mock_node1.gpus = [mock_gpu1, mock_gpu2]
+        mock_node2 = create_autospec(Node, instance=True, spec_set=True)
+        mock_node2.gpus = [mock_gpu3]
+        
+        mock_node_manager.list_nodes.return_value = [mock_node1, mock_node2]
+
+        result = await unfreeze_all_gpus_route()
+
+        assert result['status'] == "unfrozen"
+        assert result['unfrozen_count'] == 2  # Only 2 were frozen
+        mock_gpu1.unfreeze.assert_called_once()
+        mock_gpu2.unfreeze.assert_called_once()
+        assert not mock_gpu3.unfreeze.called  # Not frozen, so not unfrozen
 

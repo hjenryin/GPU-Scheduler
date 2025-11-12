@@ -287,3 +287,295 @@ class TestEnsureDirExists:
             if os.path.exists(dir_path):
                 os.rmdir(dir_path)
 
+
+
+class TestParseTimeDuration:
+    """Tests for parse_time_duration function"""
+
+    def test_parse_weeks(self):
+        """Test parsing weeks duration"""
+        from scheduler.core.utils import parse_time_duration
+        result = parse_time_duration("3w")
+        assert result == timedelta(weeks=3)
+
+    def test_parse_days(self):
+        """Test parsing days duration"""
+        from scheduler.core.utils import parse_time_duration
+        result = parse_time_duration("7d")
+        assert result == timedelta(days=7)
+
+    def test_parse_hours(self):
+        """Test parsing hours duration"""
+        from scheduler.core.utils import parse_time_duration
+        result = parse_time_duration("24h")
+        assert result == timedelta(hours=24)
+
+    def test_parse_minutes(self):
+        """Test parsing minutes duration"""
+        from scheduler.core.utils import parse_time_duration
+        result = parse_time_duration("30m")
+        assert result == timedelta(minutes=30)
+
+    def test_parse_seconds(self):
+        """Test parsing seconds duration"""
+        from scheduler.core.utils import parse_time_duration
+        result = parse_time_duration("90s")
+        assert result == timedelta(seconds=90)
+
+    def test_parse_empty_string(self):
+        """Test parsing empty string raises ValidationException"""
+        from scheduler.core.utils import parse_time_duration
+        with pytest.raises(ValidationException):
+            parse_time_duration("")
+
+    def test_parse_whitespace_only(self):
+        """Test parsing whitespace-only string raises ValidationException"""
+        from scheduler.core.utils import parse_time_duration
+        with pytest.raises(ValidationException):
+            parse_time_duration("   ")
+
+    def test_parse_invalid_format_no_unit(self):
+        """Test parsing invalid format without unit raises ValidationException"""
+        from scheduler.core.utils import parse_time_duration
+        with pytest.raises(ValidationException):
+            parse_time_duration("10")
+
+    def test_parse_invalid_format_invalid_unit(self):
+        """Test parsing invalid unit raises ValidationException"""
+        from scheduler.core.utils import parse_time_duration
+        with pytest.raises(ValidationException):
+            parse_time_duration("10x")
+
+    def test_parse_invalid_format_no_number(self):
+        """Test parsing invalid format without number raises ValidationException"""
+        from scheduler.core.utils import parse_time_duration
+        with pytest.raises(ValidationException):
+            parse_time_duration("d")
+
+    def test_parse_zero_duration(self):
+        """Test parsing zero duration raises ValidationException"""
+        from scheduler.core.utils import parse_time_duration
+        with pytest.raises(ValidationException):
+            parse_time_duration("0d")
+
+    def test_parse_negative_duration(self):
+        """Test parsing negative duration raises ValidationException"""  
+        from scheduler.core.utils import parse_time_duration
+        with pytest.raises(ValidationException):
+            parse_time_duration("-5h")
+
+    def test_parse_case_insensitive(self):
+        """Test parsing is case insensitive"""
+        from scheduler.core.utils import parse_time_duration
+        result = parse_time_duration("5D")
+        assert result == timedelta(days=5)
+
+
+class TestFindAvailablePortException:
+    """Tests for find_available_port exception handling"""
+
+    def test_find_available_port_no_ports_available(self):
+        """Test find_available_port raises exception when no ports available"""
+        from scheduler.core.exceptions import PermissionDeniedException
+        from unittest.mock import patch
+
+        # Mock is_port_available to always return False, simulating no ports available
+        with patch('scheduler.core.utils.is_port_available', return_value=False):
+            with pytest.raises(PermissionDeniedException):
+                find_available_port(start_port=8000, max_attempts=5)
+
+
+class TestGenerateVersionedFilenameEdgeCases:
+    """Tests for generate_versioned_filename edge cases"""
+
+    def test_generate_versioned_filename_nonexistent_file(self):
+        """Test generating versioned filename for nonexistent file"""
+        result = generate_versioned_filename("/nonexistent/path/script.py", "job123")
+        assert "script" in result
+        assert "job123" in result
+        assert ".py" in result
+
+    def test_generate_versioned_filename_no_extension(self):
+        """Test generating versioned filename for file without extension"""
+        result = generate_versioned_filename("/tmp/scriptname", "job456")
+        assert "scriptname" in result
+        assert "job456" in result
+        assert not result.endswith(".")
+
+
+class TestFormatBytesEdgeCases:
+    """Tests for format_bytes edge cases"""
+
+    def test_format_zero_bytes(self):
+        """Test formatting zero bytes"""
+        result = format_bytes(0)
+        assert result == "0 B"
+
+    def test_format_petabytes(self):
+        """Test formatting petabytes"""
+        result = format_bytes(2 * 1024**5)  # 2 PB
+        assert "PB" in result
+        assert "2.0" in result
+
+
+class TestParseAddressEdgeCases:
+    """Tests for parse_address edge cases"""
+
+    def test_parse_address_no_port(self):
+        """Test parsing address without port raises ValidationException"""
+        with pytest.raises(ValidationException):
+            parse_address("hostname")
+
+    def test_parse_address_empty(self):
+        """Test parsing empty address raises ValidationException"""
+        with pytest.raises(ValidationException):
+            parse_address("")
+
+    def test_parse_address_port_out_of_range_high(self):
+        """Test parsing address with port > 65535 raises ValidationException"""
+        with pytest.raises(ValidationException):
+            parse_address("host:99999")
+
+    def test_parse_address_port_out_of_range_low(self):
+        """Test parsing address with port < 1 raises ValidationException"""
+        with pytest.raises(ValidationException):
+            parse_address("host:0")
+
+
+class TestGetLocalIPException:
+    """Tests for get_local_ip exception handling"""
+
+    def test_get_local_ip_returns_fallback(self):
+        """Test get_local_ip returns 127.0.0.1 as fallback"""
+        # This test verifies the function handles exceptions gracefully
+        result = get_local_ip()
+        # Should either return a valid IP or fallback to 127.0.0.1
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+
+class TestParseRequirementsEdgeCases:
+    """Tests for parse_requirements edge cases to improve coverage"""
+
+    def test_invalid_node_specific_format_missing_colon_part(self):
+        """Test parsing invalid node-specific requirement with bad format"""
+        with pytest.raises(InvalidRequirementException, match="Invalid GPU count"):
+            parse_requirements("gpu1:")
+
+    def test_any_node_negative_gpu_count(self):
+        """Test parsing any-node requirement with negative GPU count"""
+        with pytest.raises(InvalidRequirementException, match="GPU count must be positive"):
+            parse_requirements("-2")
+
+
+class TestFormatTimestampRelative:
+    """Tests for format_timestamp with relative=True to improve coverage"""
+
+    def test_format_timestamp_just_now(self):
+        """Test formatting timestamp less than 60 seconds ago"""
+        now = datetime.now()
+        dt = now - timedelta(seconds=30)
+        result = format_timestamp(dt, relative=True)
+        assert result == "just now"
+
+    def test_format_timestamp_minutes_ago_singular(self):
+        """Test formatting timestamp 1 minute ago"""
+        now = datetime.now()
+        dt = now - timedelta(minutes=1)
+        result = format_timestamp(dt, relative=True)
+        assert result == "1 minute ago"
+
+    def test_format_timestamp_minutes_ago_plural(self):
+        """Test formatting timestamp multiple minutes ago"""
+        now = datetime.now()
+        dt = now - timedelta(minutes=45)
+        result = format_timestamp(dt, relative=True)
+        assert "minute" in result and "ago" in result
+
+    def test_format_timestamp_hours_ago_singular(self):
+        """Test formatting timestamp 1 hour ago"""
+        now = datetime.now()
+        dt = now - timedelta(hours=1)
+        result = format_timestamp(dt, relative=True)
+        assert result == "1 hour ago"
+
+    def test_format_timestamp_hours_ago_plural(self):
+        """Test formatting timestamp multiple hours ago"""
+        now = datetime.now()
+        dt = now - timedelta(hours=5)
+        result = format_timestamp(dt, relative=True)
+        assert "hour" in result and "ago" in result
+
+    def test_format_timestamp_days_ago_singular(self):
+        """Test formatting timestamp 1 day ago"""
+        now = datetime.now()
+        dt = now - timedelta(days=1)
+        result = format_timestamp(dt, relative=True)
+        assert result == "1 day ago"
+
+    def test_format_timestamp_days_ago_plural(self):
+        """Test formatting timestamp multiple days ago"""
+        now = datetime.now()
+        dt = now - timedelta(days=7)
+        result = format_timestamp(dt, relative=True)
+        assert "day" in result and "ago" in result
+
+
+class TestGenerateVersionedFilenameWithPermissionError:
+    """Tests for generate_versioned_filename when file cannot be read"""
+
+    def test_generate_versioned_filename_with_permission_error(self, tmp_path, monkeypatch):
+        """Test generate_versioned_filename handles permission errors gracefully"""
+        import tempfile
+        
+        # Create a temporary script file
+        script_file = tmp_path / "test_script.py"
+        script_file.write_text("print('hello')")
+        
+        # Mock open to raise PermissionError
+        original_open = open
+        def mock_open(path, *args, **kwargs):
+            if str(path) == str(script_file):
+                raise PermissionError("Permission denied")
+            return original_open(path, *args, **kwargs)
+        
+        monkeypatch.setattr("builtins.open", mock_open)
+        
+        # Should still generate a versioned filename using timestamp-based hash
+        versioned = generate_versioned_filename(str(script_file), "job_abc123")
+        assert "test_script" in versioned
+        assert "job_abc123" in versioned
+
+
+class TestEnsureDirExistsExceptions:
+    """Tests for ensure_dir_exists exception handling"""
+
+    def test_ensure_dir_exists_permission_error(self, monkeypatch, tmp_path):
+        """Test ensure_dir_exists raises PermissionDeniedException on permission error"""
+        import pathlib
+        from scheduler.core.exceptions import PermissionDeniedException
+        
+        # Mock mkdir to raise PermissionError
+        original_mkdir = pathlib.Path.mkdir
+        def mock_mkdir(self, *args, **kwargs):
+            raise PermissionError("Permission denied")
+        
+        monkeypatch.setattr(pathlib.Path, "mkdir", mock_mkdir)
+        
+        with pytest.raises(PermissionDeniedException, match="Cannot create directory"):
+            ensure_dir_exists(str(tmp_path / "test_dir"))
+
+    def test_ensure_dir_exists_generic_exception(self, monkeypatch, tmp_path):
+        """Test ensure_dir_exists handles generic exceptions"""
+        import pathlib
+        from scheduler.core.exceptions import PermissionDeniedException
+        
+        # Mock mkdir to raise generic Exception
+        original_mkdir = pathlib.Path.mkdir
+        def mock_mkdir(self, *args, **kwargs):
+            raise RuntimeError("Some error")
+        
+        monkeypatch.setattr(pathlib.Path, "mkdir", mock_mkdir)
+        
+        with pytest.raises(PermissionDeniedException, match="Error creating directory"):
+            ensure_dir_exists(str(tmp_path / "test_dir"))

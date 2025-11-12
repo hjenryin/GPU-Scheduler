@@ -1,10 +1,12 @@
 """Tests for GPU monitoring functionality"""
 import time
+import pytest
 
 from scheduler.worker.gpu_monitor import GPUMonitor
 from scheduler.core.models import GPUStats
 
 
+@pytest.mark.skip(reason="Requires GPU hardware - nvidia-smi or NVIDIA drivers")
 class TestGPUMonitorReal:
     """Tests for GPU monitor using real GPU"""
 

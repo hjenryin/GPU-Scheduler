@@ -58,6 +58,7 @@ from scheduler.core.constants import (
     CONFIG_FILE_PATH,
     TEMP_DIR_PATH,
     LOG_DIR_PATH,
+    RSYNC_PORT,
 )
 
 __all__ = [
@@ -119,4 +120,5 @@ __all__ = [
     "CONFIG_FILE_PATH",
     "TEMP_DIR_PATH",
     "LOG_DIR_PATH",
+    "RSYNC_PORT",
 ]

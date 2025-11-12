@@ -637,7 +637,7 @@ def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optio
     lockfile_path = os.path.expanduser(f"~/.scheduler/worker-{node_name}.lock")
 
     # Check if already running (don't acquire lock yet for daemon mode)
-    from scheduler.worker.singleton import is_daemon_running
+    from scheduler.worker import is_daemon_running
     if is_daemon_running(lockfile_path):
         click.echo(f"\nError: Worker '{node_name}' is already running on this machine")
         click.echo("Use 'scheduler stop' to stop it first")

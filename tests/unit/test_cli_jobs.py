@@ -1,10 +1,11 @@
 """Unit tests for scheduler.cli.jobs module"""
 import pytest
-from unittest.mock import patch, Mock
+from unittest.mock import patch, Mock, create_autospec
 from datetime import datetime
 from scheduler.cli.jobs import jobs_command, _print_job_table, _print_job_details
 from scheduler.core.models import Job, JobStatus, JobRequirement
 from scheduler.core import Job
+from scheduler.core.config import Config
 from scheduler.api import SchedulerClient
 from scheduler.api.client import SchedulerClient
 
@@ -34,7 +35,7 @@ class TestJobsCommand:
         mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_jobs.return_value = [mock_job]
         mock_client_class.return_value = mock_client
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
 
         with patch('scheduler.cli.jobs.click.echo', autospec=True) as mock_echo:
             result = jobs_command()
@@ -58,7 +59,7 @@ class TestJobsCommand:
         mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_jobs.return_value = [mock_job]
         mock_client_class.return_value = mock_client
-        mock_load_config.return_value = Mock()
+        mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
 
         with patch('scheduler.cli.jobs.click.echo', autospec=True):
             result = jobs_command(filter="running", limit=10)

@@ -105,9 +105,11 @@ class JobExecutor:
                     script_path = job.script
             else:
                 # No snapshot, use original working directory
+                # Assert working_dir is not None (validated at Job construction)
+                assert job.working_dir is not None, f"Job {job.job_id}: working_dir must not be None"
                 working_dir = job.working_dir
                 script_path = job.script
-                logger.info(f"Job {job.job_id} has no snapshot, using original working directory: {working_dir}")
+                logger.info(f"Job {job.job_id} has no snapshot, using working directory: {working_dir}")
 
             # Clean up old log files (older than 24 hours) before starting new job
             self.file_handler.cleanup_old_logs(max_age_hours=24)

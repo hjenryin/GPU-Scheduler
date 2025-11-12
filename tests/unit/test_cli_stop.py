@@ -3,7 +3,7 @@ import pytest
 import os
 import json
 import signal
-from unittest.mock import Mock, patch, MagicMock, mock_open
+from unittest.mock import Mock, patch, MagicMock, mock_open, create_autospec, PropertyMock
 import click
 
 from scheduler.cli.stop import (
@@ -14,6 +14,9 @@ from scheduler.cli.stop import (
     _stop_daemon
 )
 from scheduler.core.exceptions import ConnectionException
+from scheduler.api.client import SchedulerClient
+from scheduler.core.config import Config, HeadConfig
+from scheduler.core.models import Node
 
 
 class TestStopCommand:
@@ -74,14 +77,13 @@ class TestStopAllNodes:
     @patch('scheduler.cli.stop.os.path.exists', autospec=True)
     def test_stop_all_from_head_node(self, mock_exists, mock_stop_local, mock_client_class, mock_load, mock_is_head):
         """Test stopping all nodes when running from head"""
-        from scheduler.core.config import Config
         mock_is_head.return_value = True
         mock_load.return_value = Config()
         mock_stop_local.return_value = True
         mock_exists.return_value = True  # Head lock file exists
 
         # Mock the client
-        mock_client = MagicMock()
+        mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.list_nodes.return_value = []
         mock_client.shutdown_cluster.return_value = True
         mock_client_class.return_value = mock_client
@@ -99,13 +101,16 @@ class TestStopAllNodes:
         """Test stopping all nodes when running from worker"""
         mock_is_head.return_value = False
 
-        mock_config = MagicMock()
+        mock_config = create_autospec(Config, instance=True, spec_set=True)
         mock_config.address = "localhost:9000"
-        mock_config.head.port = 9000
+        # head is set in __init__, need to use PropertyMock with properly spec'd HeadConfig
+        mock_head = create_autospec(HeadConfig, instance=True, spec_set=True)
+        mock_head.port = 9000
+        type(mock_config).head = PropertyMock(return_value=mock_head)
         mock_load.return_value = mock_config
 
-        mock_client = MagicMock()
-        mock_client.list_nodes.return_value = [Mock()]
+        mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
+        mock_client.list_nodes.return_value = [create_autospec(Node, instance=True, spec_set=True)]
         mock_client.shutdown_cluster.return_value = True
         mock_client_class.return_value = mock_client
 
@@ -125,14 +130,17 @@ class TestStopAllNodes:
     def test_stop_all_uses_client_auto_detection(self, mock_stop_local, mock_client_class, mock_load, mock_is_head):
         """Test that stop --all uses SchedulerClient's auto-detection"""
         mock_is_head.return_value = False
-        
-        mock_config = MagicMock()
+
+        mock_config = create_autospec(Config, instance=True, spec_set=True)
         mock_config.address = "configured:9000"
-        mock_config.head.port = 9000
+        # head is set in __init__, need to use PropertyMock with properly spec'd HeadConfig
+        mock_head = create_autospec(HeadConfig, instance=True, spec_set=True)
+        mock_head.port = 9000
+        type(mock_config).head = PropertyMock(return_value=mock_head)
         mock_load.return_value = mock_config
-        
-        mock_client = MagicMock()
-        mock_client.list_nodes.return_value = [Mock()]
+
+        mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
+        mock_client.list_nodes.return_value = [create_autospec(Node, instance=True, spec_set=True)]
         mock_client.shutdown_cluster.return_value = True
         mock_client_class.return_value = mock_client
         
@@ -152,12 +160,15 @@ class TestStopAllNodes:
         """Test handling connection exception when stopping all nodes"""
         mock_is_head.return_value = False
 
-        mock_config = MagicMock()
+        mock_config = create_autospec(Config, instance=True, spec_set=True)
         mock_config.address = "localhost:99999"
-        mock_config.head.port = 99999
+        # head is set in __init__, need to use PropertyMock with properly spec'd HeadConfig
+        mock_head = create_autospec(HeadConfig, instance=True, spec_set=True)
+        mock_head.port = 99999
+        type(mock_config).head = PropertyMock(return_value=mock_head)
         mock_load.return_value = mock_config
 
-        mock_client = MagicMock()
+        mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.list_nodes.side_effect = ConnectionException("Cannot connect")
         mock_client_class.return_value = mock_client
 

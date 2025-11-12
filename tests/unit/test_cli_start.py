@@ -211,47 +211,46 @@ class TestStartHeadNodeImplementation:
 class TestStartWorkerNodeImplementation:
     """Tests for _start_worker_node implementation"""
 
-    @patch('scheduler.core.head_info.save_head_info', autospec=True)
     @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
     @patch('scheduler.cli.start.WorkerDaemon', autospec=True)
     @patch('scheduler.cli.start.click.echo', autospec=True)
-    def test_start_worker_success_blocking(self, mock_echo, mock_daemon_class, mock_singleton_class, mock_save_info):
+    def test_start_worker_success_blocking(self, mock_echo, mock_daemon_class, mock_singleton_class):
         """Test starting worker in blocking mode"""
         mock_singleton = MagicMock(spec_set=SingletonDaemon)
         mock_singleton.acquire_lock.return_value = True
         mock_singleton_class.return_value = mock_singleton
-        
+
         mock_daemon = MagicMock(spec_set=WorkerDaemon)
         mock_daemon.run.return_value = None
         mock_daemon_class.return_value = mock_daemon
-        
+
         config = Config(
             address="localhost:9000",
             worker=WorkerConfig()
         )
-        
+
         result = _start_worker_node(config, node_name="test-node", num_gpus=2, block=True)
         assert result == 0
-        mock_save_info.assert_called_once_with("localhost:9000")
+        # Verify daemon was created and run was called
+        mock_daemon_class.assert_called_once()
+        mock_daemon.run.assert_called_once()
 
-    @patch('scheduler.core.head_info.save_head_info', autospec=True)
-    @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
     @patch('scheduler.cli.start._daemonize_worker', autospec=True)
+    @patch('scheduler.worker.singleton.is_daemon_running', autospec=True)
     @patch('scheduler.cli.start.click.echo', autospec=True)
-    def test_start_worker_success_background(self, mock_echo, mock_daemonize, mock_singleton_class, mock_save_info):
+    def test_start_worker_success_background(self, mock_echo, mock_is_running, mock_daemonize):
         """Test starting worker in background mode"""
-        mock_singleton = MagicMock(spec_set=SingletonDaemon)
-        mock_singleton.acquire_lock.return_value = True
-        mock_singleton_class.return_value = mock_singleton
-        
+        # Mock that daemon is not already running
+        mock_is_running.return_value = False
+
         # Mock daemonize to return success without actually forking
         mock_daemonize.return_value = 0
-        
+
         config = Config(
             address="localhost:9000",
             worker=WorkerConfig()
         )
-        
+
         result = _start_worker_node(config, node_name="test-node", num_gpus=None, block=False)
         assert result == 0
         # Verify that daemonize was called with the correct arguments
@@ -260,5 +259,7 @@ class TestStartWorkerNodeImplementation:
         assert call_args[0][0] == config  # First arg is config
         assert call_args[0][1] == "test-node"  # Second arg is node_name
         assert call_args[0][2] is None  # Third arg is num_gpus
-        assert call_args[0][3] == mock_singleton  # Fourth arg is singleton
+        # Fourth arg is lockfile_path (string)
+        assert isinstance(call_args[0][3], str)
+        assert "worker-test-node.lock" in call_args[0][3]
 

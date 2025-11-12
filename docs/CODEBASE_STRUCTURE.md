@@ -748,20 +748,12 @@ docs/
 └── (empty - documentation exists in root directory)
 ```
 
-**Documentation files in root directory:**
+**Documentation files:**
 
-- **`README.md`** - User-facing documentation and quick start guide
-- **`API_REFERENCE.md`** - Comprehensive API documentation
-- **`CODEBASE_STRUCTURE.md`** - This file - codebase organization
-- **`dev_note.md`** - Development notes and guidelines
-- **`CTRL_C_FIX.md`** - Documentation on Ctrl+C handling fixes
-- **`E2E_PERFORMANCE_OPTIMIZATIONS.md`** - E2E test performance improvements
-- **`TEST_IMPROVEMENTS_SUMMARY.md`** - Summary of test improvements
-- **`TUI_BRANCH_COVERAGE_ANALYSIS.md`** - TUI test coverage analysis
-- **`TUI_TESTING_RECOMMENDATIONS.md`** - TUI testing recommendations
-- **`test_comprehensiveness_report.md`** - Test comprehensiveness report
-- **`test_coverage_report.md`** - Detailed coverage report
-- **`vulnerability_discovery_report.md`** - Security vulnerability analysis
+- **`README.md`** (root) - User-facing documentation and quick start guide
+- **`docs/API_REFERENCE.md`** - Comprehensive API documentation
+- **`docs/CODEBASE_STRUCTURE.md`** - This file - codebase organization
+- **`tests/README.md`** - Testing documentation and guidelines
 
 **Note:** Example scripts and configs are currently not included but may be added in the future.
 
@@ -977,7 +969,7 @@ Worker Daemon
 2. Implement command logic
 3. Register in `scheduler/cli/__init__.py`
 4. Add tests in `tests/unit/test_cli.py`
-5. Update API_REFERENCE.md
+5. Update docs/API_REFERENCE.md
 
 ### Adding a New API Endpoint
 

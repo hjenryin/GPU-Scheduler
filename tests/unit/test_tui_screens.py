@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import Mock, patch, MagicMock, create_autospec, PropertyMock
 from datetime import datetime, timedelta
-from textual.widgets import Input, DataTable, Static
+from textual.widgets import Input, DataTable, Static, TextArea
 from scheduler.core import Config
 
 from scheduler.tui.screens.cluster import ClusterScreen
@@ -41,15 +41,15 @@ class TestClusterScreen:
         # Mock the static widgets (use spec_set for Textual widgets)
         mock_summary = create_autospec(Static, instance=True, spec_set=True)
         mock_node_table = create_autospec(DataTable, instance=True, spec_set=True)
-        mock_gpu_bars = Mock()
+        mock_gpu_bars = create_autospec(Static, instance=True, spec_set=True)  # External C library (Textual)
         mock_job_table = create_autospec(DataTable, instance=True, spec_set=True)
-        
+
         mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#cluster-summary": mock_summary,
             "#node-table": mock_node_table,
             "#gpu-bars": mock_gpu_bars,
             "#job-table": mock_job_table
-        }.get(selector, Mock())
+        }.get(selector, Mock(spec=[]))  # Fallback mock
 
         # Call with threshold parameters
         screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
@@ -68,8 +68,11 @@ class TestClusterScreen:
         
         mock_node_table = create_autospec(DataTable, instance=True, spec_set=True)
         mock_query_one.side_effect = lambda self, selector, widget_type: {
-            "#node-table": mock_node_table
-        }.get(selector, Mock())
+            "#node-table": mock_node_table,
+            "#cluster-summary": create_autospec(Static, instance=True, spec_set=True),
+            "#gpu-bars": create_autospec(Static, instance=True, spec_set=True),
+            "#job-table": create_autospec(DataTable, instance=True, spec_set=True)
+        }.get(selector, Mock(spec=[]))  # Fallback mock
 
         screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
@@ -85,7 +88,7 @@ class TestClusterScreen:
         
         mock_summary = create_autospec(Static, instance=True, spec_set=True)
         mock_node_table = create_autospec(DataTable, instance=True, spec_set=True)
-        mock_gpu_bars = Mock()
+        mock_gpu_bars = create_autospec(Static, instance=True, spec_set=True)  # External C library (Textual)
         mock_job_table = create_autospec(DataTable, instance=True, spec_set=True)
         
         mock_query_one.side_effect = lambda self, selector, widget_type: {
@@ -93,7 +96,7 @@ class TestClusterScreen:
             "#node-table": mock_node_table,
             "#gpu-bars": mock_gpu_bars,
             "#job-table": mock_job_table
-        }.get(selector, Mock())
+        }.get(selector, Mock(spec=[]))  # Fallback mock
 
         screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
@@ -113,10 +116,13 @@ class TestClusterScreen:
         """Test GPU bars update."""
         screen = ClusterScreen()
         
-        mock_gpu_bars = Mock()
+        mock_gpu_bars = create_autospec(Static, instance=True, spec_set=True)  # External C library (Textual)
         mock_query_one.side_effect = lambda self, selector, widget_type: {
-            "#gpu-bars": mock_gpu_bars
-        }.get(selector, Mock())
+            "#gpu-bars": mock_gpu_bars,
+            "#cluster-summary": create_autospec(Static, instance=True, spec_set=True),
+            "#node-table": create_autospec(DataTable, instance=True, spec_set=True),
+            "#job-table": create_autospec(DataTable, instance=True, spec_set=True)
+        }.get(selector, Mock(spec=[]))  # Fallback mock
 
         screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
@@ -132,8 +138,11 @@ class TestClusterScreen:
         
         mock_job_table = create_autospec(DataTable, instance=True, spec_set=True)
         mock_query_one.side_effect = lambda self, selector, widget_type: {
-            "#job-table": mock_job_table
-        }.get(selector, Mock())
+            "#job-table": mock_job_table,
+            "#cluster-summary": create_autospec(Static, instance=True, spec_set=True),
+            "#node-table": create_autospec(DataTable, instance=True, spec_set=True),
+            "#gpu-bars": create_autospec(Static, instance=True, spec_set=True)
+        }.get(selector, Mock(spec=[]))  # Fallback mock
 
         screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
@@ -168,8 +177,12 @@ class TestNodesScreen:
         
         mock_nodes_list = create_autospec(DataTable, instance=True, spec_set=True)
         mock_query_one.side_effect = lambda self, selector, widget_type: {
-            "#nodes-list": mock_nodes_list
-        }.get(selector, Mock())
+            "#nodes-list": mock_nodes_list,
+            "#node-detail-header": create_autospec(Static, instance=True, spec_set=True),
+            "#node-detail-info": create_autospec(Static, instance=True, spec_set=True),
+            "#gpu-detail-table": create_autospec(DataTable, instance=True, spec_set=True),
+            "#jobs-detail-list": create_autospec(Static, instance=True, spec_set=True)
+        }.get(selector, Mock(spec=[]))  # Fallback mock
 
         screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
@@ -185,12 +198,12 @@ class TestNodesScreen:
         screen.selected_node = None
         
         mock_query_one.side_effect = lambda self, selector, widget_type: {
-            "#nodes-list": Mock(),
-            "#node-detail-header": Mock(),
-            "#node-detail-info": Mock(),
-            "#gpu-detail-table": Mock(),
-            "#jobs-detail-list": Mock()
-        }.get(selector, Mock())
+            "#nodes-list": create_autospec(DataTable, instance=True, spec_set=True),  # Textual widget
+            "#node-detail-header": create_autospec(Static, instance=True, spec_set=True),  # Textual widget
+            "#node-detail-info": create_autospec(Static, instance=True, spec_set=True),  # Textual widget
+            "#gpu-detail-table": create_autospec(DataTable, instance=True, spec_set=True),  # Textual widget
+            "#jobs-detail-list": create_autospec(Static, instance=True, spec_set=True)  # Textual widget
+        }.get(selector, Mock(spec=[]))  # Fallback mock
 
         screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
@@ -205,11 +218,11 @@ class TestNodesScreen:
         screen.jobs_data = mock_jobs
         
         mock_query_one.side_effect = lambda self, selector, widget_type: {
-            "#node-detail-header": Mock(),
-            "#node-detail-info": Mock(),
-            "#gpu-detail-table": Mock(),
-            "#jobs-detail-list": Mock()
-        }.get(selector, Mock())
+            "#node-detail-header": create_autospec(Static, instance=True, spec_set=True),  # Textual widget
+            "#node-detail-info": create_autospec(Static, instance=True, spec_set=True),  # Textual widget
+            "#gpu-detail-table": create_autospec(DataTable, instance=True, spec_set=True),  # Textual widget
+            "#jobs-detail-list": create_autospec(Static, instance=True, spec_set=True)  # Textual widget
+        }.get(selector, Mock(spec=[]))  # Fallback mock
 
         selected_node = mock_nodes[0].node_name
         screen.on_node_selected(selected_node)
@@ -223,9 +236,9 @@ class TestNodesScreen:
         screen.nodes_data = mock_nodes
         screen.jobs_data = mock_jobs
         
-        mock_header = Mock()
-        mock_info = Mock()
-        mock_gpu_table = Mock()
+        mock_header = create_autospec(Static, instance=True, spec_set=True)  # Textual widget
+        mock_info = create_autospec(Static, instance=True, spec_set=True)  # Textual widget
+        mock_gpu_table = create_autospec(DataTable, instance=True, spec_set=True)  # Textual widget
         mock_jobs_list = create_autospec(Static, instance=True, spec_set=True)
         
         mock_query_one.side_effect = lambda self, selector, widget_type: {
@@ -233,7 +246,7 @@ class TestNodesScreen:
             "#node-detail-info": mock_info,
             "#gpu-detail-table": mock_gpu_table,
             "#jobs-detail-list": mock_jobs_list
-        }.get(selector, Mock())
+        }.get(selector, Mock(spec=[]))  # Fallback mock
 
         node_name = mock_nodes[0].node_name
         screen._update_node_details(node_name)
@@ -271,7 +284,7 @@ class TestJobsScreen:
         mock_jobs_table = create_autospec(DataTable, instance=True, spec_set=True)
         mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#jobs-table": mock_jobs_table
-        }.get(selector, Mock())
+        }.get(selector, Mock(spec=[]))  # Fallback mock
 
         screen.update_data(mock_jobs)
 
@@ -288,7 +301,7 @@ class TestJobsScreen:
         mock_jobs_table = create_autospec(DataTable, instance=True, spec_set=True)
         mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#jobs-table": mock_jobs_table
-        }.get(selector, Mock())
+        }.get(selector, Mock(spec=[]))  # Fallback mock
 
         screen._refresh_table()
 
@@ -306,7 +319,7 @@ class TestJobsScreen:
         mock_jobs_table = create_autospec(DataTable, instance=True, spec_set=True)
         mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#jobs-table": mock_jobs_table
-        }.get(selector, Mock())
+        }.get(selector, Mock(spec=[]))  # Fallback mock
 
         screen._refresh_table()
 
@@ -320,7 +333,7 @@ class TestJobsScreen:
         
         with patch.object(screen, '_refresh_table') as mock_refresh:
             with patch.object(screen, 'query_one') as mock_query:
-                mock_filter_status = Mock()
+                mock_filter_status = create_autospec(Static, instance=True, spec_set=True)  # Textual widget
                 mock_query.return_value = mock_filter_status
 
                 # Test pending filter
@@ -344,7 +357,7 @@ class TestJobsScreen:
         screen = JobsScreen()
         
         with patch.object(screen, 'query_one') as mock_query:
-            mock_input = Mock()
+            mock_input = create_autospec(Input, instance=True, spec_set=True)  # Textual widget
             mock_query.return_value = mock_input
 
             screen.action_focus_search()
@@ -359,8 +372,8 @@ class TestJobsScreen:
         
         with patch.object(screen, '_refresh_table') as mock_refresh:
             # Create mock event
-            event = Mock()
-            event.input = Mock()
+            event = Mock(spec=['input', 'value'])  # Event data structure
+            event.input = create_autospec(Input, instance=True, spec_set=True)  # Textual widget
             event.input.id = "search-input"
             event.value = "test search"
 
@@ -392,7 +405,7 @@ class TestJobsScreen:
         
         with patch.object(screen, 'query_one') as mock_query:
             # Create mock input widget
-            mock_input = Mock(spec=Input)
+            mock_input = create_autospec(Input, instance=True, spec_set=True)
             mock_input.has_focus = True
             mock_query.return_value = mock_input
             
@@ -415,7 +428,7 @@ class TestJobsScreen:
         
         with patch.object(screen, 'query_one') as mock_query:
             # Create mock input widget that is not focused
-            mock_input = Mock(spec=Input)
+            mock_input = create_autospec(Input, instance=True, spec_set=True)
             mock_input.has_focus = False
             mock_query.return_value = mock_input
             
@@ -455,11 +468,11 @@ class TestGPUsScreen:
         """Test GPUs data update."""
         screen = GPUsScreen()
         
-        mock_gpu_table = Mock()
+        mock_gpu_table = create_autospec(DataTable, instance=True, spec_set=True)  # Textual widget
         mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#gpus-table": mock_gpu_table,
-            "#gpu-summary": Mock()
-        }.get(selector, Mock())
+            "#gpu-summary": create_autospec(Static, instance=True, spec_set=True)  # Textual widget
+        }.get(selector, Mock(spec=[]))  # Fallback mock
 
         screen.update_data(mock_nodes, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
 
@@ -514,7 +527,7 @@ class TestJobDetailScreen:
             "#job-metadata": mock_metadata,
             "#job-config": mock_config,
             "#logs-preview": mock_logs
-        }.get(selector, Mock())
+        }.get(selector, Mock(spec=[]))  # Fallback mock
 
         screen.update_data(mock_job_running)
 
@@ -532,7 +545,7 @@ class TestJobDetailScreen:
         assert callable(screen.action_cancel_job)
         
         # Test that it handles missing app gracefully
-        screen.job_data = Mock()
+        screen.job_data = Mock(spec=['status'])  # Data structure with status field
         screen.job_data.status = JobStatus.RUNNING
         
         # Mock the app property (it's a property on Screen that returns the parent App)
@@ -559,16 +572,17 @@ class TestJobDetailScreen:
         with patch.object(screen.__class__, 'app', new_callable=PropertyMock) as mock_app_property:
             mock_app_property.return_value = mock_app_instance
             with patch.object(screen, 'query_one') as mock_query:
-                mock_logs = Mock()
-                mock_header = Mock()
+                mock_logs = create_autospec(TextArea, instance=True, spec_set=True)  # Textual widget
+                mock_header = create_autospec(Static, instance=True, spec_set=True)  # Textual widget
                 mock_query.side_effect = lambda selector, widget_type: {
                     "#logs-preview": mock_logs,
                     "#logs-header": mock_header
-                }.get(selector, Mock())
+                }.get(selector, Mock(spec=[]))  # Fallback mock
                 
                 screen.action_view_logs()
                 
                 # Should call get_job_logs method on app.client
                 mock_app_instance.client.get_job_logs.assert_called()
-                mock_logs.update.assert_called_once()
+                # Actual code calls load_text, not update
+                mock_logs.load_text.assert_called_once()
                 mock_header.update.assert_called_once_with("Full Logs")
