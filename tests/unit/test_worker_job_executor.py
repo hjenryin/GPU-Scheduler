@@ -403,7 +403,7 @@ class TestJobExecutor:
         executor = JobExecutor(test_config)
         
         # Mock git snapshot manager - use Mock with side_effect for correct signature
-        executor.git_snapshot.restore_snapshot = Mock(side_effect=lambda job_id, snapshot_ref, working_dir, target_dir: True)
+        executor.git_snapshot.restore_snapshot = Mock(spec=[], side_effect=lambda job_id, snapshot_ref, working_dir, target_dir: True)
         
         # Create job with snapshot
         job = Job(
@@ -441,7 +441,7 @@ class TestJobExecutor:
         executor = JobExecutor(test_config)
         
         # Mock git snapshot manager - use Mock with side_effect for correct signature
-        executor.git_snapshot.restore_snapshot = Mock(side_effect=lambda job_id, snapshot_ref, working_dir, target_dir: True)
+        executor.git_snapshot.restore_snapshot = Mock(spec=[], side_effect=lambda job_id, snapshot_ref, working_dir, target_dir: True)
         
         # Create job with script in subdirectory
         job = Job(
@@ -474,7 +474,7 @@ class TestJobExecutor:
         executor = JobExecutor(test_config)
 
         # Mock git snapshot manager to fail restore
-        executor.git_snapshot.restore_snapshot = Mock(side_effect=lambda job_id, snapshot_ref, working_dir, target_dir: False)
+        executor.git_snapshot.restore_snapshot = Mock(spec=[], side_effect=lambda job_id, snapshot_ref, working_dir, target_dir: False)
         
         # Create job with snapshot
         job = Job(
@@ -504,7 +504,7 @@ class TestJobExecutor:
         executor = JobExecutor(test_config)
         
         # Mock git snapshot manager
-        executor.git_snapshot.cleanup_snapshot = Mock(side_effect=lambda job_id, snapshot_ref, working_dir, worktree_path: "completion_ref")
+        executor.git_snapshot.cleanup_snapshot = Mock(spec=[], side_effect=lambda job_id, snapshot_ref, working_dir, worktree_path: "completion_ref")
         
         # Create job with snapshot
         job = Job(
@@ -567,8 +567,8 @@ class TestJobExecutor:
         # Mock git snapshot manager to fail completion snapshot
         def raise_error(job_id, working_dir):
             raise Exception("Snapshot failed")
-        executor.git_snapshot.create_snapshot = Mock(side_effect=raise_error)
-        executor.git_snapshot.cleanup_snapshot = Mock(side_effect=lambda job_id, snapshot_ref, working_dir, worktree_path: None)
+        executor.git_snapshot.create_snapshot = Mock(spec=[], side_effect=raise_error)
+        executor.git_snapshot.cleanup_snapshot = Mock(spec=[], side_effect=lambda job_id, snapshot_ref, working_dir, worktree_path: None)
         
         # Create job with snapshot
         job = Job(
@@ -604,7 +604,7 @@ class TestJobExecutor:
         executor = JobExecutor(test_config)
         
         # Mock git snapshot manager - use Mock with side_effect for correct signature
-        executor.git_snapshot.restore_snapshot = Mock(side_effect=lambda job_id, snapshot_ref, working_dir, target_dir: True)
+        executor.git_snapshot.restore_snapshot = Mock(spec=[], side_effect=lambda job_id, snapshot_ref, working_dir, target_dir: True)
         executor.git_snapshot.cleanup_snapshot = create_autospec(GitSnapshotManager.cleanup_snapshot)
         
         # Create job with snapshot

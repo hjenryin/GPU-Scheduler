@@ -18,9 +18,9 @@ from scheduler.api.client import SchedulerClient
 from scheduler.core.models import Node
 
 
-@patch('scheduler.cli.stop.is_daemon_running')
-@patch('scheduler.cli.stop.os.path.exists')
-@patch('scheduler.cli.stop.os.listdir')
+@patch('scheduler.cli.stop.is_daemon_running', autospec=True)
+@patch('scheduler.cli.stop.os.path.exists', autospec=True)
+@patch('scheduler.cli.stop.os.listdir', autospec=True)
 def test_stop_command_no_workers_found(mock_listdir, mock_exists, mock_is_daemon):
     """Test stop_command when no workers are running"""
     mock_exists.return_value = True
@@ -31,9 +31,9 @@ def test_stop_command_no_workers_found(mock_listdir, mock_exists, mock_is_daemon
     assert result == 1
 
 
-@patch('scheduler.cli.stop.is_daemon_running')
-@patch('scheduler.cli.stop.os.path.exists')
-@patch('scheduler.cli.stop.os.listdir')
+@patch('scheduler.cli.stop.is_daemon_running', autospec=True)
+@patch('scheduler.cli.stop.os.path.exists', autospec=True)
+@patch('scheduler.cli.stop.os.listdir', autospec=True)
 @patch('scheduler.cli.stop._stop_daemon')
 def test_stop_command_with_head_warning(mock_stop_daemon, mock_listdir, mock_exists, mock_is_daemon):
     """Test stop_command shows warning when head is still running"""
@@ -61,7 +61,7 @@ def test_stop_command_all_nodes(mock_stop_all):
 @patch('scheduler.cli.stop.load_config')
 @patch('scheduler.cli.stop.SchedulerClient')
 @patch('scheduler.cli.stop._stop_local_worker_nodes')
-@patch('scheduler.cli.stop.os.path.exists')
+@patch('scheduler.cli.stop.os.path.exists', autospec=True)
 def test_stop_all_nodes_from_head_success(mock_exists, mock_stop_local, mock_client_class, mock_load_config, mock_is_head):
     """Test _stop_all_nodes when running from head node - successful API call"""
     mock_is_head.return_value = True
@@ -156,8 +156,8 @@ def test_stop_all_nodes_generic_exception(mock_client_class, mock_load_config, m
     assert result == 1
 
 
-@patch('scheduler.cli.stop.is_daemon_running')
-@patch('scheduler.cli.stop.os.path.exists')
+@patch('scheduler.cli.stop.is_daemon_running', autospec=True)
+@patch('scheduler.cli.stop.os.path.exists', autospec=True)
 def test_is_running_on_head_node_true(mock_exists, mock_is_daemon):
     """Test _is_running_on_head_node returns True when head is running"""
     mock_exists.return_value = True
@@ -167,8 +167,8 @@ def test_is_running_on_head_node_true(mock_exists, mock_is_daemon):
     assert result is True
 
 
-@patch('scheduler.cli.stop.is_daemon_running')
-@patch('scheduler.cli.stop.os.path.exists')
+@patch('scheduler.cli.stop.is_daemon_running', autospec=True)
+@patch('scheduler.cli.stop.os.path.exists', autospec=True)
 def test_is_running_on_head_node_false(mock_exists, mock_is_daemon):
     """Test _is_running_on_head_node returns False when head is not running"""
     mock_exists.return_value = False
@@ -177,8 +177,8 @@ def test_is_running_on_head_node_false(mock_exists, mock_is_daemon):
     assert result is False
 
 
-@patch('scheduler.cli.stop.os.path.exists')
-@patch('scheduler.cli.stop.os.listdir')
+@patch('scheduler.cli.stop.os.path.exists', autospec=True)
+@patch('scheduler.cli.stop.os.listdir', autospec=True)
 @patch('scheduler.cli.stop._stop_daemon')
 def test_stop_local_worker_nodes_success(mock_stop_daemon, mock_listdir, mock_exists):
     """Test _stop_local_worker_nodes stops workers successfully"""
@@ -191,7 +191,7 @@ def test_stop_local_worker_nodes_success(mock_stop_daemon, mock_listdir, mock_ex
     assert mock_stop_daemon.call_count == 2
 
 
-@patch('scheduler.cli.stop.os.path.exists')
+@patch('scheduler.cli.stop.os.path.exists', autospec=True)
 def test_stop_local_worker_nodes_no_dir(mock_exists):
     """Test _stop_local_worker_nodes when scheduler dir doesn't exist"""
     mock_exists.return_value = False
@@ -200,7 +200,7 @@ def test_stop_local_worker_nodes_no_dir(mock_exists):
     assert result is False
 
 
-@patch('scheduler.cli.stop.is_daemon_running')
+@patch('scheduler.cli.stop.is_daemon_running', autospec=True)
 def test_stop_daemon_not_running(mock_is_daemon):
     """Test _stop_daemon when daemon is not running"""
     mock_is_daemon.return_value = False
@@ -209,7 +209,7 @@ def test_stop_daemon_not_running(mock_is_daemon):
     assert result is False
 
 
-@patch('scheduler.cli.stop.is_daemon_running')
+@patch('scheduler.cli.stop.is_daemon_running', autospec=True)
 @patch('builtins.open', new_callable=mock_open, read_data='{"pid": 12345}')
 @patch('scheduler.cli.stop.os.kill')
 @patch('scheduler.cli.stop.os.remove')
@@ -222,7 +222,7 @@ def test_stop_daemon_success(mock_remove, mock_kill, mock_file, mock_is_daemon):
     mock_kill.assert_called_once_with(12345, os.kill.__wrapped__.__defaults__[0] if hasattr(os.kill, '__wrapped__') else 15)
 
 
-@patch('scheduler.cli.stop.is_daemon_running')
+@patch('scheduler.cli.stop.is_daemon_running', autospec=True)
 @patch('builtins.open', new_callable=mock_open, read_data='{"no_pid": 12345}')
 @patch('scheduler.cli.stop.os.remove')
 def test_stop_daemon_no_pid_in_lockfile(mock_remove, mock_file, mock_is_daemon):
@@ -233,7 +233,7 @@ def test_stop_daemon_no_pid_in_lockfile(mock_remove, mock_file, mock_is_daemon):
     assert result is False
 
 
-@patch('scheduler.cli.stop.is_daemon_running')
+@patch('scheduler.cli.stop.is_daemon_running', autospec=True)
 @patch('builtins.open', new_callable=mock_open, read_data='invalid json')
 @patch('scheduler.cli.stop.os.remove')
 def test_stop_daemon_invalid_json(mock_remove, mock_file, mock_is_daemon):
@@ -245,7 +245,7 @@ def test_stop_daemon_invalid_json(mock_remove, mock_file, mock_is_daemon):
     mock_remove.assert_called_once()
 
 
-@patch('scheduler.cli.stop.is_daemon_running')
+@patch('scheduler.cli.stop.is_daemon_running', autospec=True)
 @patch('builtins.open', new_callable=mock_open, read_data='{"pid": 12345}')
 @patch('scheduler.cli.stop.os.kill')
 @patch('scheduler.cli.stop.os.remove')
@@ -259,7 +259,7 @@ def test_stop_daemon_process_lookup_error(mock_remove, mock_kill, mock_file, moc
     mock_remove.assert_called_once()
 
 
-@patch('scheduler.cli.stop.is_daemon_running')
+@patch('scheduler.cli.stop.is_daemon_running', autospec=True)
 @patch('builtins.open', new_callable=mock_open, read_data='{"pid": 12345}')
 @patch('scheduler.cli.stop.os.kill')
 @patch('scheduler.cli.stop.os.remove')
@@ -272,7 +272,7 @@ def test_stop_daemon_permission_error(mock_remove, mock_kill, mock_file, mock_is
     assert result is False
 
 
-@patch('scheduler.cli.stop.is_daemon_running')
+@patch('scheduler.cli.stop.is_daemon_running', autospec=True)
 @patch('builtins.open', new_callable=mock_open, read_data='{"pid": 12345}')
 @patch('scheduler.cli.stop.os.kill')
 @patch('scheduler.cli.stop.os.remove')
@@ -340,7 +340,7 @@ def test_stop_all_nodes_from_head_list_nodes_fails(mock_stop_local, mock_client_
 @patch('scheduler.cli.stop.load_config')
 @patch('scheduler.cli.stop.SchedulerClient')
 @patch('scheduler.cli.stop._stop_local_worker_nodes')
-@patch('scheduler.cli.stop.os.path.exists')
+@patch('scheduler.cli.stop.os.path.exists', autospec=True)
 def test_stop_all_nodes_from_head_no_lockfile(mock_exists, mock_stop_local, mock_client_class, mock_load_config, mock_is_head):
     """Test _stop_all_nodes when head lockfile doesn't exist after shutdown"""
     mock_is_head.return_value = True

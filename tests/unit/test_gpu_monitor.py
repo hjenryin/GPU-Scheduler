@@ -51,9 +51,10 @@ class TestGPUMonitorDetectGPUs:
     @pytest.fixture
     def monitor_pynvml(self):
         """Create monitor with mocked pynvml"""
-        mock_pynvml = MagicMock()
-        mock_pynvml.nvmlInit = MagicMock()
-        mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=2)
+        # Mock pynvml module - external C library interface
+        mock_pynvml = MagicMock()  # External library - pynvml C interface
+        mock_pynvml.nvmlInit = MagicMock()  # External library - pynvml C function
+        mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=2)  # External library - pynvml C function
         
         # Use test mode to avoid init calling detect_gpus
         with patch.dict(os.environ, {'SCHEDULER_TEST_MODE': '1'}):
@@ -148,9 +149,10 @@ class TestGPUMonitorPollGPUStats:
     @pytest.fixture
     def monitor_pynvml(self):
         """Create monitor with mocked pynvml"""
-        mock_pynvml = MagicMock()
-        mock_pynvml.nvmlInit = MagicMock()
-        mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=2)
+        # Mock pynvml module - external C library interface
+        mock_pynvml = MagicMock()  # External library - pynvml C interface
+        mock_pynvml.nvmlInit = MagicMock()  # External library - pynvml C function
+        mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=2)  # External library - pynvml C function
         
         # Use test mode to avoid init calling detect_gpus
         with patch.dict(os.environ, {'SCHEDULER_TEST_MODE': '1'}):

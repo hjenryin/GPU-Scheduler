@@ -12,7 +12,7 @@ from scheduler.api.client import SchedulerClient
 from scheduler.core.models import Job
 
 
-@patch('scheduler.cli.submit_batch.os.path.exists')
+@patch('scheduler.cli.submit_batch.os.path.exists', autospec=True)
 def test_submit_batch_file_not_found(mock_exists):
     """Test submit_batch_command when script list file doesn't exist"""
     mock_exists.return_value = False
@@ -21,8 +21,8 @@ def test_submit_batch_file_not_found(mock_exists):
     assert result == 4
 
 
-@patch('scheduler.cli.submit_batch.os.path.exists')
-@patch('builtins.open', side_effect=IOError("Cannot read file"))
+@patch('scheduler.cli.submit_batch.os.path.exists', autospec=True)
+@patch('builtins.open', side_effect=IOError("Cannot read file"))  # Cannot use autospec with side_effect
 def test_submit_batch_cannot_read_file(mock_file, mock_exists):
     """Test submit_batch_command when file cannot be read"""
     mock_exists.return_value = True
@@ -65,7 +65,7 @@ def test_submit_batch_invalid_env_var_format():
         os.unlink(filename)
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 @patch('scheduler.cli.submit_batch.SchedulerClient')
 @patch('scheduler.cli.submit_batch.os.path.exists')
 @patch('builtins.open', new_callable=mock_open, read_data='script1.py\nscript2.py\n')
@@ -92,7 +92,7 @@ def test_submit_batch_success(mock_file, mock_exists, mock_client_class, mock_lo
     assert mock_client.submit_job.call_count == 2
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 @patch('scheduler.cli.submit_batch.SchedulerClient')
 @patch('scheduler.cli.submit_batch.os.path.exists')
 @patch('builtins.open', new_callable=mock_open, read_data='script1.py arg1 arg2\nscript2.py\n')
@@ -122,7 +122,7 @@ def test_submit_batch_with_script_args(mock_file, mock_exists, mock_client_class
     assert first_call[1]['script_args'] == ['arg1', 'arg2']
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 @patch('scheduler.cli.submit_batch.SchedulerClient')
 @patch('scheduler.cli.submit_batch.os.path.exists')
 @patch('builtins.open', new_callable=mock_open, read_data='script1.py\nscript2.py\n')
@@ -152,7 +152,7 @@ def test_submit_batch_with_env_vars(mock_file, mock_exists, mock_client_class, m
     assert first_call[1]['env_vars'] == {"KEY1": "value1", "KEY2": "value2"}
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 @patch('scheduler.cli.submit_batch.SchedulerClient')
 @patch('scheduler.cli.submit_batch.os.path.exists')
 @patch('builtins.open', new_callable=mock_open, read_data='script1.py\nscript2.py\nscript3.py\n')
@@ -190,7 +190,7 @@ def test_submit_batch_sequential_mode(mock_file, mock_exists, mock_client_class,
     assert "job2" in third_call[1]['dependencies']
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 @patch('scheduler.cli.submit_batch.SchedulerClient')
 @patch('scheduler.cli.submit_batch.os.path.exists')
 @patch('builtins.open', new_callable=mock_open, read_data='script1.py\nscript2.py\n')
@@ -221,7 +221,7 @@ def test_submit_batch_with_initial_dependencies(mock_file, mock_exists, mock_cli
     assert "dep2" in first_call[1]['dependencies']
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 @patch('scheduler.cli.submit_batch.SchedulerClient')
 @patch('scheduler.cli.submit_batch.os.path.exists')
 @patch('builtins.open', new_callable=mock_open, read_data='script1.py\nscript2.py\n')
@@ -237,7 +237,7 @@ def test_submit_batch_validation_error(mock_file, mock_exists, mock_client_class
     assert result == 1
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 @patch('scheduler.cli.submit_batch.SchedulerClient')
 @patch('scheduler.cli.submit_batch.os.path.exists')
 @patch('builtins.open', new_callable=mock_open, read_data='script1.py\nscript2.py\nscript3.py\n')
@@ -263,7 +263,7 @@ def test_submit_batch_sequential_stops_on_error(mock_file, mock_exists, mock_cli
     assert mock_client.submit_job.call_count == 2  # Should stop after second job fails
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 @patch('scheduler.cli.submit_batch.SchedulerClient')
 @patch('scheduler.cli.submit_batch.os.path.exists')
 @patch('builtins.open', new_callable=mock_open, read_data='script1.py\nscript2.py\nscript3.py\n')
@@ -287,7 +287,7 @@ def test_submit_batch_connection_error(mock_file, mock_exists, mock_client_class
     assert result == 1
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 @patch('scheduler.cli.submit_batch.SchedulerClient')
 @patch('scheduler.cli.submit_batch.os.path.exists')
 @patch('builtins.open', new_callable=mock_open, read_data='script1.py\nscript2.py\n')
@@ -311,7 +311,7 @@ def test_submit_batch_generic_exception(mock_file, mock_exists, mock_client_clas
     assert result == 1
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 def test_submit_batch_validation_exception_on_connect(mock_load_config):
     """Test submit_batch_command when ValidationException on connection"""
     mock_load_config.side_effect = ValidationException("Invalid config")
@@ -328,7 +328,7 @@ def test_submit_batch_validation_exception_on_connect(mock_load_config):
         os.unlink(filename)
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 def test_submit_batch_connection_exception_on_connect(mock_load_config):
     """Test submit_batch_command when ConnectionException on connection"""
     mock_load_config.side_effect = ConnectionException("Cannot connect")
@@ -345,7 +345,7 @@ def test_submit_batch_connection_exception_on_connect(mock_load_config):
         os.unlink(filename)
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 def test_submit_batch_generic_exception_on_connect(mock_load_config):
     """Test submit_batch_command when generic exception on connection"""
     mock_load_config.side_effect = RuntimeError("Unexpected error")
@@ -362,7 +362,7 @@ def test_submit_batch_generic_exception_on_connect(mock_load_config):
         os.unlink(filename)
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 @patch('scheduler.cli.submit_batch.SchedulerClient')
 @patch('scheduler.cli.submit_batch.os.path.exists')
 @patch('builtins.open', new_callable=mock_open, read_data='script1.py\nscript2.py\n')
@@ -389,7 +389,7 @@ def test_submit_batch_with_resolved_dependencies(mock_file, mock_exists, mock_cl
     assert result == 0
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 @patch('scheduler.cli.submit_batch.SchedulerClient')
 @patch('scheduler.cli.submit_batch.os.path.exists')
 @patch('builtins.open', new_callable=mock_open, read_data='/path/to/script1.py\nbare_command\n')
@@ -419,7 +419,7 @@ def test_submit_batch_path_resolution(mock_abspath, mock_dirname, mock_file, moc
     assert result == 0
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 @patch('scheduler.cli.submit_batch.SchedulerClient')
 @patch('scheduler.cli.submit_batch.os.path.exists')
 @patch('builtins.open', new_callable=mock_open, read_data='script1.py\nscript2.py\nscript3.py\n')
@@ -444,7 +444,7 @@ def test_submit_batch_sequential_with_connection_error(mock_file, mock_exists, m
     assert mock_client.submit_job.call_count == 2
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 @patch('scheduler.cli.submit_batch.SchedulerClient')
 @patch('scheduler.cli.submit_batch.os.path.exists')
 @patch('builtins.open', new_callable=mock_open, read_data='script1.py\nscript2.py\nscript3.py\n')
@@ -469,7 +469,7 @@ def test_submit_batch_sequential_with_generic_error(mock_file, mock_exists, mock
     assert mock_client.submit_job.call_count == 2
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 @patch('scheduler.cli.submit_batch.SchedulerClient')
 @patch('scheduler.cli.submit_batch.os.path.exists')
 @patch('builtins.open', new_callable=mock_open, read_data='script1.py\nscript2.py\n')
@@ -499,7 +499,7 @@ def test_submit_batch_with_working_dir(mock_file, mock_exists, mock_client_class
     assert first_call[1]['working_dir'] == "/custom/dir"
 
 
-@patch('scheduler.cli.submit_batch.load_config')
+@patch('scheduler.cli.submit_batch.load_config', autospec=True)
 @patch('scheduler.cli.submit_batch.SchedulerClient')
 @patch('scheduler.cli.submit_batch.os.path.exists')
 @patch('scheduler.cli.submit_batch.os.getcwd')
