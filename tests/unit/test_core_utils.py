@@ -377,9 +377,12 @@ class TestFindAvailablePortException:
     def test_find_available_port_no_ports_available(self):
         """Test find_available_port raises exception when no ports available"""
         from scheduler.core.exceptions import PermissionDeniedException
-        # Try to find port in range where all ports are likely in use or privileged
-        with pytest.raises(PermissionDeniedException):
-            find_available_port(start_port=1, max_attempts=1)
+        from unittest.mock import patch
+
+        # Mock is_port_available to always return False, simulating no ports available
+        with patch('scheduler.core.utils.is_port_available', return_value=False):
+            with pytest.raises(PermissionDeniedException):
+                find_available_port(start_port=8000, max_attempts=5)
 
 
 class TestGenerateVersionedFilenameEdgeCases:

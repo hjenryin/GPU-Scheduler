@@ -9,36 +9,238 @@ Enforces the mock specification guidelines from tests/README.md:
 4. Use spec (not spec_set) only for external libraries when necessary
 
 This prevents API mismatches from going undetected in tests.
+
+Uses AST parsing for accurate detection of mock usage patterns.
 """
 
-import os
-import re
+import ast
 import sys
 from pathlib import Path
-from typing import List, Tuple, Dict
+from typing import List, Dict, Set, Optional
 
-# Patterns to detect mock usage
-BARE_MOCK_PATTERN = re.compile(r'\b(Mock|MagicMock)\(\s*\)', re.IGNORECASE)
-MOCK_WITH_SPEC_PATTERN = re.compile(r'\b(Mock|MagicMock)\(.*?(?:spec|autospec)=', re.IGNORECASE)
-PATCH_WITHOUT_AUTOSPEC = re.compile(r'@patch\([\'"][\w.]+[\'"](?!.*autospec)', re.IGNORECASE)
-PATCH_WITH_AUTOSPEC = re.compile(r'@patch\([\'"][\w.]+[\'"].*autospec=True', re.IGNORECASE)
-CREATE_AUTOSPEC_WITHOUT_SPEC_SET = re.compile(r'create_autospec\([^)]+\)(?!.*spec_set=True)', re.IGNORECASE)
-MOCK_OPEN_PATTERN = re.compile(r'mock_open\(')
 
-# Allowed bare Mock() patterns (exceptions)
-ALLOWED_EXCEPTIONS = [
-    r'Mock\(side_effect=',  # Mock with side_effect is often okay
-    r'Mock\(return_value=',  # Mock with return_value is often okay
-    r'Mock\(spec=subprocess\.CompletedProcess\)',  # External library spec
-    r'Mock\(spec=[A-Z]\w+\)',  # Mock with spec parameter
-    r'MagicMock\(\).*# Mock.*(?:pynvml|module|C library)',  # Documented exceptions
-    r'app\.\w+ = Mock\(\)',  # TUI app method mocks (simple behavior mocks)
-    r'screen\.\w+ = Mock\(\)',  # TUI screen method mocks
-    r'table\.\w+ = Mock\(\)',  # TUI table method mocks
-    r'widget\.\w+ = Mock\(\)',  # TUI widget method mocks
-]
+# Known external libraries that can't use autospec
+EXTERNAL_LIBRARIES = {
+    'pynvml',
+    'subprocess',
+    'httpx',
+    'requests',
+}
 
-EXCEPTION_PATTERNS = [re.compile(pattern) for pattern in ALLOWED_EXCEPTIONS]
+# Known internal scheduler classes
+INTERNAL_CLASSES = {
+    'GPUMonitor', 'SchedulerClient', 'JobManager', 'NodeManager',
+    'Job', 'Node', 'Orchestrator', 'HeartbeatManager', 'FileHandler',
+    'GitSnapshot', 'WorkerDaemon', 'JobExecutor',
+}
+
+
+class MockVisitor(ast.NodeVisitor):
+    """AST visitor to detect mock usage violations"""
+
+    def __init__(self, source_lines: List[str]):
+        self.violations = []
+        self.source_lines = source_lines
+        self.scheduler_imports = set()  # Track scheduler imports
+        self.in_function = False
+
+    def visit_ImportFrom(self, node: ast.ImportFrom):
+        """Track imports from scheduler modules"""
+        if node.module and node.module.startswith('scheduler.'):
+            for alias in node.names:
+                self.scheduler_imports.add(alias.name)
+        self.generic_visit(node)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef):
+        """Track when we're inside a function and check decorators"""
+        old_in_function = self.in_function
+        self.in_function = True
+
+        # Check @patch decorators
+        for decorator in node.decorator_list:
+            self._check_patch_decorator(decorator)
+
+        self.generic_visit(node)
+        self.in_function = old_in_function
+
+    def visit_Call(self, node: ast.Call):
+        """Check Mock() and create_autospec() calls"""
+        func_name = self._get_func_name(node.func)
+
+        if func_name in ('Mock', 'MagicMock'):
+            self._check_bare_mock(node)
+        elif func_name == 'create_autospec':
+            self._check_create_autospec(node)
+
+        self.generic_visit(node)
+
+    def _get_func_name(self, node: ast.expr) -> Optional[str]:
+        """Get the function name from a call node"""
+        if isinstance(node, ast.Name):
+            return node.id
+        elif isinstance(node, ast.Attribute):
+            return node.attr
+        return None
+
+    def _get_line(self, lineno: int) -> str:
+        """Get source line by number"""
+        if 0 < lineno <= len(self.source_lines):
+            return self.source_lines[lineno - 1].strip()
+        return ""
+
+    def _has_keyword(self, node: ast.Call, keyword: str) -> bool:
+        """Check if a call has a specific keyword argument"""
+        return any(kw.arg == keyword for kw in node.keywords)
+
+    def _get_keyword_value(self, node: ast.Call, keyword: str) -> Optional[ast.expr]:
+        """Get the value of a keyword argument"""
+        for kw in node.keywords:
+            if kw.arg == keyword:
+                return kw.value
+        return None
+
+    def _is_behavior_mock(self, node: ast.Call) -> bool:
+        """Check if this is a simple behavior mock (side_effect, return_value)"""
+        return (self._has_keyword(node, 'side_effect') or
+                self._has_keyword(node, 'return_value'))
+
+    def _is_attribute_assignment(self, node: ast.Call) -> bool:
+        """Check if Mock() is being assigned to an attribute (e.g., app.method = Mock())"""
+        # Walk up the tree to see if this is part of an attribute assignment
+        parent = getattr(node, '_parent', None)
+        if isinstance(parent, ast.Assign):
+            for target in parent.targets:
+                if isinstance(target, ast.Attribute):
+                    return True
+        return False
+
+    def _check_bare_mock(self, node: ast.Call):
+        """Check for bare Mock() without specs"""
+        # Skip if it has spec, autospec, or spec_set
+        if (self._has_keyword(node, 'spec') or
+            self._has_keyword(node, 'autospec') or
+            self._has_keyword(node, 'spec_set')):
+            return
+
+        # Skip behavior mocks (side_effect, return_value)
+        if self._is_behavior_mock(node):
+            return
+
+        # Skip attribute assignments (e.g., app.method = Mock())
+        if self._is_attribute_assignment(node):
+            return
+
+        # Skip if near mock_open (check 3 lines before and after)
+        line = node.lineno
+        context_lines = self.source_lines[max(0, line-4):min(len(self.source_lines), line+3)]
+        if any('mock_open' in l for l in context_lines):
+            return
+
+        # Check for explanatory comment
+        source_line = self._get_line(line)
+        if any(marker in source_line for marker in ['# Mock', '# Cannot use', '# External']):
+            return
+
+        func_name = self._get_func_name(node.func)
+        self.violations.append({
+            'file': '<will be set by caller>',
+            'line': node.lineno,
+            'code': self._get_line(node.lineno),
+            'type': 'bare_mock',
+            'error': (
+                f'Bare {func_name}() without spec. Use create_autospec(ClassName, instance=True, spec_set=True) '
+                'or Mock(spec=ClassName) instead.'
+            )
+        })
+
+    def _check_patch_decorator(self, decorator: ast.expr):
+        """Check @patch() decorators for autospec=True"""
+        # Handle @patch(...) and @patch.object(...)
+        if isinstance(decorator, ast.Call):
+            func = decorator.func
+
+            # Skip @patch.object
+            if isinstance(func, ast.Attribute) and func.attr == 'object':
+                return
+
+            # Check if it's @patch
+            func_name = self._get_func_name(func)
+            if func_name != 'patch':
+                return
+
+            # Skip if autospec is present
+            if self._has_keyword(decorator, 'autospec'):
+                return
+
+            # Skip if new_callable is used (e.g., new_callable=mock_open)
+            if self._has_keyword(decorator, 'new_callable'):
+                return
+
+            # Check for explanatory comment
+            source_line = self._get_line(decorator.lineno)
+            if any(marker in source_line for marker in ['# Mock', '# Cannot use', '# External']):
+                return
+
+            # Check if near mock_open
+            line = decorator.lineno
+            context_lines = self.source_lines[max(0, line-3):min(len(self.source_lines), line+3)]
+            if any('mock_open' in l for l in context_lines):
+                return
+
+            self.violations.append({
+                'file': '<will be set by caller>',
+                'line': decorator.lineno,
+                'code': self._get_line(decorator.lineno),
+                'type': 'patch_no_autospec',
+                'error': (
+                    '@patch() decorator missing autospec=True. '
+                    'Add autospec=True to validate function signatures.'
+                )
+            })
+
+    def _check_create_autospec(self, node: ast.Call):
+        """Check create_autospec() for spec_set=True on internal code"""
+        # Skip if spec_set is already present
+        if self._has_keyword(node, 'spec_set'):
+            return
+
+        # Try to determine if this is internal scheduler code
+        if not node.args:
+            return
+
+        # Get the class being mocked
+        first_arg = node.args[0]
+        class_name = None
+
+        if isinstance(first_arg, ast.Name):
+            class_name = first_arg.id
+        elif isinstance(first_arg, ast.Attribute):
+            class_name = first_arg.attr
+
+        if not class_name:
+            return
+
+        # Check if it's an internal class
+        is_internal = (
+            class_name in INTERNAL_CLASSES or
+            class_name in self.scheduler_imports
+        )
+
+        # For external libraries, spec_set is optional
+        if any(lib in self._get_line(node.lineno).lower() for lib in EXTERNAL_LIBRARIES):
+            is_internal = False
+
+        if is_internal:
+            self.violations.append({
+                'file': '<will be set by caller>',
+                'line': node.lineno,
+                'code': self._get_line(node.lineno),
+                'type': 'autospec_no_spec_set',
+                'error': (
+                    f'create_autospec({class_name}) for internal code should use spec_set=True. '
+                    'Add spec_set=True to catch attribute typos.'
+                )
+            })
 
 
 def get_test_files() -> List[Path]:
@@ -47,138 +249,34 @@ def get_test_files() -> List[Path]:
     return [f for f in test_dir.rglob("test_*.py") if "__pycache__" not in str(f)]
 
 
-def is_exception(line: str, context_lines: List[str]) -> bool:
-    """Check if this mock usage is an allowed exception"""
-    # Check current line for exceptions
-    for pattern in EXCEPTION_PATTERNS:
-        if pattern.search(line):
-            return True
+def check_file(file_path: Path) -> List[Dict]:
+    """Check a single file for mock violations using AST"""
+    try:
+        with open(file_path, 'r') as f:
+            source = f.read()
+            source_lines = source.splitlines()
 
-    # Check if mock_open is nearby (cannot use autospec)
-    for ctx_line in context_lines:
-        if MOCK_OPEN_PATTERN.search(ctx_line):
-            return True
+        # Parse the AST
+        tree = ast.parse(source, filename=str(file_path))
 
-    # Check if there's a comment explaining the exception
-    if '# Mock' in line or '# Cannot use' in line or '# External' in line:
-        return True
+        # Add parent references for context
+        for parent in ast.walk(tree):
+            for child in ast.iter_child_nodes(parent):
+                child._parent = parent
 
-    return False
+        # Visit the AST
+        visitor = MockVisitor(source_lines)
+        visitor.visit(tree)
 
+        # Set the file path for all violations
+        for violation in visitor.violations:
+            violation['file'] = str(file_path)
 
-def check_bare_mocks(file_path: Path) -> List[Dict]:
-    """Check for bare Mock() or MagicMock() without specifications"""
-    violations = []
+        return visitor.violations
 
-    with open(file_path, 'r') as f:
-        lines = f.readlines()
-
-    for line_num, line in enumerate(lines, 1):
-        # Skip comments
-        if line.strip().startswith('#'):
-            continue
-
-        # Check for bare Mock() or MagicMock()
-        bare_match = BARE_MOCK_PATTERN.search(line)
-        if bare_match:
-            # Check if it has spec in the same line or is an exception
-            spec_match = MOCK_WITH_SPEC_PATTERN.search(line)
-            context = lines[max(0, line_num-3):min(len(lines), line_num+2)]
-
-            if not spec_match and not is_exception(line, context):
-                violations.append({
-                    'file': str(file_path),
-                    'line': line_num,
-                    'code': line.strip(),
-                    'type': 'bare_mock',
-                    'error': (
-                        'Bare Mock() without spec. Use create_autospec(ClassName, instance=True, spec_set=True) '
-                        'or Mock(spec=ClassName) instead.'
-                    )
-                })
-
-    return violations
-
-
-def check_patch_decorators(file_path: Path) -> List[Dict]:
-    """Check for @patch() decorators without autospec=True"""
-    violations = []
-
-    with open(file_path, 'r') as f:
-        lines = f.readlines()
-
-    for line_num, line in enumerate(lines, 1):
-        # Check for @patch without autospec
-        if '@patch' in line and 'autospec' not in line:
-            # Check if it's @patch.object (different rules)
-            if '@patch.object' in line:
-                continue
-
-            # Check for exceptions (mock_open, etc.)
-            context = lines[max(0, line_num-2):min(len(lines), line_num+3)]
-            if is_exception(line, context):
-                continue
-
-            # Check if new_callable is used (e.g., new_callable=mock_open)
-            if 'new_callable' in line:
-                continue
-
-            violations.append({
-                'file': str(file_path),
-                'line': line_num,
-                'code': line.strip(),
-                'type': 'patch_no_autospec',
-                'error': (
-                    '@patch() decorator missing autospec=True. '
-                    'Add autospec=True to validate function signatures.'
-                )
-            })
-
-    return violations
-
-
-def check_create_autospec(file_path: Path) -> List[Dict]:
-    """Check for create_autospec() without spec_set=True for internal code"""
-    violations = []
-
-    with open(file_path, 'r') as f:
-        lines = f.readlines()
-
-    for line_num, line in enumerate(lines, 1):
-        # Check for create_autospec without spec_set
-        if 'create_autospec' in line:
-            # Check if spec_set=True is present
-            if 'spec_set=True' not in line and 'spec_set=' not in line:
-                # Get context to check if this is internal or external code
-                # Look for scheduler module imports (internal code)
-                context = '\n'.join(lines[max(0, line_num-10):line_num])
-
-                # Check if we're mocking internal scheduler code
-                is_internal = any([
-                    'from scheduler.' in context,
-                    'import scheduler.' in context,
-                    'GPUMonitor' in line,
-                    'SchedulerClient' in line,
-                    'JobManager' in line,
-                    'NodeManager' in line,
-                    'Job' in line and 'scheduler' in context,
-                    'Node' in line and 'scheduler' in context,
-                ])
-
-                # For internal code, spec_set should be used
-                if is_internal:
-                    violations.append({
-                        'file': str(file_path),
-                        'line': line_num,
-                        'code': line.strip(),
-                        'type': 'autospec_no_spec_set',
-                        'error': (
-                            'create_autospec() for internal code should use spec_set=True. '
-                            'Add spec_set=True to catch attribute typos.'
-                        )
-                    })
-
-    return violations
+    except SyntaxError as e:
+        print(f"Warning: Could not parse {file_path}: {e}", file=sys.stderr)
+        return []
 
 
 def main():
@@ -187,10 +285,7 @@ def main():
     all_violations = []
 
     for file_path in test_files:
-        violations = []
-        violations.extend(check_bare_mocks(file_path))
-        violations.extend(check_patch_decorators(file_path))
-        violations.extend(check_create_autospec(file_path))
+        violations = check_file(file_path)
         all_violations.extend(violations)
 
     # Group violations by type

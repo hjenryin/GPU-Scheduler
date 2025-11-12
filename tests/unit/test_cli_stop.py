@@ -3,7 +3,7 @@ import pytest
 import os
 import json
 import signal
-from unittest.mock import Mock, patch, MagicMock, mock_open, create_autospec
+from unittest.mock import Mock, patch, MagicMock, mock_open, create_autospec, PropertyMock
 import click
 
 from scheduler.cli.stop import (
@@ -103,7 +103,8 @@ class TestStopAllNodes:
 
         mock_config = create_autospec(Config, instance=True, spec_set=True)
         mock_config.address = "localhost:9000"
-        mock_config.head.port = 9000
+        # head is set in __init__, need to use PropertyMock
+        type(mock_config).head = PropertyMock(return_value=Mock(port=9000))
         mock_load.return_value = mock_config
 
         mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
@@ -130,7 +131,8 @@ class TestStopAllNodes:
 
         mock_config = create_autospec(Config, instance=True, spec_set=True)
         mock_config.address = "configured:9000"
-        mock_config.head.port = 9000
+        # head is set in __init__, need to use PropertyMock
+        type(mock_config).head = PropertyMock(return_value=Mock(port=9000))
         mock_load.return_value = mock_config
 
         mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
@@ -156,7 +158,8 @@ class TestStopAllNodes:
 
         mock_config = create_autospec(Config, instance=True, spec_set=True)
         mock_config.address = "localhost:99999"
-        mock_config.head.port = 99999
+        # head is set in __init__, need to use PropertyMock
+        type(mock_config).head = PropertyMock(return_value=Mock(port=99999))
         mock_load.return_value = mock_config
 
         mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)

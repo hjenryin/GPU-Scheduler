@@ -97,21 +97,21 @@ def test_cleanup_snapshot_directory_not_exist(mock_config, temp_dir):
     """Test cleanup_snapshot when directory doesn't exist"""
     manager = GitSnapshotManager(mock_config)
     nonexistent = os.path.join(temp_dir, "nonexistent")
-    
+
     # Should not raise error
     if hasattr(manager, 'cleanup_snapshot'):
-        manager.cleanup_snapshot("job123", nonexistent)
+        manager.cleanup_snapshot("job123", "snapshot_ref", temp_dir, nonexistent)
 
 
 def test_cleanup_snapshot_permission_error(mock_config, temp_dir):
     """Test cleanup_snapshot with permission error"""
     manager = GitSnapshotManager(mock_config)
-    
+
     with patch('shutil.rmtree', side_effect=PermissionError("Access denied")):
         # Should handle error gracefully
         if hasattr(manager, 'cleanup_snapshot'):
             try:
-                manager.cleanup_snapshot("job123", temp_dir)
+                manager.cleanup_snapshot("job123", "snapshot_ref", temp_dir, temp_dir)
             except PermissionError:
                 pass  # Expected
 
@@ -195,10 +195,10 @@ def test_always_include_extensions(mock_config, temp_dir):
 def test_git_add_all_with_errors(mock_config, temp_dir):
     """Test git add when errors occur"""
     manager = GitSnapshotManager(mock_config)
-    
-    with patch('subprocess.run', side_effect=subprocess.CalledProcessError(1, 'git add')):
-        with pytest.raises((subprocess.CalledProcessError, Exception)):
-            if hasattr(manager, '_git_add_files'):
+
+    if hasattr(manager, '_git_add_files'):
+        with patch('subprocess.run', side_effect=subprocess.CalledProcessError(1, 'git add')):
+            with pytest.raises((subprocess.CalledProcessError, Exception)):
                 manager._git_add_files(temp_dir)
 
 

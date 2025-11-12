@@ -3,6 +3,7 @@ import pytest
 import os
 import tempfile
 import yaml
+from unittest.mock import patch
 
 from scheduler.core.config import Config, HeadConfig, WorkerConfig, StorageConfig, ClientConfig, load_config, save_config, init_config
 from scheduler.core.exceptions import ValidationException, PermissionDeniedException
@@ -284,10 +285,11 @@ class TestSaveConfig:
         """Test saving to invalid path raises exception"""
         config = Config()
 
-        # Try to save to root directory (likely permission denied)
-        if os.name != 'nt':  # Unix-like systems
+        # Mock open to raise PermissionError to test error handling
+        # regardless of running environment (root, user, etc.)
+        with patch('builtins.open', side_effect=PermissionError("Permission denied")):
             with pytest.raises(PermissionDeniedException):
-                save_config(config, "/root/config.yaml")
+                save_config(config, "/any/path/config.yaml")
 
 
 class TestInitConfig:
