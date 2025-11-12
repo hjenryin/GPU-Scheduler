@@ -17,11 +17,16 @@ from scheduler.api.routes import (
     poll_job_route,
     complete_job_route,
     fail_job_route,
-    shutdown_cluster_route
+    shutdown_cluster_route,
+    purge_job_route,
+    purge_jobs_route,
+    freeze_gpu_route,
+    unfreeze_gpu_route,
+    unfreeze_all_gpus_route
 )
 from scheduler.api.schemas import (
     JobSubmitRequest, NodeRegisterRequest, NodeHeartbeat,
-    NodeRegisterResponse
+    NodeRegisterResponse, GPUFreezeRequest
 )
 from scheduler.core.models import Job, JobStatus, JobRequirement, Node, NodeStatus, GPUStats
 from scheduler.core.exceptions import JobNotFoundException, NodeNotFoundException
@@ -747,4 +752,171 @@ class TestShutdownClusterRoute:
             assert result['all_confirmed'] == True
             mock_orchestrator.shutdown_cluster_workers.assert_called_once()
             mock_background_tasks.add_task.assert_called_once_with(mock_orchestrator.stop)
+
+
+class TestPurgeJobRoute:
+    """Tests for purge_job_route"""
+
+    @pytest.mark.asyncio
+    async def test_purge_job_success(self, mock_job_manager):
+        """Test successful job purge"""
+        result = await purge_job_route("job_123")
+
+        assert result['status'] == "purge_initiated"
+        assert result['job_id'] == "job_123"
+        mock_job_manager.purge_job.assert_called_once_with("job_123")
+
+    @pytest.mark.asyncio
+    async def test_purge_job_not_found(self, mock_job_manager):
+        """Test purging non-existent job"""
+        from scheduler.core.exceptions import JobNotFoundException
+
+        mock_job_manager.purge_job.side_effect = JobNotFoundException("Job not found")
+
+        with pytest.raises(HTTPException) as exc_info:
+            await purge_job_route("nonexistent")
+
+        assert exc_info.value.status_code == 404
+
+
+class TestPurgeJobsRoute:
+    """Tests for purge_jobs_route (bulk purge)"""
+
+    @pytest.mark.asyncio
+    async def test_purge_jobs_with_status_filter(self, mock_job_manager):
+        """Test bulk purge with status filter"""
+        mock_job_manager.purge_jobs_by_criteria.return_value = 5
+
+        result = await purge_jobs_route({"status_filter": ["completed", "failed"]})
+
+        assert result['purged_count'] == 5
+        mock_job_manager.purge_jobs_by_criteria.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_purge_jobs_with_time_filter(self, mock_job_manager):
+        """Test bulk purge with time filter"""
+        from datetime import datetime
+
+        mock_job_manager.purge_jobs_by_criteria.return_value = 3
+
+        before_time = datetime.now().isoformat()
+        result = await purge_jobs_route({"before_time": before_time})
+
+        assert result['purged_count'] == 3
+
+    @pytest.mark.asyncio
+    async def test_purge_jobs_no_filters(self, mock_job_manager):
+        """Test bulk purge with no filters (defaults)"""
+        mock_job_manager.purge_jobs_by_criteria.return_value = 10
+
+        result = await purge_jobs_route({})
+
+        assert result['purged_count'] == 10
+
+
+class TestFreezeGPURoute:
+    """Tests for freeze_gpu_route"""
+
+    @pytest.mark.asyncio
+    async def test_freeze_gpu_success(self, mock_node_manager):
+        """Test freezing a GPU successfully"""
+        from datetime import datetime, timedelta
+        
+        # Create mock node with GPUs
+        mock_node = Mock()
+        mock_gpu = Mock()
+        mock_gpu.frozen_until = datetime.now() + timedelta(seconds=3600)
+        mock_node.gpus = [mock_gpu]
+        mock_node_manager.get_node.return_value = mock_node
+
+        result = await freeze_gpu_route("node1", 0, GPUFreezeRequest(duration_seconds=3600))
+
+        assert result['status'] == "frozen"
+        assert result['node_name'] == "node1"
+        assert result['gpu_id'] == 0
+        assert 'frozen_until' in result
+        mock_gpu.freeze.assert_called_once_with(3600)
+        mock_node_manager.save_node.assert_called_once_with(mock_node)
+
+    @pytest.mark.asyncio
+    async def test_freeze_gpu_node_not_found(self, mock_node_manager):
+        """Test freezing GPU on non-existent node"""
+        mock_node_manager.get_node.return_value = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            await freeze_gpu_route("nonexistent", 0, GPUFreezeRequest(duration_seconds=3600))
+
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_freeze_gpu_invalid_gpu_id(self, mock_node_manager):
+        """Test freezing with invalid GPU ID"""
+        mock_node = Mock()
+        mock_node.gpus = [Mock()]  # Only 1 GPU (ID 0)
+        mock_node_manager.get_node.return_value = mock_node
+
+        with pytest.raises(HTTPException) as exc_info:
+            await freeze_gpu_route("node1", 999, GPUFreezeRequest(duration_seconds=3600))
+
+        assert exc_info.value.status_code == 400
+
+
+class TestUnfreezeGPURoute:
+    """Tests for unfreeze_gpu_route"""
+
+    @pytest.mark.asyncio
+    async def test_unfreeze_gpu_success(self, mock_node_manager):
+        """Test unfreezing a GPU successfully"""
+        mock_node = Mock()
+        mock_gpu = Mock()
+        mock_node.gpus = [mock_gpu]
+        mock_node_manager.get_node.return_value = mock_node
+
+        result = await unfreeze_gpu_route("node1", 0)
+
+        assert result['status'] == "unfrozen"
+        assert result['node_name'] == "node1"
+        assert result['gpu_id'] == 0
+        mock_gpu.unfreeze.assert_called_once()
+        mock_node_manager.save_node.assert_called_once_with(mock_node)
+
+    @pytest.mark.asyncio
+    async def test_unfreeze_gpu_node_not_found(self, mock_node_manager):
+        """Test unfreezing GPU on non-existent node"""
+        mock_node_manager.get_node.return_value = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            await unfreeze_gpu_route("nonexistent", 0)
+
+        assert exc_info.value.status_code == 404
+
+
+class TestUnfreezeAllGPUsRoute:
+    """Tests for unfreeze_all_gpus_route"""
+
+    @pytest.mark.asyncio
+    async def test_unfreeze_all_gpus_success(self, mock_node_manager):
+        """Test unfreezing all GPUs"""
+        # Create 2 nodes with frozen GPUs
+        mock_gpu1 = Mock()
+        mock_gpu1.is_frozen.return_value = True
+        mock_gpu2 = Mock()
+        mock_gpu2.is_frozen.return_value = True
+        mock_gpu3 = Mock()
+        mock_gpu3.is_frozen.return_value = False  # Not frozen
+        
+        mock_node1 = Mock()
+        mock_node1.gpus = [mock_gpu1, mock_gpu2]
+        mock_node2 = Mock()
+        mock_node2.gpus = [mock_gpu3]
+        
+        mock_node_manager.list_nodes.return_value = [mock_node1, mock_node2]
+
+        result = await unfreeze_all_gpus_route()
+
+        assert result['status'] == "unfrozen"
+        assert result['unfrozen_count'] == 2  # Only 2 were frozen
+        mock_gpu1.unfreeze.assert_called_once()
+        mock_gpu2.unfreeze.assert_called_once()
+        assert not mock_gpu3.unfreeze.called  # Not frozen, so not unfrozen
 
