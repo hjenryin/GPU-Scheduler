@@ -424,7 +424,7 @@ class TestRegisterNodeRoute:
 
         # Mock orchestrator with rsync_port
         # Use PropertyMock to set instance attribute that's created in __init__
-        mock_orchestrator = create_autospec(Orchestrator, instance=True)
+        mock_orchestrator = create_autospec(Orchestrator, instance=True, spec_set=True)
         type(mock_orchestrator).rsync_port = PropertyMock(return_value=8873)
 
         with patch.object(Orchestrator, 'get_instance', return_value=mock_orchestrator):
@@ -451,7 +451,7 @@ class TestRegisterNodeRoute:
         mock_node_manager.register_node.return_value = mock_node
 
         # Mock orchestrator with no rsync_port
-        mock_orchestrator = create_autospec(Orchestrator, instance=True)
+        mock_orchestrator = create_autospec(Orchestrator, instance=True, spec_set=True)
         type(mock_orchestrator).rsync_port = PropertyMock(return_value=None)
 
         with patch.object(Orchestrator, 'get_instance', return_value=mock_orchestrator):

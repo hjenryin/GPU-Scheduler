@@ -9,7 +9,8 @@ from scheduler.core import Node, Job, GPU, GPUStats, JobStatus, NodeStatus, JobR
 from scheduler.api import SchedulerClient
 from textual.app import App
 from textual.screen import Screen
-from textual.widgets import DataTable
+from textual.widgets import DataTable, Static, Input
+from textual.containers import Container
 from scheduler.api.client import SchedulerClient
 
 
@@ -211,12 +212,14 @@ def mock_scheduler_client_error():
 def mock_textual_app():
     """Create mock Textual App for testing."""
     app = create_autospec(App, instance=True, spec_set=True)
-    app.screen = Mock()
+    # app.screen returns a Screen object
+    app.screen = Mock(spec=Screen)  # External library (Textual)
     app.screen.name = "cluster"
-    app.switch_screen = Mock()
-    app.push_screen = Mock()
-    app.notify = Mock()
-    app.exit = Mock()
+    # These methods are called for side effects only
+    app.switch_screen = Mock(spec=[])  # Behavior mock
+    app.push_screen = Mock(spec=[])  # Behavior mock
+    app.notify = Mock(spec=[])  # Behavior mock
+    app.exit = Mock(spec=[])  # Behavior mock
     return app
 
 
@@ -224,9 +227,10 @@ def mock_textual_app():
 def mock_textual_screen():
     """Create mock Textual Screen for testing."""
     screen = create_autospec(Screen, instance=True, spec_set=True)
-    screen.query_one = Mock()
-    screen.update_data = Mock()
-    screen.on_mount = Mock()
+    # query_one returns widgets - need to configure return value per test
+    screen.query_one = Mock(spec=[])  # Behavior mock - return value set per test
+    screen.update_data = Mock(spec=[])  # Behavior mock
+    screen.on_mount = Mock(spec=[])  # Behavior mock
     return screen
 
 
@@ -234,28 +238,28 @@ def mock_textual_screen():
 def mock_data_table():
     """Create mock DataTable widget."""
     table = create_autospec(DataTable, instance=True, spec_set=True)
-    table.add_columns = Mock()
-    table.clear = Mock()
-    table.add_row = Mock()
+    table.add_columns = Mock(spec=[])  # Behavior mock
+    table.clear = Mock(spec=[])  # Behavior mock
+    table.add_row = Mock(spec=[])  # Behavior mock
     table.cursor_type = "row"
     table.cursor_row = 0
-    table.get_row = Mock(return_value=["job_123", "test-job", "running"])
+    table.get_row = Mock(spec=[], return_value=["job_123", "test-job", "running"])  # Behavior mock with return value
     return table
 
 
 @pytest.fixture
 def mock_static_widget():
     """Create mock Static widget."""
-    static = Mock()
-    static.update = Mock()
+    static = Mock(spec=Static)  # External library (Textual)
+    static.update = Mock(spec=[])  # Behavior mock
     return static
 
 
 @pytest.fixture
 def mock_input_widget():
     """Create mock Input widget."""
-    input_widget = Mock()
-    input_widget.focus = Mock()
+    input_widget = Mock(spec=Input)  # External library (Textual)
+    input_widget.focus = Mock(spec=[])  # Behavior mock
     input_widget.value = ""
     return input_widget
 
@@ -263,7 +267,7 @@ def mock_input_widget():
 @pytest.fixture
 def mock_container():
     """Create mock Container widget."""
-    container = Mock()
+    container = Mock(spec=Container)  # External library (Textual)
     container.id = "test-container"
     return container
 
@@ -300,8 +304,8 @@ def multi_node_cluster_data(mock_nodes, mock_jobs):
 @pytest.fixture
 def mock_input_changed_event():
     """Create mock input changed event."""
-    event = Mock()
-    event.input = Mock()
+    event = Mock(spec=['input', 'value'])  # Event data structure
+    event.input = Mock(spec=Input)  # External library (Textual)
     event.input.id = "search-input"
     event.value = "test search"
     return event
@@ -310,8 +314,8 @@ def mock_input_changed_event():
 @pytest.fixture
 def mock_row_selected_event():
     """Create mock row selected event."""
-    event = Mock()
-    event.data_table = Mock()
+    event = Mock(spec=['data_table', 'row_key', 'row'])  # Event data structure
+    event.data_table = Mock(spec=DataTable)  # External library (Textual)
     event.data_table.id = "jobs-table"
     event.row_key = "job_123"
     event.row = 0
@@ -321,6 +325,6 @@ def mock_row_selected_event():
 @pytest.fixture
 def mock_key_event():
     """Create mock key event."""
-    event = Mock()
+    event = Mock(spec=['key'])  # Event data structure
     event.key = "j"
     return event

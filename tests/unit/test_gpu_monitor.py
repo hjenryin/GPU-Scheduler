@@ -164,12 +164,12 @@ class TestGPUMonitorPollGPUStats:
 
     def test_poll_gpu_stats_with_pynvml(self, monitor_pynvml):
         """Test polling GPU stats with pynvml"""
-        # Mock pynvml calls
-        mock_util = Mock()
+        # Mock pynvml calls - external C library structs
+        mock_util = Mock(spec=['gpu'])  # pynvml utilization struct
         mock_util.gpu = 50.0
         monitor_pynvml.pynvml.nvmlDeviceGetUtilizationRates.return_value = mock_util
-        
-        mock_mem = Mock()
+
+        mock_mem = Mock(spec=['used', 'total'])  # pynvml memory info struct
         mock_mem.used = 1024 * 1024 * 1024  # 1GB
         mock_mem.total = 8 * 1024 * 1024 * 1024  # 8GB
         monitor_pynvml.pynvml.nvmlDeviceGetMemoryInfo.return_value = mock_mem
@@ -179,7 +179,7 @@ class TestGPUMonitorPollGPUStats:
         monitor_pynvml.pynvml.nvmlDeviceGetPowerManagementLimit.return_value = 200000
         
         monitor_pynvml.pynvml.nvmlDeviceGetComputeRunningProcesses.return_value = []
-        monitor_pynvml.pynvml.nvmlDeviceGetHandleByIndex = MagicMock(return_value=Mock())
+        monitor_pynvml.pynvml.nvmlDeviceGetHandleByIndex = MagicMock(return_value=Mock(spec=[]))  # Opaque C handle
         
         stats = monitor_pynvml.poll_gpu_stats()
         assert len(stats) == 2
@@ -330,18 +330,18 @@ class TestGPUMonitorGetRunningJobID:
 
     def test_get_running_job_id_with_processes(self, monitor_pynvml):
         """Test getting running job ID when process is running"""
-        mock_process = Mock()
+        mock_process = Mock(spec=['pid'])  # pynvml process struct
         mock_process.pid = 12345
         monitor_pynvml.pynvml.nvmlDeviceGetComputeRunningProcesses.return_value = [mock_process]
-        monitor_pynvml.pynvml.nvmlDeviceGetHandleByIndex.return_value = Mock()
-        
+        monitor_pynvml.pynvml.nvmlDeviceGetHandleByIndex.return_value = Mock(spec=[])  # Opaque C handle
+
         job_id = monitor_pynvml._get_running_job_id(0)
         assert job_id == "pid_12345"
 
     def test_get_running_job_id_no_processes(self, monitor_pynvml):
         """Test getting running job ID when no processes are running"""
         monitor_pynvml.pynvml.nvmlDeviceGetComputeRunningProcesses.return_value = []
-        monitor_pynvml.pynvml.nvmlDeviceGetHandleByIndex.return_value = Mock()
+        monitor_pynvml.pynvml.nvmlDeviceGetHandleByIndex.return_value = Mock(spec=[])  # Opaque C handle
         
         job_id = monitor_pynvml._get_running_job_id(0)
         assert job_id is None
@@ -359,7 +359,7 @@ class TestGPUMonitorGetRunningJobID:
     def test_get_running_job_id_error(self, monitor_pynvml):
         """Test getting running job ID when pynvml raises exception"""
         monitor_pynvml.pynvml.nvmlDeviceGetComputeRunningProcesses.side_effect = Exception("Test error")
-        monitor_pynvml.pynvml.nvmlDeviceGetHandleByIndex.return_value = Mock()
+        monitor_pynvml.pynvml.nvmlDeviceGetHandleByIndex.return_value = Mock(spec=[])  # Opaque C handle
         
         job_id = monitor_pynvml._get_running_job_id(0)
         assert job_id is None

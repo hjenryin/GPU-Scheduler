@@ -297,7 +297,7 @@ class TestOrchestrator:
         orchestrator.scheduler.schedule_cycle.assert_called_once()
         orchestrator.node_manager.check_timeouts.assert_called_once()
 
-    @patch('scheduler.core.utils.is_port_available')
+    @patch('scheduler.core.utils.is_port_available', autospec=True)
     @patch('subprocess.Popen', autospec=True)
     def test_rsync_daemon_starts_successfully(self, mock_popen, mock_is_port_available, orchestrator):
         """Test rsync daemon starts successfully when port is available"""
@@ -313,7 +313,7 @@ class TestOrchestrator:
         assert orchestrator.rsync_port == 8873
         mock_popen.assert_called_once()
 
-    @patch('scheduler.core.utils.is_port_available')
+    @patch('scheduler.core.utils.is_port_available', autospec=True)
     def test_rsync_daemon_port_unavailable(self, mock_is_port_available, orchestrator):
         """Test rsync daemon handles port unavailable gracefully"""
         mock_is_port_available.return_value = False
@@ -323,8 +323,8 @@ class TestOrchestrator:
         # Should set rsync_port to None
         assert orchestrator.rsync_port is None
 
-    @patch('scheduler.core.utils.is_port_available')
-    @patch('tempfile.mkstemp')
+    @patch('scheduler.core.utils.is_port_available', autospec=True)
+    @patch('tempfile.mkstemp', autospec=True)
     @patch('subprocess.Popen', autospec=True)
     def test_rsync_daemon_config_no_uid_gid(self, mock_popen, mock_mkstemp, mock_is_port_available, orchestrator, tmp_path):
         """Test rsync daemon config does not include uid/gid"""
@@ -348,8 +348,8 @@ class TestOrchestrator:
         assert 'gid' not in config_content
         assert 'use chroot = no' in config_content
 
-    @patch('scheduler.core.utils.is_port_available')
-    @patch('subprocess.Popen')
+    @patch('scheduler.core.utils.is_port_available', autospec=True)
+    @patch('subprocess.Popen', autospec=True)
     def test_rsync_daemon_exception_handling(self, mock_popen, mock_is_port_available, orchestrator):
         """Test rsync daemon handles subprocess exceptions gracefully"""
         mock_is_port_available.return_value = True

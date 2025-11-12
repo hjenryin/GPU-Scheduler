@@ -27,17 +27,17 @@ class TestGPUMonitorCoverageImprovements:
         """Test poll_gpu_stats when getting temperature fails (lines 134-136)"""
         mock_pynvml = MagicMock()  # Mock pynvml module - external C library interface
         mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=1)
-        mock_handle = Mock()  # Mock NVML device handle - C library opaque pointer
+        mock_handle = Mock(spec=[])  # Opaque C handle  # Mock NVML device handle - C library opaque pointer
         mock_pynvml.nvmlDeviceGetHandleByIndex = MagicMock(return_value=mock_handle)
         
         # Mock memory info
-        mock_mem_info = Mock()
+        mock_mem_info = Mock(spec=["used", "total"])  # pynvml memory struct
         mock_mem_info.used = 1024 * 1024 * 1024  # 1GB
         mock_mem_info.total = 8 * 1024 * 1024 * 1024  # 8GB
         mock_pynvml.nvmlDeviceGetMemoryInfo = MagicMock(return_value=mock_mem_info)
         
         # Mock utilization
-        mock_util = Mock()
+        mock_util = Mock(spec=["gpu"])  # pynvml utilization struct
         mock_util.gpu = 50
         mock_pynvml.nvmlDeviceGetUtilizationRates = MagicMock(return_value=mock_util)
         
@@ -64,17 +64,17 @@ class TestGPUMonitorCoverageImprovements:
         """Test poll_gpu_stats when getting power draw fails (lines 141-143)"""
         mock_pynvml = MagicMock()
         mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=1)
-        mock_handle = Mock()
+        mock_handle = Mock(spec=[])  # Opaque C handle
         mock_pynvml.nvmlDeviceGetHandleByIndex = MagicMock(return_value=mock_handle)
         
         # Mock memory info
-        mock_mem_info = Mock()
+        mock_mem_info = Mock(spec=["used", "total"])  # pynvml memory struct
         mock_mem_info.used = 1024 * 1024 * 1024
         mock_mem_info.total = 8 * 1024 * 1024 * 1024
         mock_pynvml.nvmlDeviceGetMemoryInfo = MagicMock(return_value=mock_mem_info)
         
         # Mock utilization
-        mock_util = Mock()
+        mock_util = Mock(spec=["gpu"])  # pynvml utilization struct
         mock_util.gpu = 50
         mock_pynvml.nvmlDeviceGetUtilizationRates = MagicMock(return_value=mock_util)
         
@@ -103,17 +103,17 @@ class TestGPUMonitorCoverageImprovements:
         """Test poll_gpu_stats when getting power limit fails (lines 148-150)"""
         mock_pynvml = MagicMock()
         mock_pynvml.nvmlDeviceGetCount = MagicMock(return_value=1)
-        mock_handle = Mock()
+        mock_handle = Mock(spec=[])  # Opaque C handle
         mock_pynvml.nvmlDeviceGetHandleByIndex = MagicMock(return_value=mock_handle)
         
         # Mock memory info
-        mock_mem_info = Mock()
+        mock_mem_info = Mock(spec=["used", "total"])  # pynvml memory struct
         mock_mem_info.used = 1024 * 1024 * 1024
         mock_mem_info.total = 8 * 1024 * 1024 * 1024
         mock_pynvml.nvmlDeviceGetMemoryInfo = MagicMock(return_value=mock_mem_info)
         
         # Mock utilization
-        mock_util = Mock()
+        mock_util = Mock(spec=["gpu"])  # pynvml utilization struct
         mock_util.gpu = 50
         mock_pynvml.nvmlDeviceGetUtilizationRates = MagicMock(return_value=mock_util)
         
@@ -140,7 +140,7 @@ class TestGPUMonitorCoverageImprovements:
 
     def test_poll_nvidia_smi_error_returncode(self, test_config):
         """Test poll_gpu_stats when nvidia-smi returns error code (line 216)"""
-        mock_result = Mock()  # Mock subprocess.CompletedProcess - simple data container
+        mock_result = Mock(spec=subprocess.CompletedProcess)  # External library - simple data container
         mock_result.returncode = 1
         mock_result.stderr = "Error: nvidia-smi failed"
         
@@ -155,7 +155,7 @@ class TestGPUMonitorCoverageImprovements:
 
     def test_poll_nvidia_smi_empty_line(self, test_config):
         """Test poll_gpu_stats with empty lines (line 221)"""
-        mock_result = Mock()  # Mock subprocess.CompletedProcess - simple data container
+        mock_result = Mock(spec=subprocess.CompletedProcess)  # External library - simple data container
         mock_result.returncode = 0
         # Include empty line
         mock_result.stdout = "0, 50, 1024, 8192, 60, 150, 200\n\n1, 30, 512, 8192, 55, 100, 200\n"
@@ -171,7 +171,7 @@ class TestGPUMonitorCoverageImprovements:
 
     def test_poll_nvidia_smi_short_line(self, test_config):
         """Test poll_gpu_stats with short line (line 225)"""
-        mock_result = Mock()  # Mock subprocess.CompletedProcess - simple data container
+        mock_result = Mock(spec=subprocess.CompletedProcess)  # External library - simple data container
         mock_result.returncode = 0
         # Include line with too few parts
         mock_result.stdout = "0, 50, 1024\n1, 30, 512, 8192, 55, 100, 200\n"
@@ -187,7 +187,7 @@ class TestGPUMonitorCoverageImprovements:
 
     def test_poll_nvidia_smi_power_draw_not_supported(self, test_config):
         """Test poll_gpu_stats with [Not Supported] power draw (line 237-238)"""
-        mock_result = Mock()  # Mock subprocess.CompletedProcess - simple data container
+        mock_result = Mock(spec=subprocess.CompletedProcess)  # External library - simple data container
         mock_result.returncode = 0
         mock_result.stdout = "0, 50, 1024, 8192, 60, [Not Supported], 200\n"
         
@@ -203,7 +203,7 @@ class TestGPUMonitorCoverageImprovements:
 
     def test_poll_nvidia_smi_power_limit_empty(self, test_config):
         """Test poll_gpu_stats with empty power limit (line 243-244)"""
-        mock_result = Mock()  # Mock subprocess.CompletedProcess - simple data container
+        mock_result = Mock(spec=subprocess.CompletedProcess)  # External library - simple data container
         mock_result.returncode = 0
         mock_result.stdout = "0, 50, 1024, 8192, 60, 150, []\n"
         
@@ -219,12 +219,12 @@ class TestGPUMonitorCoverageImprovements:
 
     def test_poll_nvidia_smi_with_pynvml_for_job_id(self, test_config):
         """Test poll_gpu_stats with nvidia-smi but pynvml available for job ID (line 249)"""
-        mock_result = Mock()  # Mock subprocess.CompletedProcess - simple data container
+        mock_result = Mock(spec=subprocess.CompletedProcess)  # External library - simple data container
         mock_result.returncode = 0
         mock_result.stdout = "0, 50, 1024, 8192, 60, 150, 200\n"
         
         mock_pynvml = MagicMock()  # Mock pynvml module - external C library interface
-        mock_process = Mock()  # Mock NVML process struct - C library data structure
+        mock_process = Mock(spec=["pid"])  # pynvml process struct - C library data structure
         mock_process.pid = 12345
         mock_pynvml.nvmlDeviceGetComputeRunningProcesses = MagicMock(return_value=[mock_process])
         mock_pynvml.nvmlDeviceGetHandleByIndex = MagicMock(return_value=Mock())
@@ -243,7 +243,7 @@ class TestGPUMonitorCoverageImprovements:
 
     def test_poll_nvidia_smi_parse_error(self, test_config):
         """Test poll_gpu_stats with unparseable line (line 261-263)"""
-        mock_result = Mock()  # Mock subprocess.CompletedProcess - simple data container
+        mock_result = Mock(spec=subprocess.CompletedProcess)  # External library - simple data container
         mock_result.returncode = 0
         # Include line with invalid data
         mock_result.stdout = "0, invalid, xyz, 8192, 60, 150, 200\n1, 30, 512, 8192, 55, 100, 200\n"

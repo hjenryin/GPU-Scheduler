@@ -5,6 +5,7 @@ from scheduler.tui.app import SchedulerTUI
 from scheduler.api import SchedulerClient
 from textual.app import App
 from scheduler.api.client import SchedulerClient
+from scheduler.core import Node, Job
 
 
 class TestSchedulerTUIComposition:
@@ -106,8 +107,8 @@ class TestSchedulerTUIRefreshData:
     def test_refresh_data_fetches_from_client(self):
         """Test that refresh_data calls client methods"""
         mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
-        mock_client.list_nodes.return_value = [Mock(), Mock()]
-        mock_client.list_jobs.return_value = [Mock()]
+        mock_client.list_nodes.return_value = [create_autospec(Node, instance=True, spec_set=True), create_autospec(Node, instance=True, spec_set=True)]
+        mock_client.list_jobs.return_value = [create_autospec(Job, instance=True, spec_set=True)]
         
         app = SchedulerTUI(client=mock_client)
         
@@ -140,11 +141,11 @@ class TestSchedulerTUIRefreshData:
         """Test that refresh_data updates ClusterScreen when screen is available"""
         from scheduler.tui.screens.cluster import ClusterScreen
         mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
-        mock_client.list_nodes.return_value = [Mock()]
-        mock_client.list_jobs.return_value = [Mock()]
-        
+        mock_client.list_nodes.return_value = [create_autospec(Node, instance=True, spec_set=True)]
+        mock_client.list_jobs.return_value = [create_autospec(Job, instance=True, spec_set=True)]
+
         app = SchedulerTUI(client=mock_client)
-        
+
         # Run app to mount screen
         async with app.run_test() as pilot:
             # Now call refresh_data - it should update the mounted screen
@@ -321,11 +322,11 @@ class TestSchedulerTUIRefreshDataWithScreens:
         """Test refresh_data with NodesScreen"""
         from scheduler.tui.screens.nodes import NodesScreen
         mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
-        mock_client.list_nodes.return_value = [Mock()]
+        mock_client.list_nodes.return_value = [create_autospec(Node, instance=True, spec_set=True)]
         mock_client.list_jobs.return_value = []
-        
+
         app = SchedulerTUI(client=mock_client)
-        
+
         # Test that refresh_data handles the isinstance check properly
         # We test this by calling refresh_data when app is not fully mounted
         # Just verify it doesn't crash
@@ -337,10 +338,10 @@ class TestSchedulerTUIRefreshDataWithScreens:
         from scheduler.tui.screens.jobs import JobsScreen
         mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
         mock_client.list_nodes.return_value = []
-        mock_client.list_jobs.return_value = [Mock()]
-        
+        mock_client.list_jobs.return_value = [create_autospec(Job, instance=True, spec_set=True)]
+
         app = SchedulerTUI(client=mock_client)
-        
+
         # Test that refresh_data handles the isinstance check properly
         app.refresh_data()
         mock_client.list_jobs.assert_called()
@@ -349,11 +350,11 @@ class TestSchedulerTUIRefreshDataWithScreens:
         """Test refresh_data with GPUsScreen"""
         from scheduler.tui.screens.gpus import GPUsScreen
         mock_client = create_autospec(SchedulerClient, instance=True, spec_set=True)
-        mock_client.list_nodes.return_value = [Mock()]
+        mock_client.list_nodes.return_value = [create_autospec(Node, instance=True, spec_set=True)]
         mock_client.list_jobs.return_value = []
-        
+
         app = SchedulerTUI(client=mock_client)
-        
+
         # Test that refresh_data handles the isinstance check properly
         app.refresh_data()
         mock_client.list_nodes.assert_called()
