@@ -2,6 +2,7 @@ import os
 import sys
 import socket
 import logging
+import subprocess
 from typing import Optional
 import click
 
@@ -101,8 +102,6 @@ def start_command(
     port: int = constants.DEFAULT_PORT,
     node_name: Optional[str] = None,
     num_gpus: Optional[int] = None,
-    temp_dir: Optional[str] = None,
-    log_dir: Optional[str] = None,
     block: bool = True,
     log_level: str = "INFO",
     **kwargs
@@ -116,8 +115,6 @@ def start_command(
         port: Port for head node
         node_name: Name for this node
         num_gpus: Number of GPUs (auto-detect if None)
-        temp_dir: Temporary directory path
-        log_dir: Log directory path
         block: If True, block until stopped
         log_level: Logging level
         **kwargs: Additional head/worker specific options
@@ -156,12 +153,6 @@ def start_command(
 
     # Build config dict for customization
     config_dict = base_config.to_dict()
-
-    # Update with CLI arguments
-    if temp_dir:
-        config_dict.setdefault('worker', {})['work_dir'] = os.path.expanduser(temp_dir)
-    if log_dir:
-        config_dict.setdefault('worker', {})['log_dir'] = os.path.expanduser(log_dir)
 
     # Merge kwargs and set address
     if head:
@@ -280,24 +271,16 @@ def _start_head_node(config: Config, block: bool) -> int:
         time.sleep(1)  # Give head a moment to start
         
         click.echo("Starting worker on this machine...")
-        
-        # Create worker config pointing to this head
-        worker_config = Config(
-            address=f"{socket.gethostname()}:{config.head.port}",
-            head=config.head,
-            worker=config.worker,
-            storage=config.storage,
-            client=config.client
+
+        # Start worker as separate process using CLI
+        # Worker will read the same config file as head
+        # Note: --block flag defaults to False, so worker will daemonize
+        subprocess.Popen(
+            ['scheduler', 'start', f'--address=localhost:{config.head.port}'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
         )
-        
-        # Start worker in background thread
-        from threading import Thread
-        worker_thread = Thread(
-            target=lambda: _start_worker_node_internal(worker_config, None, None),
-            daemon=True
-        )
-        worker_thread.start()
-        
+
         # Give worker time to start
         time.sleep(2)
 
@@ -405,22 +388,16 @@ def _daemonize_head(config: Config, singleton: SingletonDaemon) -> int:
         import time
         time.sleep(1)
         
-        worker_config = Config(
-            address=f"{socket.gethostname()}:{config.head.port}",
-            head=config.head,
-            worker=config.worker,
-            storage=config.storage,
-            client=config.client
+        # Start worker as separate process using CLI
+        # Worker will read the same config file as head
+        # Note: --block flag defaults to False, so worker will daemonize
+        subprocess.Popen(
+            ['scheduler', 'start', f'--address=localhost:{config.head.port}'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
         )
-        
-        from threading import Thread
-        worker_thread = Thread(
-            target=lambda: _start_worker_node_internal(worker_config, None, None),
-            daemon=True
-        )
-        worker_thread.start()
         time.sleep(2)
-        
+
         # Keep daemon alive
         orchestrator.run()
         
@@ -586,65 +563,6 @@ def _daemonize_worker(config: Config, node_name: str, num_gpus: Optional[int], l
 
         daemon_singleton.release_lock()
         sys.exit(1)
-
-
-def _start_worker_node_internal(config: Config, node_name: Optional[str], num_gpus: Optional[int]) -> None:
-    """Start worker node internally (used by head node to start local worker)."""
-    if not node_name:
-        node_name = socket.gethostname()
-
-    # Set up separate logging for the worker thread
-    # This prevents worker logs from going to the head log file
-    log_dir = os.path.expanduser("~/.scheduler/logs")
-    os.makedirs(log_dir, exist_ok=True)
-
-    worker_log_file = os.path.join(log_dir, f'worker-{node_name}-stdout.log')
-    worker_handler = logging.FileHandler(worker_log_file)
-    worker_handler.setLevel(logging.INFO)
-    worker_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    worker_handler.setFormatter(worker_formatter)
-
-    # Add filter to only capture worker-related logs
-    class WorkerFilter(logging.Filter):
-        def filter(self, record):
-            # Only capture logs from scheduler.worker modules
-            return record.name.startswith('scheduler.worker')
-
-    worker_handler.addFilter(WorkerFilter())
-
-    # Add handler to root logger (will be removed in finally block)
-    root_logger = logging.getLogger()
-    root_logger.addHandler(worker_handler)
-
-    # Check for existing worker
-    os.makedirs(os.path.expanduser("~/.scheduler"), exist_ok=True)
-    lockfile = os.path.expanduser(f"~/.scheduler/worker-{node_name}.lock")
-    singleton = SingletonDaemon(lockfile)
-
-    if not singleton.acquire_lock():
-        logger.warning(f"Worker '{node_name}' is already running, skipping local worker start")
-        root_logger.removeHandler(worker_handler)
-        worker_handler.close()
-        return
-
-    # Save head address to lockfile AFTER acquiring lock
-    try:
-        import json
-        with open(lockfile, 'w') as f:
-            json.dump({'pid': os.getpid(), 'address': config.address}, f)
-    except Exception as e:
-        logger.warning(f"Failed to save head address to lockfile: {e}")
-
-    try:
-        daemon = WorkerDaemon(config, node_name, num_gpus)
-        daemon.run()
-    finally:
-        singleton.release_lock()
-        # Clean up the worker log handler
-        root_logger.removeHandler(worker_handler)
-        worker_handler.close()
 
 
 def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optional[int], block: bool) -> int:

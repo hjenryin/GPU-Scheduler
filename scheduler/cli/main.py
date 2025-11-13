@@ -29,8 +29,6 @@ def cli():
 @click.option('--port', type=int, default=8265, help='Port number')
 @click.option('--node-name', help='Node name')
 @click.option('--num-gpus', type=int, help='Number of GPUs')
-@click.option('--temp-dir', help='Temporary directory')
-@click.option('--log-dir', help='Log directory')
 @click.option('--block', is_flag=True, default=False, help='Block until stopped')
 @click.option('--log-level', default='INFO', help='Log level')
 @click.option('--heartbeat-timeout', type=int, help='Heartbeat timeout (head only)')
@@ -41,7 +39,7 @@ def cli():
 @click.option('--gpu-mem-threshold', type=int, help='GPU memory threshold (worker only)')
 @click.option('--gpu-stable-time', type=int, help='GPU stable time (worker only)')
 @click.option('--job-startup-grace', type=int, help='Job startup grace period (worker only)')
-def start(head, address, port, node_name, num_gpus, temp_dir, log_dir, block, log_level,
+def start(head, address, port, node_name, num_gpus, block, log_level,
           heartbeat_timeout, scheduling_interval, graceful_shutdown_timeout,
           gpu_poll_interval, gpu_util_threshold, gpu_mem_threshold, gpu_stable_time, job_startup_grace):
     """Start scheduler node"""
@@ -52,8 +50,6 @@ def start(head, address, port, node_name, num_gpus, temp_dir, log_dir, block, lo
             port=port,
             node_name=node_name,
             num_gpus=num_gpus,
-            temp_dir=temp_dir,
-            log_dir=log_dir,
             block=block,
             log_level=log_level,
             heartbeat_timeout=heartbeat_timeout,

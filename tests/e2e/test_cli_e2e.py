@@ -273,12 +273,10 @@ class TestCLIStart:
         # Verify all documented options are present
         expected_options = [
             "--head",
-            "--address", 
+            "--address",
             "--port",
             "--node-name",
             "--num-gpus",
-            "--temp-dir",
-            "--log-dir",
             "--block",
             "--log-level",
             "--heartbeat-timeout",
@@ -289,7 +287,7 @@ class TestCLIStart:
             "--gpu-stable-time",
             "--job-startup-grace"
         ]
-        
+
         for option in expected_options:
             assert option in result.stdout, f"Expected option {option} not found in help"
     
@@ -305,8 +303,7 @@ class TestCLIStart:
         start_result = subprocess.run(
             ["conda", "run", "-n", "scheduler", "scheduler", "start",
              "--address", running_cluster['head_address'],
-             "--node-name", worker_name,
-             "--temp-dir", temp_test_dir],
+             "--node-name", worker_name],
             capture_output=True,
             text=True,
             timeout=15
@@ -650,10 +647,9 @@ class TestCLIStop:
         """Test stop command can stop a running worker node"""
         # Start an additional worker in the background
         start_result = subprocess.run(
-            ["conda", "run", "-n", "scheduler", "scheduler", "start", 
+            ["conda", "run", "-n", "scheduler", "scheduler", "start",
              "--address", running_cluster['head_address'],
-             "--node-name", "test-stop-worker",
-             "--temp-dir", temp_test_dir],
+             "--node-name", "test-stop-worker"],
             capture_output=True,
             text=True,
             timeout=10

@@ -101,10 +101,10 @@ scheduler start [OPTIONS]
 | `--port` | int | `8265` | Port number for head node HTTP API (auto-fallback if occupied) |
 | `--node-name` | string | hostname | Unique identifier for this node |
 | `--num-gpus` | int | auto-detect | Number of GPUs on this node (auto-detected from nvidia-smi) |
-| `--temp-dir` | path | `~/.scheduler/tmp` | Temporary directory for this node |
-| `--log-dir` | path | `~/.scheduler/logs` | Directory for logs |
 | `--block` | flag | false | Block until scheduler is stopped (use --block to run in foreground) |
 | `--log-level` | choice | `INFO` | Logging level: DEBUG, INFO, WARNING, ERROR |
+
+**Note:** Log and temporary directories are configured via the config file (`~/.scheduler/config.yaml`), not CLI options. See the Configuration section below.
 
 **Head Node Specific Options:**
 
