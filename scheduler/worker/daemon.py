@@ -186,12 +186,34 @@ class WorkerDaemon:
                     logger.info("Shutdown requested by head node - stopping worker")
                     break
 
-                # Poll for job assignment
-                job = self.heartbeat_sender.poll_for_job()
+                # Poll for job assignments (returns list of all jobs for this node)
+                jobs = self.heartbeat_sender.poll_for_job()
 
-                if job:
-                    self._execute_job(job)
+                if jobs:
+                    # Get set of job IDs from poll response
+                    poll_job_ids = {job.job_id for job in jobs}
+
+                    # Clean up active_jobs: remove jobs not in poll response
+                    with self.active_jobs_lock:
+                        current_job_ids = set(self.active_jobs.keys())
+                        jobs_to_remove = current_job_ids - poll_job_ids
+
+                        if jobs_to_remove:
+                            logger.info(f"Removing {len(jobs_to_remove)} job(s) from active_jobs (not in poll response): {jobs_to_remove}")
+                            for job_id in jobs_to_remove:
+                                self.active_jobs.pop(job_id, None)
+
+                    # Execute all jobs from poll response (deduplication check inside _execute_job)
+                    for job in jobs:
+                        self._execute_job(job)
                 else:
+                    # Empty poll response means no jobs assigned to this node
+                    # Clear active_jobs
+                    with self.active_jobs_lock:
+                        if self.active_jobs:
+                            logger.info(f"No jobs in poll response, clearing {len(self.active_jobs)} job(s) from active_jobs")
+                            self.active_jobs.clear()
+
                     # No job available, sleep briefly
                     time.sleep(5)
         except KeyboardInterrupt:
@@ -228,6 +250,15 @@ class WorkerDaemon:
 
     def _execute_job(self, job):
         """Execute a job in background (non-blocking)."""
+        # Check if job is already being executed (deduplication)
+        with self.active_jobs_lock:
+            if job.job_id in self.active_jobs:
+                logger.debug(f"Job {job.job_id} already executing, ignoring duplicate")
+                return
+
+            # Reserve the job_id immediately to prevent race conditions
+            self.active_jobs[job.job_id] = None  # Placeholder
+
         try:
             # Get assigned GPUs from job
             gpu_ids = job.assigned_gpus if job.assigned_gpus else list(range(self.num_gpus))
@@ -246,7 +277,7 @@ class WorkerDaemon:
             )
             monitor_thread.start()
 
-            # Track job in active jobs dictionary
+            # Update active jobs with full information
             with self.active_jobs_lock:
                 self.active_jobs[job.job_id] = {
                     'job': job,
@@ -256,6 +287,10 @@ class WorkerDaemon:
                 }
 
         except Exception as e:
+            # Clean up placeholder on error
+            with self.active_jobs_lock:
+                self.active_jobs.pop(job.job_id, None)
+
             logger.error(f"Error executing job {job.job_id}: {e}")
             try:
                 self.client.report_job_failed(job.job_id, str(e))
@@ -280,9 +315,9 @@ class WorkerDaemon:
                         logger.error(f"Job {job.job_id} failed with exit code {exit_code}")
                         self.client.report_job_failed(job.job_id, f"Exit code: {exit_code}", after_commit_ref)
 
-                    # Remove from active jobs
-                    with self.active_jobs_lock:
-                        self.active_jobs.pop(job.job_id, None)
+                    # NOTE: Do NOT remove from active_jobs here!
+                    # Jobs are removed from active_jobs only when they're no longer in the poll response.
+                    # This prevents race conditions with delayed poll responses.
                     break
 
                 # Still running, sleep and check again
@@ -297,9 +332,8 @@ class WorkerDaemon:
             except Exception as report_error:
                 logger.error(f"Failed to report job failure for {job.job_id}: {report_error}")
 
-            # Remove from active jobs
-            with self.active_jobs_lock:
-                self.active_jobs.pop(job.job_id, None)
+            # NOTE: Do NOT remove from active_jobs here either!
+            # Let the poll response cleanup handle it
 
     def _signal_handler(self, signum, frame):
         """Handle termination signals."""

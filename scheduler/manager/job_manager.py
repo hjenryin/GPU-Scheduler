@@ -2,6 +2,7 @@ from typing import List, Optional, Set, Dict
 import logging
 from datetime import datetime
 import os
+import asyncio
 
 from scheduler.core import InvalidRequirementException, JobNotFoundException
 from scheduler.core import Job, JobStatus, JobRequirement
@@ -32,6 +33,10 @@ class JobManager:
         self.config = config
         self.jobs: Dict[str, Job] = {}
 
+        # Event system for long-polling
+        # Maps node_name -> asyncio.Event that gets set when a new job is assigned
+        self._job_assignment_events: Dict[str, asyncio.Event] = {}
+
         # Load existing jobs from storage
         self._load_jobs()
 
@@ -41,6 +46,20 @@ class JobManager:
         for job in jobs:
             self.jobs[job.job_id] = job
         logger.info(f"Loaded {len(jobs)} jobs from storage")
+
+    def get_job_assignment_event(self, node_name: str) -> asyncio.Event:
+        """
+        Get or create an event for job assignments to a specific node.
+
+        Args:
+            node_name: Node name
+
+        Returns:
+            Event that gets set when a new job is assigned to this node
+        """
+        if node_name not in self._job_assignment_events:
+            self._job_assignment_events[node_name] = asyncio.Event()
+        return self._job_assignment_events[node_name]
 
     def resolve_dependency_shorthand(self, dependency: str) -> str:
         """
@@ -278,6 +297,10 @@ class JobManager:
 
         self.persistence.save_job(job)
         logger.info(f"Job {job_id} started on {node_name} with GPUs {gpu_ids}")
+
+        # Notify any workers polling for this node (create event if needed)
+        event = self.get_job_assignment_event(node_name)
+        event.set()
 
     def complete_job(self, job_id: str, exit_code: int, after_commit_ref: Optional[str] = None):
         """

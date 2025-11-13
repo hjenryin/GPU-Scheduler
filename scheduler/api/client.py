@@ -648,7 +648,7 @@ class SchedulerClient:
             logger.error(f"Failed to send heartbeat for node {node_name}: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")
 
-    def poll_for_job(self, node_name: str, timeout: int = None) -> Optional[Job]:
+    def poll_for_job(self, node_name: str, timeout: int = None) -> List[Job]:
         """
         Long-poll for job assignment (worker use only).
 
@@ -657,7 +657,7 @@ class SchedulerClient:
             timeout: Poll timeout in seconds (defaults to config value or 30)
 
         Returns:
-            Job if assigned, None if timeout
+            List of jobs assigned to this node (empty list if timeout with no jobs)
 
         Raises:
             ConnectionException: If cannot connect
@@ -678,13 +678,18 @@ class SchedulerClient:
             response.raise_for_status()
 
             if response.status_code == 204:  # No content - no job available
-                return None
+                return []
 
             data = response.json()
-            return self._job_from_response(data) if data else None
+            # API now returns a list of jobs
+            if isinstance(data, list):
+                return [self._job_from_response(job_data) for job_data in data]
+            else:
+                # Backward compatibility: if single job returned, wrap in list
+                return [self._job_from_response(data)] if data else []
         except requests.exceptions.Timeout:
             # Timeout is expected for long-polling
-            return None
+            return []
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to poll for job on node {node_name}: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")

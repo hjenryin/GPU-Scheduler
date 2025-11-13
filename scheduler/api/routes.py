@@ -116,8 +116,8 @@ def create_app(
 
     # Worker routes
     @app.get(f"{constants.API_BASE_PATH}/workers/{{node_name}}/jobs/next")
-    async def poll_job(node_name: str):
-        return await poll_job_route(node_name)
+    async def poll_job(node_name: str, timeout: int = 30):
+        return await poll_job_route(node_name, timeout)
 
     @app.post(f"{constants.API_BASE_PATH}/workers/jobs/{{job_id}}/complete")
     async def complete_job(job_id: str, exit_code: int, after_commit_ref: Optional[str] = None):
@@ -355,21 +355,77 @@ async def get_node_route(node_name: str) -> NodeResponse:
     return NodeResponse.from_node(node)
 
 
-async def poll_job_route(node_name: str) -> Optional[JobResponse]:
-    """GET /api/v1/workers/{node_name}/jobs/next - Poll for job (long-polling)"""
+async def poll_job_route(node_name: str, timeout: int = 30) -> List[JobResponse]:
+    """
+    GET /api/v1/workers/{node_name}/jobs/next - Long-poll for job assignment.
+
+    Returns when:
+    1. Event triggered (new job assigned) - returns all jobs immediately
+    2. Timeout reached - returns all RUNNING jobs as recovery (or empty list if no jobs)
+
+    The timeout recovery mechanism ensures jobs are delivered even if the event
+    notification is missed due to race conditions or bugs.
+
+    Args:
+        node_name: Node name
+        timeout: Timeout in seconds (default 30)
+
+    Returns:
+        List of jobs assigned to this node (empty list if no jobs)
+    """
     # Check if node exists
     node = _node_manager.get_node(node_name)
     if not node:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Node {node_name} not found")
 
-    # Find jobs assigned to this node that are running
-    running_jobs = _job_manager.get_running_jobs()
-    for job in running_jobs:
-        if job.assigned_node == node_name:
-            return JobResponse.from_job(job)
+    start_time = asyncio.get_event_loop().time()
+    end_time = start_time + timeout
 
-    # No job assigned
-    return None
+    # Check remaining time
+    remaining_time = end_time - asyncio.get_event_loop().time()
+
+    if remaining_time <= 0:
+        # Timeout reached before even waiting
+        logger.debug(f"Poll timeout for node {node_name}")
+        return []
+
+    # Wait for job assignment event
+    event = _job_manager.get_job_assignment_event(node_name)
+
+    try:
+        await asyncio.wait_for(event.wait(), timeout=remaining_time)
+        # Event was set! Clear it and check for jobs
+        event.clear()
+
+        # Find ALL RUNNING jobs assigned to this node
+        running_jobs = _job_manager.get_running_jobs()
+        node_jobs = [JobResponse.from_job(job)
+                     for job in running_jobs
+                     if job.assigned_node == node_name]
+
+        if node_jobs:
+            logger.info(f"Returning {len(node_jobs)} job(s) to node {node_name}: {[j.job_id for j in node_jobs]}")
+        else:
+            # Event was set but no job found (race condition: job completed quickly)
+            logger.debug(f"Event triggered but no job found for node {node_name}")
+
+        return node_jobs
+
+    except asyncio.TimeoutError:
+        # Timeout reached - check for jobs as recovery mechanism
+        # This handles cases where event notification was somehow missed
+        running_jobs = _job_manager.get_running_jobs()
+        node_jobs = [JobResponse.from_job(job)
+                     for job in running_jobs
+                     if job.assigned_node == node_name]
+
+        if node_jobs:
+            logger.info(f"Returning {len(node_jobs)} job(s) to node {node_name} (timeout recovery): {[j.job_id for j in node_jobs]}")
+        else:
+            # No jobs available
+            logger.debug(f"Poll timeout for node {node_name}, no jobs available")
+
+        return node_jobs
 
 
 async def complete_job_route(job_id: str, exit_code: int, after_commit_ref: Optional[str] = None):

@@ -1,7 +1,7 @@
 import logging
 import threading
 import time
-from typing import Optional
+from typing import Optional, List
 
 from scheduler.core import Config, Job
 from scheduler.worker.gpu_monitor import GPUMonitor
@@ -129,21 +129,21 @@ class HeartbeatSender:
             logger.error(f"Failed to send heartbeat: {e}")
             return False
 
-    def poll_for_job(self) -> Optional[Job]:
+    def poll_for_job(self) -> List[Job]:
         """
         Long-poll head node for job assignment.
 
         Returns:
-            Job if assigned, None if no job available
+            List of jobs assigned to this node (empty list if no jobs available)
         """
         try:
-            job = self.client.poll_for_job(self.node_name, timeout=self.config.worker.job_poll_timeout)
-            if job:
-                logger.info(f"Received job assignment: {job.job_id}")
-            return job
+            jobs = self.client.poll_for_job(self.node_name, timeout=self.config.worker.job_poll_timeout)
+            if jobs:
+                logger.info(f"Received {len(jobs)} job assignment(s): {[job.job_id for job in jobs]}")
+            return jobs
         except Exception as e:
             logger.error(f"Failed to poll for job: {e}")
-            return None
+            return []
 
     def _heartbeat_loop(self):
         """Internal heartbeat loop thread."""

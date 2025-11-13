@@ -610,14 +610,15 @@ class TestPollJobRoute:
     """Tests for poll_job_route"""
 
     @pytest.mark.asyncio
-    async def test_poll_job_with_job(self, mock_node_manager, mock_job_manager):
-        """Test polling for job when available"""
+    async def test_poll_job_with_single_job(self, mock_node_manager, mock_job_manager):
+        """Test polling for job when single job available"""
         from scheduler.api.routes import poll_job_route
-        
+        import asyncio
+
         mock_node = create_autospec(Node, instance=True, spec_set=True)
         mock_node.node_name = "node1"
         mock_node_manager.get_node.return_value = mock_node
-        
+
         mock_job = Job(
             job_id="job_123",
             name="test",
@@ -627,22 +628,75 @@ class TestPollJobRoute:
             assigned_node="node1"
         )
         mock_job_manager.get_running_jobs.return_value = [mock_job]
-        
-        result = await poll_job_route("node1")
-        
-        assert result.job_id == "job_123"
+
+        # Mock the event to be already set (event triggered immediately)
+        mock_event = asyncio.Event()
+        mock_event.set()
+        mock_job_manager.get_job_assignment_event.return_value = mock_event
+
+        result = await poll_job_route("node1", timeout=1)
+
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0].job_id == "job_123"
+
+    @pytest.mark.asyncio
+    async def test_poll_job_with_multiple_jobs(self, mock_node_manager, mock_job_manager):
+        """Test polling for job when multiple jobs available"""
+        from scheduler.api.routes import poll_job_route
+        import asyncio
+
+        mock_node = create_autospec(Node, instance=True, spec_set=True)
+        mock_node.node_name = "node1"
+        mock_node_manager.get_node.return_value = mock_node
+
+        mock_job1 = Job(
+            job_id="job_123",
+            name="test1",
+            script="/path/script1.py",
+            requirements=JobRequirement("1"),
+            status=JobStatus.RUNNING,
+            assigned_node="node1"
+        )
+        mock_job2 = Job(
+            job_id="job_456",
+            name="test2",
+            script="/path/script2.py",
+            requirements=JobRequirement("1"),
+            status=JobStatus.RUNNING,
+            assigned_node="node1"
+        )
+        mock_job_manager.get_running_jobs.return_value = [mock_job1, mock_job2]
+
+        # Mock the event to be already set
+        mock_event = asyncio.Event()
+        mock_event.set()
+        mock_job_manager.get_job_assignment_event.return_value = mock_event
+
+        result = await poll_job_route("node1", timeout=1)
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0].job_id == "job_123"
+        assert result[1].job_id == "job_456"
 
     @pytest.mark.asyncio
     async def test_poll_job_no_job(self, mock_job_manager, mock_node_manager):
-        """Test polling for job when no job available"""
+        """Test polling for job when no job available (timeout)"""
         from scheduler.api.routes import poll_job_route
-        
+        import asyncio
+
         mock_job_manager.get_running_jobs.return_value = []  # No running jobs
         mock_node_manager.get_node.return_value = create_autospec(Node, instance=True, spec_set=True)  # Need a valid node
-        
-        result = await poll_job_route("node1")
-        
-        assert result is None
+
+        # Mock the event to never be set (will timeout)
+        mock_event = asyncio.Event()  # Not set, will timeout
+        mock_job_manager.get_job_assignment_event.return_value = mock_event
+
+        result = await poll_job_route("node1", timeout=1)  # Short timeout for test
+
+        assert isinstance(result, list)
+        assert len(result) == 0
 
 
 class TestCompleteJobRoute:
