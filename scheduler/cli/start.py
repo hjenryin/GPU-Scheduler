@@ -592,16 +592,43 @@ def _start_worker_node_internal(config: Config, node_name: Optional[str], num_gp
     """Start worker node internally (used by head node to start local worker)."""
     if not node_name:
         node_name = socket.gethostname()
-    
+
+    # Set up separate logging for the worker thread
+    # This prevents worker logs from going to the head log file
+    log_dir = os.path.expanduser("~/.scheduler/logs")
+    os.makedirs(log_dir, exist_ok=True)
+
+    worker_log_file = os.path.join(log_dir, f'worker-{node_name}-stdout.log')
+    worker_handler = logging.FileHandler(worker_log_file)
+    worker_handler.setLevel(logging.INFO)
+    worker_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    worker_handler.setFormatter(worker_formatter)
+
+    # Add filter to only capture worker-related logs
+    class WorkerFilter(logging.Filter):
+        def filter(self, record):
+            # Only capture logs from scheduler.worker modules
+            return record.name.startswith('scheduler.worker')
+
+    worker_handler.addFilter(WorkerFilter())
+
+    # Add handler to root logger (will be removed in finally block)
+    root_logger = logging.getLogger()
+    root_logger.addHandler(worker_handler)
+
     # Check for existing worker
     os.makedirs(os.path.expanduser("~/.scheduler"), exist_ok=True)
     lockfile = os.path.expanduser(f"~/.scheduler/worker-{node_name}.lock")
     singleton = SingletonDaemon(lockfile)
-    
+
     if not singleton.acquire_lock():
         logger.warning(f"Worker '{node_name}' is already running, skipping local worker start")
+        root_logger.removeHandler(worker_handler)
+        worker_handler.close()
         return
-    
+
     # Save head address to lockfile AFTER acquiring lock
     try:
         import json
@@ -609,12 +636,15 @@ def _start_worker_node_internal(config: Config, node_name: Optional[str], num_gp
             json.dump({'pid': os.getpid(), 'address': config.address}, f)
     except Exception as e:
         logger.warning(f"Failed to save head address to lockfile: {e}")
-    
+
     try:
         daemon = WorkerDaemon(config, node_name, num_gpus)
         daemon.run()
     finally:
         singleton.release_lock()
+        # Clean up the worker log handler
+        root_logger.removeHandler(worker_handler)
+        worker_handler.close()
 
 
 def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optional[int], block: bool) -> int:
