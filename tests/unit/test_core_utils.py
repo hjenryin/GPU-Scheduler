@@ -13,7 +13,8 @@ from scheduler.core.utils import (
     find_available_port,
     get_local_ip,
     ensure_dir_exists,
-    parse_address
+    parse_address,
+    find_workspace_root,
 )
 from scheduler.core.exceptions import InvalidRequirementException, ValidationException
 from scheduler.core import constants
@@ -615,6 +616,81 @@ class TestEnsureDirExistsExceptions:
             raise RuntimeError("Some error")
         
         monkeypatch.setattr(pathlib.Path, "mkdir", mock_mkdir)
-        
+
         with pytest.raises(PermissionDeniedException, match="Error creating directory"):
             ensure_dir_exists(str(tmp_path / "test_dir"))
+
+
+class TestFindWorkspaceRoot:
+    """Tests for find_workspace_root function"""
+
+    def test_finds_git_repo_root(self, tmp_path):
+        """Test finding git repository root"""
+        # Create fake git repo
+        git_dir = tmp_path / '.git'
+        git_dir.mkdir()
+
+        # Create nested directory
+        nested = tmp_path / 'a' / 'b' / 'c'
+        nested.mkdir(parents=True)
+
+        # Should find git root from nested directory
+        result = find_workspace_root(str(nested))
+        assert result == str(tmp_path)
+
+    def test_finds_scheduler_git_root(self, tmp_path):
+        """Test finding .scheduler-git repository root"""
+        # Create .scheduler-git directory
+        scheduler_git_dir = tmp_path / '.scheduler-git'
+        scheduler_git_dir.mkdir()
+
+        # Create nested directory
+        nested = tmp_path / 'subdir'
+        nested.mkdir()
+
+        # Should find .scheduler-git root
+        result = find_workspace_root(str(nested))
+        assert result == str(tmp_path)
+
+    def test_returns_path_when_no_git_repo(self, tmp_path):
+        """Test returning original path when not in git repo"""
+        # No .git or .scheduler-git directory
+        result = find_workspace_root(str(tmp_path))
+        assert result == str(tmp_path)
+
+    def test_handles_file_path(self, tmp_path):
+        """Test that function handles file paths correctly"""
+        # Create fake git repo
+        git_dir = tmp_path / '.git'
+        git_dir.mkdir()
+
+        # Create a file
+        test_file = tmp_path / 'subdir' / 'test.py'
+        test_file.parent.mkdir(parents=True)
+        test_file.write_text('print("hello")')
+
+        # Should find git root from file path
+        result = find_workspace_root(str(test_file))
+        assert result == str(tmp_path)
+
+    def test_prefers_git_over_scheduler_git(self, tmp_path):
+        """Test that .git is found before .scheduler-git when searching upward"""
+        # Create .git at root
+        git_dir = tmp_path / '.git'
+        git_dir.mkdir()
+
+        # Create .scheduler-git in subdirectory
+        subdir = tmp_path / 'subdir'
+        subdir.mkdir()
+        scheduler_git = subdir / '.scheduler-git'
+        scheduler_git.mkdir()
+
+        # From subdir, should find .scheduler-git first (current directory)
+        result = find_workspace_root(str(subdir))
+        assert result == str(subdir)
+
+        # From deeper nested dir, should find .scheduler-git first
+        nested = subdir / 'nested'
+        nested.mkdir()
+        result = find_workspace_root(str(nested))
+        assert result == str(subdir)

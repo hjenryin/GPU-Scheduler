@@ -27,6 +27,9 @@ DEFAULT_DB_PATH = "~/.scheduler/scheduler.db"
 # Client defaults
 DEFAULT_CLIENT_REQ = "1"
 
+# Conda defaults
+DEFAULT_CONDA_COMMAND = "conda"
+
 # Legacy alias for backward compatibility in tests
 DEFAULT_SCHEDULING_INTERVAL = DEFAULT_SCHEDULE_INTERVAL
 

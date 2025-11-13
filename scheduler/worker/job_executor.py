@@ -119,13 +119,18 @@ class JobExecutor:
             stderr_log = self.file_handler.get_job_log_path(job.job_id, stderr=True)
 
             # Build command from script and script_args
-            # Execute the command as-is without modification
             cmd = [script_path]
             if job.script_args:
                 cmd.extend(job.script_args)
 
+            # Wrap with conda run if conda environment is specified
+            if job.conda_env:
+                conda_cmd = self.config.conda.command
+                cmd = [conda_cmd, 'run', '-n', job.conda_env] + cmd
+                logger.info(f"Running job {job.job_id} in conda environment '{job.conda_env}'")
+
             logger.info(f"Executing job {job.job_id}: {script_path}")
-            logger.info(f"Command: {cmd}")
+            logger.info(f"Command: {' '.join(cmd)}")
             logger.info(f"Working directory: {working_dir}")
             logger.info(f"CUDA_VISIBLE_DEVICES: {env['CUDA_VISIBLE_DEVICES']}")
             logger.info(f"Stdout log: {stdout_log}")

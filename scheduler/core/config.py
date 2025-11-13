@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 import yaml
 import os
 
@@ -24,6 +24,7 @@ from scheduler.core.constants import (
     DEFAULT_DATA_DIR,
     DEFAULT_DB_PATH,
     DEFAULT_CLIENT_REQ,
+    DEFAULT_CONDA_COMMAND,
     TEMP_DIR_PATH,
     LOG_DIR_PATH,
     JOB_POLL_TIMEOUT as DEFAULT_JOB_POLL_TIMEOUT,
@@ -70,6 +71,13 @@ class ClientConfig:
 
 
 @dataclass(frozen=True)
+class CondaConfig:
+    """Conda environment configuration"""
+    command: str = DEFAULT_CONDA_COMMAND
+    envs: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class Config:
     """
     Main configuration container with nested sections.
@@ -85,6 +93,7 @@ class Config:
     worker: WorkerConfig = field(default_factory=WorkerConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
     client: ClientConfig = field(default_factory=ClientConfig)
+    conda: CondaConfig = field(default_factory=CondaConfig)
 
     def __post_init__(self):
         """Validate configuration values after initialization."""
@@ -131,6 +140,7 @@ class Config:
         worker_dict = config_dict.get('worker', config_dict.get('node', {}))
         storage_dict = config_dict.get('storage', {})
         client_dict = config_dict.get('client', {})
+        conda_dict = config_dict.get('conda', {})
 
         # Filter to only valid fields for each sub-config
         def filter_dict(d: dict, dataclass_type):
@@ -143,13 +153,15 @@ class Config:
         worker_filtered = filter_dict(worker_dict, WorkerConfig)
         storage_filtered = filter_dict(storage_dict, StorageConfig)
         client_filtered = filter_dict(client_dict, ClientConfig)
+        conda_filtered = filter_dict(conda_dict, CondaConfig)
 
         return cls(
             address=address,
             head=HeadConfig(**head_filtered) if head_filtered else HeadConfig(),
             worker=WorkerConfig(**worker_filtered) if worker_filtered else WorkerConfig(),
             storage=StorageConfig(**storage_filtered) if storage_filtered else StorageConfig(),
-            client=ClientConfig(**client_filtered) if client_filtered else ClientConfig()
+            client=ClientConfig(**client_filtered) if client_filtered else ClientConfig(),
+            conda=CondaConfig(**conda_filtered) if conda_filtered else CondaConfig()
         )
 
     def to_dict(self) -> dict:
@@ -166,7 +178,8 @@ class Config:
                 'head': {'port': 8265, 'heartbeat_timeout': 60, ...},
                 'worker': {...},
                 'storage': {...},
-                'client': {...}
+                'client': {...},
+                'conda': {...}
             }
         """
         return asdict(self)

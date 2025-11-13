@@ -1,6 +1,7 @@
 
 from scheduler.core.models import (
     Job,
+    JobSubmitRequest,
     Node,
     GPU,
     JobRequirement,
@@ -10,7 +11,7 @@ from scheduler.core.models import (
     GPUStats,
 )
 
-from scheduler.core.config import Config, load_config, save_config, init_config, HeadConfig
+from scheduler.core.config import Config, load_config, save_config, init_config, HeadConfig, CondaConfig
 
 from scheduler.core.head_info import load_head_info, save_head_info
 
@@ -38,6 +39,7 @@ from scheduler.core.utils import (
     ensure_dir_exists,
     parse_address,
     parse_time_duration,
+    find_workspace_root,
 )
 
 from scheduler.core.constants import (
@@ -64,6 +66,7 @@ from scheduler.core.constants import (
 __all__ = [
     # Models
     "Job",
+    "JobSubmitRequest",
     "Node",
     "GPU",
     "JobRequirement",
@@ -74,6 +77,7 @@ __all__ = [
     # Config
     "Config",
     "HeadConfig",
+    "CondaConfig",
     "load_config",
     "save_config",
     "init_config",
@@ -102,6 +106,7 @@ __all__ = [
     "find_available_port",
     "get_local_ip",
     "ensure_dir_exists",
+    "find_workspace_root",
     # Constants
     "DEFAULT_PORT",
     "DEFAULT_HEARTBEAT_TIMEOUT",

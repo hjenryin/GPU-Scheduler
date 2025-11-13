@@ -402,6 +402,7 @@ class Job:
     snapshot_ref: Optional[str] = None
     snapshot_working_dir: Optional[str] = None
     after_commit_ref: Optional[str] = None
+    conda_env: Optional[str] = None
 
     def __init__(
         self,
@@ -424,7 +425,8 @@ class Job:
         error_message: Optional[str] = None,
         snapshot_ref: Optional[str] = None,
         snapshot_working_dir: Optional[str] = None,
-        after_commit_ref: Optional[str] = None
+        after_commit_ref: Optional[str] = None,
+        conda_env: Optional[str] = None
     ):
         """
         Initialize job.
@@ -450,6 +452,7 @@ class Job:
             snapshot_ref: Git snapshot reference (commit SHA in shadow repo) - "before" commit
             snapshot_working_dir: Original working directory for snapshot
             after_commit_ref: Git commit SHA after job execution - "after" commit
+            conda_env: Conda environment name for job execution
         """
         self.job_id = job_id
         self.name = name
@@ -471,6 +474,7 @@ class Job:
         self.snapshot_ref = snapshot_ref
         self.snapshot_working_dir = snapshot_working_dir
         self.after_commit_ref = after_commit_ref
+        self.conda_env = conda_env
 
     @property
     def start_time(self) -> Optional[datetime]:
@@ -534,7 +538,8 @@ class Job:
             'error_message': self.error_message,
             'snapshot_ref': self.snapshot_ref,
             'snapshot_working_dir': self.snapshot_working_dir,
-            'after_commit_ref': self.after_commit_ref
+            'after_commit_ref': self.after_commit_ref,
+            'conda_env': self.conda_env
         }
 
     @classmethod
@@ -578,8 +583,79 @@ class Job:
             error_message=data.get('error_message'),
             snapshot_ref=data.get('snapshot_ref'),
             snapshot_working_dir=data.get('snapshot_working_dir'),
-            after_commit_ref=data.get('after_commit_ref')
+            after_commit_ref=data.get('after_commit_ref'),
+            conda_env=data.get('conda_env')
         )
+
+
+class JobSubmitRequest:
+    """Schema for job submission requests.
+
+    This provides a type-safe interface for building job submission payloads.
+    Unlike the full Job class, this only contains fields needed for submission.
+    """
+
+    def __init__(
+        self,
+        job_id: str,
+        script: str,
+        requirements: str,
+        working_dir: str,
+        name: Optional[str] = None,
+        script_args: Optional[List[str]] = None,
+        env_vars: Optional[Dict[str, str]] = None,
+        dependencies: Optional[List[str]] = None,
+        priority: int = 0,
+        snapshot_ref: Optional[str] = None,
+        snapshot_working_dir: Optional[str] = None,
+        conda_env: Optional[str] = None,
+    ):
+        """
+        Initialize job submission request.
+
+        Args:
+            job_id: Unique job identifier
+            script: Path to script to execute
+            requirements: Resource requirement string (e.g., "2", "gpu1:4")
+            working_dir: Working directory for execution
+            name: Human-readable job name
+            script_args: Arguments to pass to script
+            env_vars: Environment variables
+            dependencies: List of job IDs this job depends on
+            priority: Job priority (higher = more important)
+            snapshot_ref: Git snapshot reference
+            snapshot_working_dir: Git snapshot working directory
+            conda_env: Conda environment name
+        """
+        self.job_id = job_id
+        self.script = script
+        self.requirements = requirements
+        self.working_dir = working_dir
+        self.name = name
+        self.script_args = script_args
+        self.env_vars = env_vars
+        self.dependencies = dependencies
+        self.priority = priority
+        self.snapshot_ref = snapshot_ref
+        self.snapshot_working_dir = snapshot_working_dir
+        self.conda_env = conda_env
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dict for API payload."""
+        return {
+            "job_id": self.job_id,
+            "script": self.script,
+            "requirements": self.requirements,
+            "working_dir": self.working_dir,
+            "name": self.name,
+            "script_args": self.script_args,
+            "env_vars": self.env_vars,
+            "dependencies": self.dependencies,
+            "priority": self.priority,
+            "snapshot_ref": self.snapshot_ref,
+            "snapshot_working_dir": self.snapshot_working_dir,
+            "conda_env": self.conda_env,
+        }
 
 
 class Node:

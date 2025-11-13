@@ -5,8 +5,11 @@ import socket
 import hashlib
 import uuid
 import pathlib
+import logging
 
 from scheduler.core.exceptions import InvalidRequirementException, PermissionDeniedException, ValidationException
+
+logger = logging.getLogger(__name__)
 
 
 def parse_requirements(req_str: str) -> List[Tuple[Optional[str], int]]:
@@ -70,6 +73,62 @@ def parse_requirements(req_str: str) -> List[Tuple[Optional[str], int]]:
                 alternatives.append((node_name, -1))  # -1 = flexible allocation
 
     return alternatives
+
+
+def find_workspace_root(path: str) -> str:
+    """
+    Find workspace root by searching for .git or .scheduler-git directories.
+
+    Searches upward from the given path to find:
+    1. A .git directory (user's git repository)
+    2. A .scheduler-git directory (scheduler's shadow repository)
+
+    If neither is found, returns the original path.
+
+    Args:
+        path: Starting directory path (can be file or directory)
+
+    Returns:
+        Absolute path to workspace root
+
+    Examples:
+        >>> find_workspace_root("/home/user/myrepo/subdir")
+        "/home/user/myrepo"  # if myrepo contains .git
+
+        >>> find_workspace_root("/home/user/standalone")
+        "/home/user/standalone"  # if not in git repo
+    """
+    # Convert to absolute path
+    current = os.path.abspath(path)
+
+    # If path is a file, start from its directory
+    if os.path.isfile(current):
+        current = os.path.dirname(current)
+
+    # Search upward until we find .git or .scheduler-git or reach root
+    while True:
+        # Check for .git directory (user's repo)
+        git_dir = os.path.join(current, '.git')
+        if os.path.exists(git_dir):
+            logger.debug(f"Found .git directory at {current}")
+            return current
+
+        # Check for .scheduler-git directory (our shadow repo)
+        scheduler_git_dir = os.path.join(current, '.scheduler-git')
+        if os.path.exists(scheduler_git_dir):
+            logger.debug(f"Found .scheduler-git directory at {current}")
+            return current
+
+        # Move to parent directory
+        parent = os.path.dirname(current)
+
+        # Stop at filesystem root
+        if parent == current:
+            # No git repo found, use original path
+            logger.debug(f"No .git or .scheduler-git found, using {path} as workspace root")
+            return os.path.abspath(path)
+
+        current = parent
 
 
 def format_duration(duration: timedelta) -> str:
