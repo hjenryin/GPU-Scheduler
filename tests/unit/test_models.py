@@ -182,10 +182,45 @@ class TestJobRequirement:
         with pytest.raises(InvalidRequirementException):
             JobRequirement("0")
 
-    def test_invalid_non_numeric(self):
-        """Test invalid non-numeric requirement"""
+    def test_invalid_zero_node_specific_count(self):
+        """Test invalid zero GPU count for node-specific requirement"""
         with pytest.raises(InvalidRequirementException):
-            JobRequirement("abc")
+            JobRequirement("gpu1:0")
+
+    def test_flexible_allocation_single_node(self):
+        """Test flexible allocation for single node"""
+        req = JobRequirement("gpu1")
+        assert len(req.alternatives) == 1
+        assert req.alternatives[0] == ("gpu1", -1)
+
+    def test_flexible_allocation_multiple_nodes(self):
+        """Test flexible allocation with multiple nodes"""
+        req = JobRequirement("gpu1,gpu2")
+        assert len(req.alternatives) == 2
+        assert req.alternatives[0] == ("gpu1", -1)
+        assert req.alternatives[1] == ("gpu2", -1)
+
+    def test_mixed_flexible_and_fixed_allocation(self):
+        """Test mixed flexible and fixed allocation"""
+        req = JobRequirement("gpu1,gpu2:4")
+        assert len(req.alternatives) == 2
+        assert req.alternatives[0] == ("gpu1", -1)
+        assert req.alternatives[1] == ("gpu2", 4)
+
+    def test_flexible_allocation_serialization(self):
+        """Test flexible allocation serialization"""
+        req = JobRequirement("gpu1")
+        assert req.serialize() == "gpu1"
+        assert "all available GPUs" in str(req)
+        assert "gpu1" in str(req)
+
+    def test_flexible_allocation_mixed_serialization(self):
+        """Test mixed flexible and fixed serialization"""
+        req = JobRequirement("gpu1,gpu2:4")
+        assert req.serialize() == "gpu1,gpu2:4"
+        assert " OR " in str(req)
+        assert "all available GPUs on gpu1" in str(req)
+        assert "4 GPUs on gpu2" in str(req)
 
     def test_requirement_serialization(self):
         """Test requirement serialization and string representation"""

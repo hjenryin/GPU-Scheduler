@@ -14,10 +14,11 @@ def parse_requirements(req_str: str) -> List[Tuple[Optional[str], int]]:
     Parse requirement string into list of alternatives.
 
     Args:
-        req_str: Requirement string (e.g., "2", "gpu1:4", "gpu1:2,gpu2:4")
+        req_str: Requirement string (e.g., "2", "gpu1:4", "gpu1:2,gpu2:4", "gpu1")
 
     Returns:
         List of (node_name, num_gpus) tuples. node_name is None for any node.
+        num_gpus of -1 means flexible allocation (take all available GPUs on node).
 
     Raises:
         InvalidRequirementException: If requirement string is invalid
@@ -26,6 +27,7 @@ def parse_requirements(req_str: str) -> List[Tuple[Optional[str], int]]:
         parse_requirements("2") -> [(None, 2)]
         parse_requirements("gpu1:4") -> [("gpu1", 4)]
         parse_requirements("gpu1:2,gpu2:4") -> [("gpu1", 2), ("gpu2", 4)]
+        parse_requirements("gpu1") -> [("gpu1", -1)]  # Flexible allocation
     """
     if not req_str or not req_str.strip():
         raise InvalidRequirementException("Requirement string cannot be empty")
@@ -50,14 +52,22 @@ def parse_requirements(req_str: str) -> List[Tuple[Optional[str], int]]:
                 raise InvalidRequirementException(f"GPU count must be positive: {num_gpus}")
             alternatives.append((node_name, num_gpus))
         else:
-            # Any node requirement (e.g., "2")
+            # Try to parse as a number (any node with fixed count)
             try:
                 num_gpus = int(part)
+                if num_gpus <= 0:
+                    raise InvalidRequirementException(f"GPU count must be positive: {num_gpus}")
+                alternatives.append((None, num_gpus))
             except ValueError:
-                raise InvalidRequirementException(f"Invalid GPU count: {part}")
-            if num_gpus <= 0:
-                raise InvalidRequirementException(f"GPU count must be positive: {num_gpus}")
-            alternatives.append((None, num_gpus))
+                # Not a number, treat as hostname with flexible allocation
+                # e.g., "gpu1" means "take all available GPUs on gpu1"
+                node_name = part
+                if not node_name:
+                    raise InvalidRequirementException(f"Invalid node name: {part}")
+                # Validate node name doesn't contain spaces (invalid format)
+                if ' ' in node_name:
+                    raise InvalidRequirementException(f"Invalid requirement format: {part}. Use ':' to specify GPU count (e.g., 'gpu1:4')")
+                alternatives.append((node_name, -1))  # -1 = flexible allocation
 
     return alternatives
 
