@@ -62,10 +62,11 @@ class TestJobManager:
         """Test submitting job with invalid requirements raises exception"""
         from scheduler.core.exceptions import InvalidRequirementException
 
+        # Test with invalid GPU count (not a number)
         with pytest.raises(InvalidRequirementException):
             job_manager.submit_job(
                 script="/script.py",
-                requirements="invalid"
+                requirements="node:abc"
             )
 
     def test_get_job_not_found(self, job_manager):

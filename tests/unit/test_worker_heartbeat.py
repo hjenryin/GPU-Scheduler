@@ -104,7 +104,7 @@ class TestHeartbeatSender:
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING
         )
-        mock_client_instance.poll_for_job.return_value = mock_job
+        mock_client_instance.poll_for_job.return_value = [mock_job]
         mock_client_class.return_value = mock_client_instance
 
         sender = HeartbeatSender(
@@ -114,9 +114,10 @@ class TestHeartbeatSender:
             config=test_config
         )
 
-        job = sender.poll_for_job()
+        jobs = sender.poll_for_job()
 
-        assert job == mock_job
+        assert len(jobs) == 1
+        assert jobs[0] == mock_job
         # Should use the config value (test_config has job_poll_timeout from conftest)
         mock_client_instance.poll_for_job.assert_called_once_with(
             "test-node",
@@ -129,7 +130,7 @@ class TestHeartbeatSender:
         """Test polling for job when no job available"""
         mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
         mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
-        mock_client_instance.poll_for_job.return_value = None
+        mock_client_instance.poll_for_job.return_value = []
         mock_client_class.return_value = mock_client_instance
 
         sender = HeartbeatSender(
@@ -139,9 +140,9 @@ class TestHeartbeatSender:
             config=test_config
         )
 
-        job = sender.poll_for_job()
+        jobs = sender.poll_for_job()
 
-        assert job is None
+        assert jobs == []
 
     @patch('scheduler.worker.heartbeat.SchedulerClient', autospec=True)
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
@@ -159,9 +160,9 @@ class TestHeartbeatSender:
             config=test_config
         )
 
-        job = sender.poll_for_job()
+        jobs = sender.poll_for_job()
 
-        assert job is None
+        assert jobs == []
 
     @patch('scheduler.worker.heartbeat.SchedulerClient', autospec=True)
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)

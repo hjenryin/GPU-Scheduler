@@ -468,6 +468,7 @@ class TestTrackedFiles:
         subprocess.run(['git', 'init'], cwd=temp_work_dir, check=True)
         subprocess.run(['git', 'config', 'user.email', 'test@test.com'], cwd=temp_work_dir, check=True)
         subprocess.run(['git', 'config', 'user.name', 'Test User'], cwd=temp_work_dir, check=True)
+        subprocess.run(['git', 'config', 'commit.gpgsign', 'false'], cwd=temp_work_dir, check=True)
 
         # Create and track a script file
         script_file = os.path.join(temp_work_dir, 'eval-23k.sh')
@@ -500,6 +501,7 @@ class TestTrackedFiles:
         subprocess.run(['git', 'init'], cwd=temp_work_dir, check=True)
         subprocess.run(['git', 'config', 'user.email', 'test@test.com'], cwd=temp_work_dir, check=True)
         subprocess.run(['git', 'config', 'user.name', 'Test User'], cwd=temp_work_dir, check=True)
+        subprocess.run(['git', 'config', 'commit.gpgsign', 'false'], cwd=temp_work_dir, check=True)
 
         # Create and track a script
         script_file = os.path.join(temp_work_dir, 'run.sh')
