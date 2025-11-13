@@ -248,12 +248,14 @@ This is a **coordination system**, not an enforcement system. It works well when
 | `scheduler freeze` | Freeze GPUs temporarily | [→ Docs](docs/API_REFERENCE.md#gpu-freeze-unfreeze) |
 | `scheduler unfreeze` | Unfreeze GPUs | [→ Docs](docs/API_REFERENCE.md#gpu-freeze-unfreeze) |
 | `scheduler config` | Manage configuration | [→ Docs](docs/API_REFERENCE.md#configuration) |
+| `scheduler config conda-env` | Manage conda environments per workspace | [→ Docs](docs/API_REFERENCE.md#configuration) |
 
 ### Job Management
 
 - ✅ **Resource requirements**: Flexible GPU allocation (`--req 2` or `--req gpu1:4,gpu2:2`)
 - ✅ **Job dependencies**: Chain jobs with `--depends-on`
 - ✅ **Priority scheduling**: Higher priority jobs scheduled first
+- ✅ **Conda environment support**: Automatically run jobs in configured conda environments per workspace
 - ✅ **Environment variables**: Pass custom env vars to jobs
 - ✅ **Working directory**: Execute jobs in specified directory
 - ✅ **Script arguments**: Pass arguments to job scripts
@@ -430,7 +432,24 @@ scheduler submit --req gpu1:4 train.py
 scheduler submit --req gpu1:2,gpu2:4 train.py
 ```
 
-### Example 6: Python API Integration
+### Example 6: Conda Environment Per Workspace
+
+```bash
+# Set conda environment for current workspace
+cd ~/project1
+scheduler config conda-env set ml-env
+
+# Jobs submitted from this workspace will automatically use ml-env
+scheduler submit --req 2 train.py  # Runs with: conda run -n ml-env python train.py
+
+# Check configured environment
+scheduler config conda-env show
+
+# List all workspace-to-env mappings
+scheduler config conda-env list
+```
+
+### Example 7: Python API Integration
 
 ```python
 from scheduler import SchedulerClient, JobStatus
@@ -484,6 +503,13 @@ head:
   heartbeat_timeout: 60
   scheduling_interval: 5
   graceful_shutdown_timeout: 60
+
+# Conda environment settings (optional)
+conda:
+  command: conda  # conda executable
+  envs:
+    /home/user/project1: ml-env
+    /home/user/project2: pytorch-gpu
 ```
 
 **[→ Complete Configuration Reference](docs/API_REFERENCE.md#configuration)**

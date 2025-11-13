@@ -158,9 +158,9 @@ class TestStartHeadNodeImplementation:
     @patch('scheduler.core.utils.is_port_available', autospec=True)
     @patch('scheduler.cli.start.SingletonDaemon', autospec=True)
     @patch('scheduler.cli.start.Orchestrator', autospec=True)
-    @patch('scheduler.cli.start._start_worker_node_internal', autospec=True)
+    @patch('scheduler.cli.start.subprocess.Popen', autospec=True)
     @patch('scheduler.cli.start.click.echo', autospec=True)
-    def test_start_head_port_available(self, mock_echo, mock_worker, mock_orch_class, mock_singleton_class, mock_port_check):
+    def test_start_head_port_available(self, mock_echo, mock_popen, mock_orch_class, mock_singleton_class, mock_port_check):
         """Test starting head when port is available"""
         mock_port_check.return_value = True
         
@@ -182,9 +182,9 @@ class TestStartHeadNodeImplementation:
 
     @patch('scheduler.core.utils.is_port_available', autospec=True)
     @patch('scheduler.core.utils.find_available_port', autospec=True)
-    @patch('scheduler.cli.start._start_worker_node_internal', autospec=True)
+    @patch('scheduler.cli.start.subprocess.Popen', autospec=True)
     @patch('scheduler.cli.start.click.echo', autospec=True)
-    def test_start_head_port_unavailable(self, mock_echo, mock_worker, mock_find_port, mock_port_check):
+    def test_start_head_port_unavailable(self, mock_echo, mock_popen, mock_find_port, mock_port_check):
         """Test starting head when port is unavailable"""
         mock_port_check.return_value = False
         mock_find_port.return_value = 8266

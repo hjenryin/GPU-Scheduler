@@ -13,7 +13,7 @@ from scheduler.core import (
     NodeNotFoundException,
     ValidationException,
 )
-from scheduler.core import GPU, Job, JobStatus, Node, NodeStatus, GPUStats
+from scheduler.core import GPU, Job, JobSubmitRequest, JobStatus, Node, NodeStatus, GPUStats
 from scheduler.core import Config, load_config
 from scheduler.core import parse_address, API_VERSION
 
@@ -152,7 +152,7 @@ class SchedulerClient:
             ConnectionException: If cannot connect to head node
             ValidationException: If parameters invalid
         """
-        from scheduler.core import generate_job_id
+        from scheduler.core import generate_job_id, find_workspace_root
         from scheduler.worker import GitSnapshotManager
         import os
 
@@ -162,6 +162,16 @@ class SchedulerClient:
         # Use current working directory if not specified
         if working_dir is None:
             working_dir = os.getcwd()
+
+        # Detect conda environment from workspace
+        conda_env_detected = None
+        try:
+            workspace_root = find_workspace_root(working_dir)
+            conda_env_detected = self.config.conda.envs.get(workspace_root)
+            if conda_env_detected:
+                logger.info(f"Detected conda environment '{conda_env_detected}' for workspace {workspace_root}")
+        except Exception as e:
+            logger.debug(f"Could not detect workspace root: {e}")
 
         # Create git snapshot on client machine
         snapshot_ref = None
@@ -181,22 +191,24 @@ class SchedulerClient:
             # Don't fail job submission if snapshot creation fails
             logger.warning(f"Failed to create snapshot for job {job_id}: {e}")
 
-        payload = {
-            "job_id": job_id,
-            "script": script,
-            "requirements": requirements,
-            "name": name,
-            "script_args": script_args,
-            "working_dir": working_dir,
-            "env_vars": env_vars,
-            "dependencies": dependencies,
-            "priority": priority,
-            "snapshot_ref": snapshot_ref,
-            "snapshot_working_dir": snapshot_working_dir,
-        }
+        # Create submission request using schema
+        request = JobSubmitRequest(
+            job_id=job_id,
+            script=script,
+            requirements=requirements,
+            working_dir=working_dir,
+            name=name,
+            script_args=script_args,
+            env_vars=env_vars,
+            dependencies=dependencies,
+            priority=priority,
+            snapshot_ref=snapshot_ref,
+            snapshot_working_dir=snapshot_working_dir,
+            conda_env=conda_env_detected,
+        )
 
         try:
-            response = self.session.post(f"{self.base_url}/jobs", json=payload, timeout=30)
+            response = self.session.post(f"{self.base_url}/jobs", json=request.to_dict(), timeout=30)
             response.raise_for_status()
             data = response.json()
             return self._job_from_response(data)

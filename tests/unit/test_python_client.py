@@ -597,10 +597,10 @@ class TestWorkerMethods:
         }
 
         with patch.object(client.session, 'get', return_value=mock_response):
-            job = client.poll_for_job("worker-1", timeout=30)  # Use explicit timeout for test
+            jobs = client.poll_for_job("worker-1", timeout=30)  # Use explicit timeout for test
 
-        assert job is not None
-        assert job.job_id == "job_123"
+        assert len(jobs) == 1
+        assert jobs[0].job_id == "job_123"
 
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_poll_for_job_no_job(self, mock_load_config):
@@ -612,20 +612,20 @@ class TestWorkerMethods:
         mock_response.status_code = 204  # No content
 
         with patch.object(client.session, 'get', return_value=mock_response):
-            job = client.poll_for_job("worker-1", timeout=30)  # Use explicit timeout for test
+            jobs = client.poll_for_job("worker-1", timeout=30)  # Use explicit timeout for test
 
-        assert job is None
+        assert jobs == []
 
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_poll_for_job_timeout(self, mock_load_config):
-        """Test polling for job returns None on timeout"""
+        """Test polling for job returns empty list on timeout"""
         mock_load_config.return_value = create_autospec(Config, instance=True, spec_set=True)
         client = SchedulerClient(address="test:9000")
 
         with patch.object(client.session, 'get', side_effect=requests.exceptions.Timeout()):
-            job = client.poll_for_job("worker-1", timeout=30)  # Use explicit timeout for test
+            jobs = client.poll_for_job("worker-1", timeout=30)  # Use explicit timeout for test
 
-        assert job is None
+        assert jobs == []
 
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_report_job_complete_success(self, mock_load_config):

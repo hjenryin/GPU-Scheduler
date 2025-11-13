@@ -10,6 +10,7 @@ from scheduler.cli.logs import logs_command
 from scheduler.cli.cancel import cancel_command
 from scheduler.cli.retry import retry
 from scheduler.cli.config import config_command
+from scheduler.cli.conda_config import conda_env_group
 from scheduler.cli.status import status_command
 from scheduler.cli.purge import purge_command
 from scheduler.cli.freeze import freeze_command
@@ -231,27 +232,77 @@ def cancel(job_ids):
 cli.add_command(retry)
 
 
-@cli.command()
-@click.argument('subcommand', type=click.Choice(['init', 'show', 'get', 'set']))
-@click.argument('key', required=False)
-@click.argument('value', required=False)
-@click.option('--config-file', help='Path to configuration file')
-def config(subcommand, key, value, config_file):
+@cli.group()
+def config():
     """Manage configuration"""
+    pass
+
+
+@config.command()
+@click.option('--config-file', help='Path to configuration file')
+def init(config_file):
+    """Initialize configuration file"""
     try:
-            code = config_command(
-            command=subcommand,
-            key=key,
-            value=value,
-            config_file=config_file
-        )
-            sys.exit(code)
+        code = config_command(command='init', config_file=config_file)
+        sys.exit(code)
     except KeyboardInterrupt:
         click.echo("\nInterrupted")
         sys.exit(130)
     except Exception as e:
         click.echo(f"Error: {e}")
         sys.exit(1)
+
+
+@config.command()
+@click.option('--config-file', help='Path to configuration file')
+def show(config_file):
+    """Show current configuration"""
+    try:
+        code = config_command(command='show', config_file=config_file)
+        sys.exit(code)
+    except KeyboardInterrupt:
+        click.echo("\nInterrupted")
+        sys.exit(130)
+    except Exception as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
+
+
+@config.command()
+@click.argument('key')
+@click.option('--config-file', help='Path to configuration file')
+def get(key, config_file):
+    """Get configuration value"""
+    try:
+        code = config_command(command='get', key=key, config_file=config_file)
+        sys.exit(code)
+    except KeyboardInterrupt:
+        click.echo("\nInterrupted")
+        sys.exit(130)
+    except Exception as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
+
+
+@config.command()
+@click.argument('key')
+@click.argument('value')
+@click.option('--config-file', help='Path to configuration file')
+def set(key, value, config_file):
+    """Set configuration value"""
+    try:
+        code = config_command(command='set', key=key, value=value, config_file=config_file)
+        sys.exit(code)
+    except KeyboardInterrupt:
+        click.echo("\nInterrupted")
+        sys.exit(130)
+    except Exception as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
+
+
+# Add conda-env subcommand group
+config.add_command(conda_env_group)
 
 
 @cli.command()

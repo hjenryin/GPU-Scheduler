@@ -8,6 +8,7 @@ import pytest
 
 from scheduler.core.config import Config, WorkerConfig
 from scheduler.core.models import Job, JobStatus, JobRequirement
+from scheduler.core import find_workspace_root
 from scheduler.worker.job_executor import JobExecutor
 from scheduler.worker.git_snapshot import GitSnapshotManager
 
@@ -180,8 +181,8 @@ class TestWorkspaceRootDiscovery:
                 f.write('print("hello")\n')
             
             # Find workspace root from nested directory
-            found_root = git_manager._find_workspace_root(nested)
-            
+            found_root = find_workspace_root(nested)
+
             # Should find the workspace root, not the nested directory
             assert found_root == workspace, f"Expected {workspace}, got {found_root}"
             

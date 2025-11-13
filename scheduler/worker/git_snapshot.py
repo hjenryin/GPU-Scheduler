@@ -7,7 +7,7 @@ from typing import Optional, List, Set, Dict, Tuple
 import fnmatch
 from pathlib import Path
 
-from scheduler.core import Config
+from scheduler.core import Config, find_workspace_root
 from scheduler.core import (
     DEFAULT_SNAPSHOT_MAX_FILE_SIZE,
     DEFAULT_SNAPSHOT_MAX_FILES_PER_FOLDER,
@@ -575,7 +575,7 @@ class GitSnapshotManager:
         """
         try:
             # Find the workspace root (search for .git or .scheduler-git)
-            workspace_root = self._find_workspace_root(working_dir)
+            workspace_root = find_workspace_root(working_dir)
             logger.info(f"Using workspace root: {workspace_root} for job {job_id}")
             
             # Ensure shadow repo exists for this workspace
