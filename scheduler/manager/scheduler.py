@@ -137,10 +137,18 @@ class Scheduler:
                 logger.debug(f"Node {node.node_name} has {len(free_gpus)} free GPUs: {free_gpus}")
 
                 # Check if enough GPUs are available
-                if len(free_gpus) >= req_gpus:
-                    # Take the required number of GPUs
+                if req_gpus == -1:
+                    # Flexible allocation: take all available GPUs (minimum 1 required)
+                    if len(free_gpus) >= 1:
+                        selected_gpus = free_gpus  # Take ALL available GPUs
+                        logger.debug(f"Flexible allocation: selected all {len(selected_gpus)} GPUs {selected_gpus} for job {job.job_id}")
+                        return (node.node_name, selected_gpus)
+                    else:
+                        logger.debug(f"Node {node.node_name} has no free GPUs for flexible allocation")
+                elif len(free_gpus) >= req_gpus:
+                    # Fixed allocation: take the required number of GPUs
                     selected_gpus = free_gpus[:req_gpus]
-                    logger.debug(f"Selected GPUs {selected_gpus} for job {job.job_id}")
+                    logger.debug(f"Fixed allocation: selected {len(selected_gpus)} GPUs {selected_gpus} for job {job.job_id}")
                     return (node.node_name, selected_gpus)
                 else:
                     logger.debug(f"Node {node.node_name} has insufficient GPUs: need {req_gpus}, have {len(free_gpus)}")

@@ -106,6 +106,45 @@ class TestParseRequirements:
         result = parse_requirements("2,4,8")
         assert result == [(None, 2), (None, 4), (None, 8)]
 
+    def test_flexible_allocation_single_node(self):
+        """Test parsing flexible allocation for single node (--req host)"""
+        result = parse_requirements("gpu1")
+        assert result == [("gpu1", -1)]
+
+    def test_flexible_allocation_multiple_nodes(self):
+        """Test parsing flexible allocation for multiple nodes"""
+        result = parse_requirements("gpu1,gpu2,gpu3")
+        assert result == [("gpu1", -1), ("gpu2", -1), ("gpu3", -1)]
+
+    def test_mixed_flexible_and_fixed_allocation(self):
+        """Test parsing mixed flexible and fixed allocation"""
+        result = parse_requirements("gpu1,gpu2:4")
+        assert result == [("gpu1", -1), ("gpu2", 4)]
+
+    def test_mixed_any_node_and_flexible_allocation(self):
+        """Test parsing mixed any-node and flexible allocation"""
+        result = parse_requirements("2,gpu1")
+        assert result == [(None, 2), ("gpu1", -1)]
+
+    def test_flexible_allocation_with_spaces(self):
+        """Test parsing flexible allocation with whitespace"""
+        result = parse_requirements("  gpu1  ,  gpu2  ")
+        assert result == [("gpu1", -1), ("gpu2", -1)]
+
+    def test_flexible_allocation_node_name_variations(self):
+        """Test parsing flexible allocation with various node name formats"""
+        # Test with hyphens
+        result = parse_requirements("gpu-node-1")
+        assert result == [("gpu-node-1", -1)]
+
+        # Test with underscores
+        result = parse_requirements("gpu_node_1")
+        assert result == [("gpu_node_1", -1)]
+
+        # Test with dots
+        result = parse_requirements("gpu.node.1")
+        assert result == [("gpu.node.1", -1)]
+
 
 class TestFormatDuration:
     """Tests for format_duration function"""

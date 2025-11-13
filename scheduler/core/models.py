@@ -288,7 +288,11 @@ class JobRequirement:
         self._alternatives = self._parse_requirements(requirement_str)
 
     def _parse_requirements(self, req_str: str) -> List[Tuple[Optional[str], int]]:
-        """Parse requirement string into list of alternatives."""
+        """
+        Parse requirement string into list of alternatives.
+
+        num_gpus of -1 means flexible allocation (take all available GPUs on node).
+        """
         if not req_str or not req_str.strip():
             raise InvalidRequirementException("Requirement string cannot be empty")
 
@@ -312,14 +316,22 @@ class JobRequirement:
                     raise InvalidRequirementException(f"GPU count must be positive: {num_gpus}")
                 alternatives.append((node_name, num_gpus))
             else:
-                # Any node requirement (e.g., "2")
+                # Try to parse as a number (any node with fixed count)
                 try:
                     num_gpus = int(part)
+                    if num_gpus <= 0:
+                        raise InvalidRequirementException(f"GPU count must be positive: {num_gpus}")
+                    alternatives.append((None, num_gpus))
                 except ValueError:
-                    raise InvalidRequirementException(f"Invalid GPU count: {part}")
-                if num_gpus <= 0:
-                    raise InvalidRequirementException(f"GPU count must be positive: {num_gpus}")
-                alternatives.append((None, num_gpus))
+                    # Not a number, treat as hostname with flexible allocation
+                    # e.g., "gpu1" means "take all available GPUs on gpu1"
+                    node_name = part
+                    if not node_name:
+                        raise InvalidRequirementException(f"Invalid node name: {part}")
+                    # Validate node name doesn't contain spaces (invalid format)
+                    if ' ' in node_name:
+                        raise InvalidRequirementException(f"Invalid requirement format: {part}. Use ':' to specify GPU count (e.g., 'gpu1:4')")
+                    alternatives.append((node_name, -1))  # -1 = flexible allocation
 
         return alternatives
 
@@ -336,12 +348,15 @@ class JobRequirement:
         """Serialize to requirement string for JSON/API transmission.
 
         Returns:
-            Machine-readable requirement string (e.g., "2", "gpu1:4", "gpu1:2,gpu2:4")
+            Machine-readable requirement string (e.g., "2", "gpu1:4", "gpu1:2,gpu2:4", "gpu1")
         """
         parts = []
         for node_name, num_gpus in self._alternatives:
             if node_name is None:
                 parts.append(str(num_gpus))
+            elif num_gpus == -1:
+                # Flexible allocation: just the node name
+                parts.append(node_name)
             else:
                 parts.append(f"{node_name}:{num_gpus}")
         return ",".join(parts)
@@ -350,12 +365,14 @@ class JobRequirement:
         """String representation of requirement for human display.
 
         Returns:
-            Human-readable requirement string (e.g., "2 GPUs on any node")
+            Human-readable requirement string (e.g., "2 GPUs on any node", "all available GPUs on gpu1")
         """
         parts = []
         for node_name, num_gpus in self._alternatives:
             if node_name is None:
                 parts.append(f"{num_gpus} GPUs on any node")
+            elif num_gpus == -1:
+                parts.append(f"all available GPUs on {node_name}")
             else:
                 parts.append(f"{num_gpus} GPUs on {node_name}")
         return " OR ".join(parts)

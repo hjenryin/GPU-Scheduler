@@ -511,7 +511,9 @@ The `--req` flag supports flexible resource specifications:
 |--------|---------|---------|
 | `N` | N GPUs on any available node | `--req 2` |
 | `node1:N` | N GPUs on node1 specifically | `--req gpu1:2` |
+| `node1` | All available GPUs on node1 (flexible allocation) | `--req gpu1` |
 | `node1:N,node2:M` | N GPUs on node1 OR M GPUs on node2 | `--req gpu1:2,gpu2:4` |
+| `node1,node2` | All available GPUs on node1 OR all available GPUs on node2 | `--req gpu1,gpu2` |
 
 **Examples:**
 
@@ -530,6 +532,15 @@ scheduler submit --req gpu1:4 python train.py --model bert
 
 # Job that can run on either gpu1 (2 GPUs) or gpu2 (4 GPUs)
 scheduler submit --req gpu1:2,gpu2:4 python train.py
+
+# Flexible allocation: take all available GPUs on gpu1
+scheduler submit --req gpu1 python train.py --model large
+
+# Flexible allocation with alternatives: all GPUs on gpu1 OR all GPUs on gpu2
+scheduler submit --req gpu1,gpu2 python distributed_training.py
+
+# Mixed: all available GPUs on gpu1 OR exactly 4 GPUs on gpu2
+scheduler submit --req gpu1,gpu2:4 python train.py
 
 # Job with dependencies (waits for job_123 and job_456 to complete)
 scheduler submit --req 2 --depends-on job_123,job_456 python train_stage2.py
@@ -1501,11 +1512,13 @@ For direct HTTP API access:
 
 ```
 <req> ::= <simple> | <compound>
-<simple> ::= <num_gpus> | <node_spec>
-<compound> ::= <node_spec> "," <node_spec> [, ...]
-<node_spec> ::= [<node_name> ":"] <num_gpus>
+<simple> ::= <num_gpus> | <node_spec> | <flexible_spec>
+<compound> ::= <spec> "," <spec> [, ...]
+<spec> ::= <node_spec> | <flexible_spec> | <num_gpus>
+<node_spec> ::= <node_name> ":" <num_gpus>
+<flexible_spec> ::= <node_name>
 <num_gpus> ::= positive integer
-<node_name> ::= alphanumeric string with hyphens/underscores
+<node_name> ::= alphanumeric string with hyphens/underscores/dots
 ```
 
 ### Examples with Interpretation
@@ -1515,8 +1528,11 @@ For direct HTTP API access:
 | `--req 1` | 1 GPU on any available node |
 | `--req 4` | 4 GPUs on any available node |
 | `--req gpu1:2` | 2 GPUs specifically on node "gpu1" |
+| `--req gpu1` | All available GPUs on node "gpu1" (flexible allocation, minimum 1) |
 | `--req gpu1:2,gpu2:2` | 2 GPUs on "gpu1" OR 2 GPUs on "gpu2" (scheduler picks first available) |
+| `--req gpu1,gpu2` | All available GPUs on "gpu1" OR all available GPUs on "gpu2" |
 | `--req gpu1:4,gpu2:8,gpu3:4` | 4 GPUs on gpu1 OR 8 GPUs on gpu2 OR 4 GPUs on gpu3 |
+| `--req gpu1,gpu2:4` | All available GPUs on "gpu1" OR exactly 4 GPUs on "gpu2" |
 
 ### Scheduling Behavior
 
@@ -1524,9 +1540,19 @@ When multiple node options are specified (comma-separated), the scheduler:
 1. Evaluates each option from left to right
 2. Checks if the node exists, is connected, and has enough free GPUs
 3. A GPU is considered "free" only if it has been below the utilization threshold for at least `gpu_stable_time` seconds
-4. Selects the first option that satisfies all conditions
-5. If no options are currently available, job remains pending until one becomes available
-6. When a job is assigned to a node, that node enters a grace period (`job_startup_grace`) during which no new jobs will be scheduled
+4. For **fixed allocation** (e.g., `gpu1:4`): Requires exactly the specified number of GPUs
+5. For **flexible allocation** (e.g., `gpu1`): Takes all available GPUs (minimum 1 required)
+6. Selects the first option that satisfies all conditions
+7. If no options are currently available, job remains pending until one becomes available
+8. When a job is assigned to a node, that node enters a grace period (`job_startup_grace`) during which no new jobs will be scheduled
+
+**Flexible Allocation Behavior:**
+- Jobs using flexible allocation (e.g., `--req gpu1`) will receive **all free and stable GPUs** on the specified node
+- The scheduler requires at least 1 GPU to be available for flexible allocation to succeed
+- This is useful for:
+  - Jobs that can scale with available resources (distributed training, data processing)
+  - Maximizing GPU utilization when exact counts are not critical
+  - Simplifying job submission when you want to use "whatever is available"
 
 ---
 
