@@ -412,21 +412,32 @@ class GitSnapshotManager:
 
             def _matches_exclude(rel_path: str, patterns: Set[str]) -> bool:
                 # Try matching with fnmatch against the relative path and
-                # the basename. Also treat simple directory names as substring
-                # matches to cover common ignore patterns.
+                # the basename. Also treat simple directory names as path component
+                # matches to cover common ignore patterns like "dist" or "__pycache__".
                 for pat in patterns:
                     if not pat:
                         continue
                     # Normalize pattern to use forward slashes
                     p = pat.replace('\\', '/')
+
+                    # Match against full relative path
                     if fnmatch.fnmatch(rel_path, p):
                         return True
+
+                    # Match against basename
                     if fnmatch.fnmatch(os.path.basename(rel_path), p):
                         return True
-                    # If pattern looks like a directory name or simple token,
-                    # check whether it's a path segment in rel_path
-                    if '/' not in p and p in rel_path:
-                        return True
+
+                    # For simple patterns (no wildcards, no path separators),
+                    # check if it matches as a complete path component (directory or file)
+                    # This allows "dist" to match "dist/foo.py" or "foo/dist/bar.py"
+                    # but NOT "run_distributed_trajectories.py"
+                    if '/' not in p and '*' not in p and '?' not in p:
+                        # Split the path into components and check for exact matches
+                        path_components = rel_path.split('/')
+                        if p in path_components:
+                            return True
+
                 return False
 
             # Filter git_files according to scheduler excludes and already-included files
@@ -577,8 +588,11 @@ class GitSnapshotManager:
             # This is critical: we must clear the index before calling git ls-files --others
             # because --others only shows files NOT in the index. If the index still contains
             # files from the previous snapshot, they won't appear in --others and will be lost.
+            logger.debug(f"Clearing git index for job {job_id}")
+
+            # Step 1: Remove all files from the index
             cmd = self._git_base_args(workspace_root, git_dir) + ['rm', '--cached', '-r', '--ignore-unmatch', '.']
-            subprocess.run(
+            result = subprocess.run(
                 cmd,
                 cwd=workspace_root,
                 stdout=subprocess.PIPE,
@@ -586,17 +600,48 @@ class GitSnapshotManager:
                 text=True,
                 timeout=30,
             )
+            if result.returncode != 0:
+                logger.warning(f"git rm --cached returned non-zero exit code {result.returncode}: {result.stderr}")
+                # Continue anyway since --ignore-unmatch should handle most cases
 
+            # Step 2: Reset the index to clear any remaining state
             cmd = self._git_base_args(workspace_root, git_dir) + ['reset']
-            subprocess.run(
+            result = subprocess.run(
                 cmd,
                 cwd=workspace_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
                 timeout=10,
-                check=True
             )
+            if result.returncode != 0:
+                logger.warning(f"git reset returned non-zero exit code {result.returncode}: {result.stderr}")
+
+            # Step 3: Verify the index is actually clear by checking for cached files
+            cmd = self._git_base_args(workspace_root, git_dir) + ['ls-files', '--cached']
+            result = subprocess.run(
+                cmd,
+                cwd=workspace_root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                cached_files = result.stdout.strip().split('\n')
+                logger.warning(f"Index still contains {len(cached_files)} cached files after clearing. "
+                             f"This may cause files to be missing from the snapshot. "
+                             f"First few files: {cached_files[:5]}")
+                # Force clear by removing the index file directly
+                index_file = os.path.join(git_dir, 'index')
+                if os.path.exists(index_file):
+                    try:
+                        os.remove(index_file)
+                        logger.info(f"Forcibly removed index file to ensure clean state")
+                    except Exception as e:
+                        logger.error(f"Failed to remove index file: {e}")
+            else:
+                logger.debug(f"Index successfully cleared for job {job_id}")
 
             # Collect files to snapshot from workspace root
             # Now that index is clear, git ls-files --others will show ALL files
