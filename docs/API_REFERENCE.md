@@ -1068,6 +1068,10 @@ scheduler config [OPTIONS] [COMMAND]
 | `show` | Show current configuration |
 | `set KEY VALUE` | Set a configuration value |
 | `get KEY` | Get a configuration value |
+| `conda-env set ENV` | Set conda environment for workspace |
+| `conda-env unset` | Remove conda environment mapping |
+| `conda-env show` | Show conda environment for workspace |
+| `conda-env list` | List all conda environment mappings |
 
 **Options:**
 
@@ -1088,6 +1092,13 @@ scheduler config set address 192.168.1.100:8265
 
 # Get a configuration value
 scheduler config get address
+
+# Conda environment management
+scheduler config conda-env set ml-env              # Set for current workspace
+scheduler config conda-env set pytorch-gpu --path /home/user/project  # Set for specific path
+scheduler config conda-env show                    # Show current workspace env
+scheduler config conda-env list                    # List all mappings
+scheduler config conda-env unset                   # Remove mapping
 ```
 
 **Configuration File Format (YAML):**
@@ -1117,6 +1128,14 @@ head:
 # Client defaults
 client:
   default_req: "1"  # Default GPU requirement
+
+# Conda environment settings (optional)
+# Jobs submitted from a workspace will automatically use its configured conda env
+conda:
+  command: conda  # conda executable (default: conda)
+  envs:
+    /home/user/project1: ml-env
+    /home/user/project2: pytorch-gpu
 
 # Git snapshot settings
 snapshot_max_file_size: 1048576  # 1 MB default
