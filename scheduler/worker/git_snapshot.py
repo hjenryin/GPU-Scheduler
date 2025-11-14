@@ -591,7 +591,7 @@ class GitSnapshotManager:
             logger.debug(f"Clearing git index for job {job_id}")
 
             # Step 1: Remove all files from the index
-            cmd = self._git_base_args(workspace_root, git_dir) + ['rm', '--cached', '-r', '--ignore-unmatch', '.']
+            cmd = self._git_base_args(workspace_root, git_dir) + ['rm', '--cached', '-f', '-r', '--ignore-unmatch', '.']
             result = subprocess.run(
                 cmd,
                 cwd=workspace_root,
