@@ -271,37 +271,27 @@ class GPU:
 
 class JobRequirement:
     """Job resource requirement specification"""
-
+    
     # Class attribute with default (enables create_autospec to work with spec_set)
-    # Format: List of (node_name, min_gpus, max_gpus) where:
-    # - node_name: Optional[str] - None means any node
-    # - min_gpus: int - minimum GPUs required
-    # - max_gpus: int - maximum GPUs to use (-1 means flexible/all available)
-    _alternatives: List[Tuple[Optional[str], int, int]] = []
+    _alternatives: List[Tuple[Optional[str], int]] = []
 
     def __init__(self, requirement_str: str):
         """
         Parse and initialize job requirement.
 
         Args:
-            requirement_str: Requirement string with support for:
-                - Fixed count: "2", "gpu1:4"
-                - Range: "gpu1:4-8" (use 4-8 GPUs, take as many as available)
-                - Flexible: "gpu1" (take all available GPUs)
-                - Multiple alternatives: "gpu1:2,gpu2:4"
-                - Repeated hosts: "gpu1:4,gpu1:8" (prefer more when available)
+            requirement_str: Requirement string (e.g., "2", "gpu1:4", "gpu1:2,gpu2:4")
 
         Raises:
             InvalidRequirementException: If requirement string is invalid
         """
         self._alternatives = self._parse_requirements(requirement_str)
 
-    def _parse_requirements(self, req_str: str) -> List[Tuple[Optional[str], int, int]]:
+    def _parse_requirements(self, req_str: str) -> List[Tuple[Optional[str], int]]:
         """
         Parse requirement string into list of alternatives.
 
-        Returns list of (node_name, min_gpus, max_gpus) tuples.
-        max_gpus of -1 means flexible allocation (take all available GPUs on node).
+        num_gpus of -1 means flexible allocation (take all available GPUs on node).
         """
         if not req_str or not req_str.strip():
             raise InvalidRequirementException("Requirement string cannot be empty")
@@ -313,46 +303,25 @@ class JobRequirement:
         for part in parts:
             part = part.strip()
             if ':' in part:
-                # Node-specific requirement (e.g., "gpu1:4" or "gpu1:4-8")
+                # Node-specific requirement (e.g., "gpu1:4")
                 node_gpu = part.split(':', 1)
                 if len(node_gpu) != 2:
                     raise InvalidRequirementException(f"Invalid requirement format: {part}")
                 node_name = node_gpu[0].strip()
-                gpu_spec = node_gpu[1].strip()
-
-                # Check for range syntax (e.g., "4-8")
-                if '-' in gpu_spec:
-                    range_parts = gpu_spec.split('-', 1)
-                    if len(range_parts) != 2:
-                        raise InvalidRequirementException(f"Invalid range format: {gpu_spec}")
-                    try:
-                        min_gpus = int(range_parts[0].strip())
-                        max_gpus = int(range_parts[1].strip())
-                    except ValueError:
-                        raise InvalidRequirementException(f"Invalid GPU count in range: {gpu_spec}")
-                    if min_gpus <= 0:
-                        raise InvalidRequirementException(f"Minimum GPU count must be positive: {min_gpus}")
-                    if max_gpus <= 0:
-                        raise InvalidRequirementException(f"Maximum GPU count must be positive: {max_gpus}")
-                    if min_gpus > max_gpus:
-                        raise InvalidRequirementException(f"Minimum GPU count cannot be greater than maximum: {min_gpus} > {max_gpus}")
-                    alternatives.append((node_name, min_gpus, max_gpus))
-                else:
-                    # Fixed count
-                    try:
-                        num_gpus = int(gpu_spec)
-                    except ValueError:
-                        raise InvalidRequirementException(f"Invalid GPU count: {gpu_spec}")
-                    if num_gpus <= 0:
-                        raise InvalidRequirementException(f"GPU count must be positive: {num_gpus}")
-                    alternatives.append((node_name, num_gpus, num_gpus))
+                try:
+                    num_gpus = int(node_gpu[1].strip())
+                except ValueError:
+                    raise InvalidRequirementException(f"Invalid GPU count: {node_gpu[1]}")
+                if num_gpus <= 0:
+                    raise InvalidRequirementException(f"GPU count must be positive: {num_gpus}")
+                alternatives.append((node_name, num_gpus))
             else:
                 # Try to parse as a number (any node with fixed count)
                 try:
                     num_gpus = int(part)
                     if num_gpus <= 0:
                         raise InvalidRequirementException(f"GPU count must be positive: {num_gpus}")
-                    alternatives.append((None, num_gpus, num_gpus))
+                    alternatives.append((None, num_gpus))
                 except ValueError:
                     # Not a number, treat as hostname with flexible allocation
                     # e.g., "gpu1" means "take all available GPUs on gpu1"
@@ -362,18 +331,16 @@ class JobRequirement:
                     # Validate node name doesn't contain spaces (invalid format)
                     if ' ' in node_name:
                         raise InvalidRequirementException(f"Invalid requirement format: {part}. Use ':' to specify GPU count (e.g., 'gpu1:4')")
-                    alternatives.append((node_name, 1, -1))  # -1 = flexible allocation
+                    alternatives.append((node_name, -1))  # -1 = flexible allocation
 
         return alternatives
 
     @property
-    def alternatives(self) -> List[Tuple[Optional[str], int, int]]:
+    def alternatives(self) -> List[Tuple[Optional[str], int]]:
         """Get list of alternative requirements.
 
         Returns:
-            List of (node_name, min_gpus, max_gpus) tuples.
-            - node_name is None for any node
-            - max_gpus is -1 for flexible allocation (all available)
+            List of (node_name, num_gpus) tuples. node_name is None for any node.
         """
         return self._alternatives
 
@@ -381,48 +348,33 @@ class JobRequirement:
         """Serialize to requirement string for JSON/API transmission.
 
         Returns:
-            Machine-readable requirement string (e.g., "2", "gpu1:4", "gpu1:4-8", "gpu1:2,gpu2:4", "gpu1")
+            Machine-readable requirement string (e.g., "2", "gpu1:4", "gpu1:2,gpu2:4", "gpu1")
         """
         parts = []
-        for node_name, min_gpus, max_gpus in self._alternatives:
+        for node_name, num_gpus in self._alternatives:
             if node_name is None:
-                # Any node with fixed or range count
-                if min_gpus == max_gpus:
-                    parts.append(str(min_gpus))
-                else:
-                    parts.append(f"{min_gpus}-{max_gpus}")
-            elif max_gpus == -1:
+                parts.append(str(num_gpus))
+            elif num_gpus == -1:
                 # Flexible allocation: just the node name
                 parts.append(node_name)
-            elif min_gpus == max_gpus:
-                # Fixed count
-                parts.append(f"{node_name}:{min_gpus}")
             else:
-                # Range
-                parts.append(f"{node_name}:{min_gpus}-{max_gpus}")
+                parts.append(f"{node_name}:{num_gpus}")
         return ",".join(parts)
 
     def __str__(self) -> str:
         """String representation of requirement for human display.
 
         Returns:
-            Human-readable requirement string
+            Human-readable requirement string (e.g., "2 GPUs on any node", "all available GPUs on gpu1")
         """
         parts = []
-        for node_name, min_gpus, max_gpus in self._alternatives:
+        for node_name, num_gpus in self._alternatives:
             if node_name is None:
-                if min_gpus == max_gpus:
-                    parts.append(f"{min_gpus} GPUs on any node")
-                elif max_gpus == -1:
-                    parts.append(f"{min_gpus}+ GPUs on any node")
-                else:
-                    parts.append(f"{min_gpus}-{max_gpus} GPUs on any node")
-            elif max_gpus == -1:
+                parts.append(f"{num_gpus} GPUs on any node")
+            elif num_gpus == -1:
                 parts.append(f"all available GPUs on {node_name}")
-            elif min_gpus == max_gpus:
-                parts.append(f"{min_gpus} GPUs on {node_name}")
             else:
-                parts.append(f"{min_gpus}-{max_gpus} GPUs on {node_name}")
+                parts.append(f"{num_gpus} GPUs on {node_name}")
         return " OR ".join(parts)
 
 

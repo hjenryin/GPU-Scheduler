@@ -2,9 +2,109 @@ import os
 import time
 from typing import List, Optional
 import click
+from collections import defaultdict
 
 from scheduler.api import SchedulerClient
 from scheduler.core import load_config, ValidationException, ConnectionException
+
+
+def expand_and_sort_requirements(req_str: str) -> str:
+    """
+    Expand range syntax and sort repeated hosts for backward compatibility.
+
+    This allows using new syntax while keeping the server-side 2-tuple format:
+    - Range: "host:4-8" → "host:8,host:7,host:6,host:5,host:4"
+    - Repeated hosts: "host:4,host:8" → "host:8,host:4" (sorted large to small)
+
+    The old scheduler tries alternatives in order (first match wins), so by
+    expanding ranges and sorting from large to small, we get the same "prefer
+    more GPUs" behavior without changing the server.
+
+    Args:
+        req_str: Requirement string (may contain ranges and repeated hosts)
+
+    Returns:
+        Expanded and sorted requirement string
+    """
+    if not req_str or not req_str.strip():
+        return req_str
+
+    # Group alternatives by node name
+    node_options = defaultdict(list)
+
+    parts = req_str.split(',')
+    for part in parts:
+        part = part.strip()
+
+        if ':' in part:
+            # Node-specific requirement
+            node_name, gpu_spec = part.split(':', 1)
+            node_name = node_name.strip()
+            gpu_spec = gpu_spec.strip()
+
+            # Check for range syntax (e.g., "4-8")
+            if '-' in gpu_spec:
+                range_parts = gpu_spec.split('-', 1)
+                if len(range_parts) == 2:
+                    try:
+                        min_gpus = int(range_parts[0].strip())
+                        max_gpus = int(range_parts[1].strip())
+                        # Expand range from max to min (descending)
+                        for num in range(max_gpus, min_gpus - 1, -1):
+                            node_options[node_name].append(num)
+                        continue
+                    except ValueError:
+                        pass  # Not a valid range, treat as-is
+
+            # Fixed count or non-range
+            try:
+                num_gpus = int(gpu_spec)
+                node_options[node_name].append(num_gpus)
+            except ValueError:
+                # Not a number, keep as-is (might be flexible allocation)
+                node_options[node_name].append(gpu_spec)
+        else:
+            # No colon - could be a number or hostname
+            # These don't get sorted/expanded, keep as-is
+            node_options[None].append(part)
+
+    # Build expanded requirement string
+    result_parts = []
+
+    # First add the "any node" options (None key)
+    if None in node_options:
+        for option in node_options[None]:
+            result_parts.append(str(option))
+
+    # Then add node-specific options, sorted by GPU count descending
+    for node_name in sorted(node_options.keys()):
+        if node_name is None:
+            continue
+
+        options = node_options[node_name]
+        # Sort numeric options descending (prefer more GPUs)
+        numeric_options = []
+        non_numeric_options = []
+
+        for opt in options:
+            if isinstance(opt, int):
+                numeric_options.append(opt)
+            else:
+                try:
+                    numeric_options.append(int(opt))
+                except (ValueError, TypeError):
+                    non_numeric_options.append(opt)
+
+        # Sort numeric descending
+        numeric_options.sort(reverse=True)
+
+        # Add numeric options first (sorted), then non-numeric
+        for num in numeric_options:
+            result_parts.append(f"{node_name}:{num}")
+        for opt in non_numeric_options:
+            result_parts.append(f"{node_name}:{opt}")
+
+    return ','.join(result_parts)
 
 
 def submit_command(
@@ -69,6 +169,13 @@ def submit_command(
         if req in config.client.req_shortcuts:
             req = config.client.req_shortcuts[req]
             click.echo(f"Using requirement shortcut '{original_req}' → {req}")
+
+        # Expand ranges and sort for backward compatibility
+        # This allows using new syntax (host:4-8, repeated hosts) without server changes
+        expanded_req = expand_and_sort_requirements(req)
+        if expanded_req != req:
+            click.echo(f"Expanded requirement: {req} → {expanded_req}")
+            req = expanded_req
 
         client = SchedulerClient(config=config)
 

@@ -4,9 +4,11 @@ import shutil
 import shlex
 from typing import List, Optional
 import click
+from collections import defaultdict
 
 from scheduler.api import SchedulerClient
 from scheduler.core import load_config, ValidationException, ConnectionException
+from scheduler.cli.submit import expand_and_sort_requirements
 
 
 def submit_batch_command(
@@ -99,6 +101,13 @@ def submit_batch_command(
         if req in config.client.req_shortcuts:
             req = config.client.req_shortcuts[req]
             click.echo(f"Using requirement shortcut '{original_req}' → {req}")
+
+        # Expand ranges and sort for backward compatibility
+        # This allows using new syntax (host:4-8, repeated hosts) without server changes
+        expanded_req = expand_and_sort_requirements(req)
+        if expanded_req != req:
+            click.echo(f"Expanded requirement: {req} → {expanded_req}")
+            req = expanded_req
 
         client = SchedulerClient(config=config)
 

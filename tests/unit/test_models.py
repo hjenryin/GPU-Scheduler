@@ -145,27 +145,27 @@ class TestJobRequirement:
         """Test simple GPU count requirement"""
         req = JobRequirement("2")
         assert len(req.alternatives) == 1
-        assert req.alternatives[0] == (None, 2, 2)
+        assert req.alternatives[0] == (None, 2)
 
     def test_node_specific_requirement(self):
         """Test node-specific requirement"""
         req = JobRequirement("gpu1:4")
         assert len(req.alternatives) == 1
-        assert req.alternatives[0] == ("gpu1", 4, 4)
+        assert req.alternatives[0] == ("gpu1", 4)
 
     def test_multiple_alternatives(self):
         """Test multiple alternative requirements"""
         req = JobRequirement("gpu1:2,gpu2:4")
         assert len(req.alternatives) == 2
-        assert req.alternatives[0] == ("gpu1", 2, 2)
-        assert req.alternatives[1] == ("gpu2", 4, 4)
+        assert req.alternatives[0] == ("gpu1", 2)
+        assert req.alternatives[1] == ("gpu2", 4)
 
     def test_mixed_alternatives(self):
         """Test mixed alternatives (any node and specific node)"""
         req = JobRequirement("2,gpu1:4")
         assert len(req.alternatives) == 2
-        assert req.alternatives[0] == (None, 2, 2)
-        assert req.alternatives[1] == ("gpu1", 4, 4)
+        assert req.alternatives[0] == (None, 2)
+        assert req.alternatives[1] == ("gpu1", 4)
 
     def test_invalid_empty_requirement(self):
         """Test invalid empty requirement"""
@@ -191,21 +191,21 @@ class TestJobRequirement:
         """Test flexible allocation for single node"""
         req = JobRequirement("gpu1")
         assert len(req.alternatives) == 1
-        assert req.alternatives[0] == ("gpu1", 1, -1)
+        assert req.alternatives[0] == ("gpu1", -1)
 
     def test_flexible_allocation_multiple_nodes(self):
         """Test flexible allocation with multiple nodes"""
         req = JobRequirement("gpu1,gpu2")
         assert len(req.alternatives) == 2
-        assert req.alternatives[0] == ("gpu1", 1, -1)
-        assert req.alternatives[1] == ("gpu2", 1, -1)
+        assert req.alternatives[0] == ("gpu1", -1)
+        assert req.alternatives[1] == ("gpu2", -1)
 
     def test_mixed_flexible_and_fixed_allocation(self):
         """Test mixed flexible and fixed allocation"""
         req = JobRequirement("gpu1,gpu2:4")
         assert len(req.alternatives) == 2
-        assert req.alternatives[0] == ("gpu1", 1, -1)
-        assert req.alternatives[1] == ("gpu2", 4, 4)
+        assert req.alternatives[0] == ("gpu1", -1)
+        assert req.alternatives[1] == ("gpu2", 4)
 
     def test_flexible_allocation_serialization(self):
         """Test flexible allocation serialization"""
@@ -239,47 +239,6 @@ class TestJobRequirement:
         req = JobRequirement("gpu1:2,gpu2:4")
         assert req.serialize() == "gpu1:2,gpu2:4"
         assert " OR " in str(req)
-
-    def test_range_requirement(self):
-        """Test range requirement syntax"""
-        req = JobRequirement("gpu1:4-8")
-        assert len(req.alternatives) == 1
-        assert req.alternatives[0] == ("gpu1", 4, 8)
-        assert req.serialize() == "gpu1:4-8"
-        assert "4-8 GPUs on gpu1" in str(req)
-
-    def test_repeated_hosts_requirement(self):
-        """Test repeated hosts with different GPU counts"""
-        req = JobRequirement("gpu1:4,gpu1:8")
-        assert len(req.alternatives) == 2
-        assert req.alternatives[0] == ("gpu1", 4, 4)
-        assert req.alternatives[1] == ("gpu1", 8, 8)
-        assert req.serialize() == "gpu1:4,gpu1:8"
-        assert " OR " in str(req)
-
-    def test_complex_mixed_requirement(self):
-        """Test complex mixed requirement with ranges and repeated hosts"""
-        req = JobRequirement("node1:4,node1:8,node2:2-4")
-        assert len(req.alternatives) == 3
-        assert req.alternatives[0] == ("node1", 4, 4)
-        assert req.alternatives[1] == ("node1", 8, 8)
-        assert req.alternatives[2] == ("node2", 2, 4)
-        assert req.serialize() == "node1:4,node1:8,node2:2-4"
-
-    def test_invalid_range_min_greater_than_max(self):
-        """Test invalid range where min > max"""
-        with pytest.raises(InvalidRequirementException):
-            JobRequirement("gpu1:8-4")
-
-    def test_invalid_range_zero_min(self):
-        """Test invalid range with zero minimum"""
-        with pytest.raises(InvalidRequirementException):
-            JobRequirement("gpu1:0-4")
-
-    def test_invalid_range_negative_max(self):
-        """Test invalid range with negative maximum"""
-        with pytest.raises(InvalidRequirementException):
-            JobRequirement("gpu1:4--1")
 
 
 class TestJob:
