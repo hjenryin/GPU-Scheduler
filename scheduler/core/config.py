@@ -68,6 +68,7 @@ class StorageConfig:
 class ClientConfig:
     """Client defaults"""
     default_req: str = DEFAULT_CLIENT_REQ
+    req_shortcuts: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

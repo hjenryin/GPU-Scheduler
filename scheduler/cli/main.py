@@ -11,6 +11,7 @@ from scheduler.cli.cancel import cancel_command
 from scheduler.cli.retry import retry
 from scheduler.cli.config import config_command
 from scheduler.cli.conda_config import conda_env_group
+from scheduler.cli.req_config import req_config_group
 from scheduler.cli.status import status_command
 from scheduler.cli.purge import purge_command
 from scheduler.cli.freeze import freeze_command
@@ -303,6 +304,9 @@ def set(key, value, config_file):
 
 # Add conda-env subcommand group
 config.add_command(conda_env_group)
+
+# Add req-config subcommand group
+config.add_command(req_config_group)
 
 
 @cli.command()
