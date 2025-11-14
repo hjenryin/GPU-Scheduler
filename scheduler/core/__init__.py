@@ -11,7 +11,7 @@ from scheduler.core.models import (
     GPUStats,
 )
 
-from scheduler.core.config import Config, load_config, save_config, init_config, HeadConfig, CondaConfig
+from scheduler.core.config import Config, load_config, save_config, init_config, HeadConfig, CondaConfig, ClientConfig, WorkerConfig, StorageConfig
 
 from scheduler.core.head_info import load_head_info, save_head_info
 
@@ -83,6 +83,9 @@ __all__ = [
     "Config",
     "HeadConfig",
     "CondaConfig",
+    "ClientConfig",
+    "WorkerConfig",
+    "StorageConfig",
     "load_config",
     "save_config",
     "init_config",

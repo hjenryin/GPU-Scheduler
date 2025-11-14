@@ -206,7 +206,7 @@ def run_scheduler_cmd(cmd_args, env_override=None, timeout=30, input_data=None):
     Returns:
         CompletedProcess with returncode, stdout, stderr
     """
-    cmd = ["conda", "run", "-n", "scheduler", "scheduler"] + cmd_args
+    cmd = ["python", "-m", "scheduler.cli.main"] + cmd_args
     
     env = os.environ.copy()
     if env_override:
@@ -229,7 +229,7 @@ class TestCLIStart:
     def test_start_help(self):
         """Test that start command has proper help"""
         result = subprocess.run(
-            ["conda", "run", "-n", "scheduler", "scheduler", "start", "--help"],
+            ["python", "-m", "scheduler.cli.main", "start", "--help"],
             capture_output=True,
             text=True,
             timeout=10
@@ -244,7 +244,7 @@ class TestCLIStart:
         """Test that start command validates arguments correctly"""
         # Test: Must specify either --head or --address
         result = subprocess.run(
-            ["conda", "run", "-n", "scheduler", "scheduler", "start"],
+            ["python", "-m", "scheduler.cli.main", "start"],
             capture_output=True,
             text=True,
             timeout=10
@@ -262,7 +262,7 @@ class TestCLIStart:
         # Just verify the command accepts the documented flags without error
         # by checking that --help shows all the expected options
         result = subprocess.run(
-            ["conda", "run", "-n", "scheduler", "scheduler", "start", "--help"],
+            ["python", "-m", "scheduler.cli.main", "start", "--help"],
             capture_output=True,
             text=True,
             timeout=10
@@ -301,7 +301,7 @@ class TestCLIStart:
         
         # Start a worker
         start_result = subprocess.run(
-            ["conda", "run", "-n", "scheduler", "scheduler", "start",
+            ["python", "-m", "scheduler.cli.main", "start",
              "--address", running_cluster['head_address'],
              "--node-name", worker_name],
             capture_output=True,
@@ -324,7 +324,7 @@ class TestCLIStart:
         
         # Stop the worker (stop without --all stops all local workers)
         stop_result = subprocess.run(
-            ["conda", "run", "-n", "scheduler", "scheduler", "stop"],
+            ["python", "-m", "scheduler.cli.main", "stop"],
             capture_output=True,
             text=True,
             timeout=10
@@ -631,7 +631,7 @@ class TestCLIStop:
     def test_stop_help(self):
         """Test that stop command exists and has help"""
         result = subprocess.run(
-            ["conda", "run", "-n", "scheduler", "scheduler", "stop", "--help"],
+            ["python", "-m", "scheduler.cli.main", "stop", "--help"],
             capture_output=True,
             text=True,
             timeout=10
@@ -647,7 +647,7 @@ class TestCLIStop:
         """Test stop command can stop a running worker node"""
         # Start an additional worker in the background
         start_result = subprocess.run(
-            ["conda", "run", "-n", "scheduler", "scheduler", "start",
+            ["python", "-m", "scheduler.cli.main", "start",
              "--address", running_cluster['head_address'],
              "--node-name", "test-stop-worker"],
             capture_output=True,
@@ -662,7 +662,7 @@ class TestCLIStop:
         
         # Now stop it (stop command stops all local workers)
         stop_result = subprocess.run(
-            ["conda", "run", "-n", "scheduler", "scheduler", "stop"],
+            ["python", "-m", "scheduler.cli.main", "stop"],
             capture_output=True,
             text=True,
             timeout=10
@@ -675,7 +675,7 @@ class TestCLIStop:
         """Test stop command when no scheduler is running"""
         # Should handle gracefully
         result = subprocess.run(
-            ["conda", "run", "-n", "scheduler", "scheduler", "stop"],
+            ["python", "-m", "scheduler.cli.main", "stop"],
             capture_output=True,
             text=True,
             timeout=10
@@ -695,7 +695,7 @@ class TestCLIStatus:
     def test_status_help(self):
         """Test that status command exists"""
         result = subprocess.run(
-            ["conda", "run", "-n", "scheduler", "scheduler", "status", "--help"],
+            ["python", "-m", "scheduler.cli.main", "status", "--help"],
             capture_output=True,
             text=True,
             timeout=10
@@ -710,7 +710,7 @@ class TestCLIStatus:
         """
         # Start status command and kill it after a moment (TUI would block)
         proc = subprocess.Popen(
-            ["conda", "run", "-n", "scheduler", "scheduler", "status"],
+            ["python", "-m", "scheduler.cli.main", "status"],
             env={**os.environ, 'SCHEDULER_ADDRESS': running_cluster['head_address']},
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
