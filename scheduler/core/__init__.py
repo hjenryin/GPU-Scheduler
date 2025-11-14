@@ -42,6 +42,11 @@ from scheduler.core.utils import (
     find_workspace_root,
 )
 
+from scheduler.core.tqdm_parser import (
+    parse_tqdm_eta,
+    format_eta_display,
+)
+
 from scheduler.core.constants import (
     DEFAULT_PORT,
     DEFAULT_HEARTBEAT_TIMEOUT,
@@ -107,6 +112,8 @@ __all__ = [
     "get_local_ip",
     "ensure_dir_exists",
     "find_workspace_root",
+    "parse_tqdm_eta",
+    "format_eta_display",
     # Constants
     "DEFAULT_PORT",
     "DEFAULT_HEARTBEAT_TIMEOUT",

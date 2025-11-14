@@ -5,6 +5,7 @@ from textual.widgets import Header, Footer, Static, DataTable, Input
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual import events
 from scheduler.core import Job  # Import from peer submodule's public API
+from scheduler.core import format_eta_display
 from scheduler.tui.utils import format_runtime
 
 
@@ -62,7 +63,7 @@ class JobsScreen(Screen):
         """Set up table when screen is mounted."""
         jobs_table = self.query_one("#jobs-table", DataTable)
         jobs_table.add_columns(
-            "Job ID", "Name", "Status", "Node", "GPUs", "Runtime", "Submitted"
+            "Job ID", "Name", "Status", "Node", "GPUs", "Runtime", "ETA", "Submitted"
         )
         jobs_table.cursor_type = "row"
 
@@ -121,6 +122,7 @@ class JobsScreen(Screen):
                 if hasattr(job, "submitted_at") and job.submitted_at
                 else "N/A"
             )
+            eta_display = format_eta_display(job.eta) if hasattr(job, "eta") else "-"
             jobs_table.add_row(
                 job.job_id,
                 job.name or "N/A",
@@ -128,6 +130,7 @@ class JobsScreen(Screen):
                 job.assigned_node or "-",
                 str(job.requirements) if job.requirements else "?",
                 format_runtime(job.runtime) if hasattr(job, "runtime") else "-",
+                eta_display,
                 submitted_time,
             )
 

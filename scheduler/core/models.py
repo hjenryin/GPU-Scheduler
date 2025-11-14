@@ -403,6 +403,7 @@ class Job:
     snapshot_working_dir: Optional[str] = None
     after_commit_ref: Optional[str] = None
     conda_env: Optional[str] = None
+    eta: Optional[str] = None
 
     def __init__(
         self,
@@ -426,7 +427,8 @@ class Job:
         snapshot_ref: Optional[str] = None,
         snapshot_working_dir: Optional[str] = None,
         after_commit_ref: Optional[str] = None,
-        conda_env: Optional[str] = None
+        conda_env: Optional[str] = None,
+        eta: Optional[str] = None
     ):
         """
         Initialize job.
@@ -453,6 +455,7 @@ class Job:
             snapshot_working_dir: Original working directory for snapshot
             after_commit_ref: Git commit SHA after job execution - "after" commit
             conda_env: Conda environment name for job execution
+            eta: Estimated time to completion (parsed from tqdm output in stderr)
         """
         self.job_id = job_id
         self.name = name
@@ -475,6 +478,7 @@ class Job:
         self.snapshot_working_dir = snapshot_working_dir
         self.after_commit_ref = after_commit_ref
         self.conda_env = conda_env
+        self.eta = eta
 
     @property
     def start_time(self) -> Optional[datetime]:
@@ -539,7 +543,8 @@ class Job:
             'snapshot_ref': self.snapshot_ref,
             'snapshot_working_dir': self.snapshot_working_dir,
             'after_commit_ref': self.after_commit_ref,
-            'conda_env': self.conda_env
+            'conda_env': self.conda_env,
+            'eta': self.eta
         }
 
     @classmethod
@@ -584,7 +589,8 @@ class Job:
             snapshot_ref=data.get('snapshot_ref'),
             snapshot_working_dir=data.get('snapshot_working_dir'),
             after_commit_ref=data.get('after_commit_ref'),
-            conda_env=data.get('conda_env')
+            conda_env=data.get('conda_env'),
+            eta=data.get('eta')
         )
 
 

@@ -8,6 +8,7 @@ from scheduler.core import InvalidRequirementException, JobNotFoundException
 from scheduler.core import Job, JobStatus, JobRequirement
 from scheduler.core import Config
 from scheduler.core import generate_job_id
+from scheduler.core import parse_tqdm_eta
 from scheduler.manager.persistence import PersistenceManager
 
 logger = logging.getLogger(__name__)
@@ -212,7 +213,48 @@ class JobManager:
         Returns:
             Job instance if found, None otherwise
         """
-        return self.jobs.get(job_id)
+        job = self.jobs.get(job_id)
+        if job:
+            self._enrich_job_with_eta(job)
+        return job
+
+    def _enrich_job_with_eta(self, job: Job):
+        """
+        Enrich a job with ETA parsed from stderr logs.
+
+        Args:
+            job: Job to enrich with ETA
+        """
+        # Only parse ETA for running jobs
+        if job.status != JobStatus.RUNNING:
+            job.eta = None
+            return
+
+        # Read stderr log
+        log_dir = os.path.expanduser(self.config.worker.log_dir)
+        stderr_path = os.path.join(log_dir, f"{job.job_id}.stderr.log")
+
+        if not os.path.exists(stderr_path):
+            job.eta = None
+            return
+
+        try:
+            # Read last few lines of stderr (tqdm usually outputs to the last line)
+            with open(stderr_path, 'r') as f:
+                # Seek to end and read last N bytes to get last few lines
+                # This is more efficient than reading the entire file
+                file_size = os.path.getsize(stderr_path)
+                # Read last 2KB which should be enough for tqdm output
+                read_size = min(2048, file_size)
+                f.seek(max(0, file_size - read_size))
+                stderr_tail = f.read()
+
+            # Parse ETA from stderr
+            eta = parse_tqdm_eta(stderr_tail)
+            job.eta = eta
+        except Exception as e:
+            logger.debug(f"Failed to parse ETA for job {job.job_id}: {e}")
+            job.eta = None
 
     def list_jobs(
         self,
@@ -241,6 +283,10 @@ class JobManager:
         # Apply limit
         if limit is not None:
             jobs = jobs[:limit]
+
+        # Enrich jobs with ETA
+        for job in jobs:
+            self._enrich_job_with_eta(job)
 
         return jobs
 
