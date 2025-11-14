@@ -93,8 +93,15 @@ def submit_batch_command(
     try:
         # Connect to scheduler
         config = load_config()
+
+        # Expand requirement shortcut if it exists
+        original_req = req
+        if req in config.client.req_shortcuts:
+            req = config.client.req_shortcuts[req]
+            click.echo(f"Using requirement shortcut '{original_req}' → {req}")
+
         client = SchedulerClient(config=config)
-        
+
         for i, (script, script_args) in enumerate(scripts_with_args):
             # Align behavior with `submit` CLI: don't validate script existence here.
             # Treat the first token as the script/command and remaining tokens as args.

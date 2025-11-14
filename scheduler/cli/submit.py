@@ -63,6 +63,13 @@ def submit_command(
     try:
         # Connect to scheduler
         config = load_config()
+
+        # Expand requirement shortcut if it exists
+        original_req = req
+        if req in config.client.req_shortcuts:
+            req = config.client.req_shortcuts[req]
+            click.echo(f"Using requirement shortcut '{original_req}' → {req}")
+
         client = SchedulerClient(config=config)
 
         # Store original dependencies for comparison
