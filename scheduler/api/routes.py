@@ -157,6 +157,7 @@ async def submit_job_route(request: JobSubmitRequest) -> JobResponse:
             job_id=request.job_id,
             snapshot_ref=request.snapshot_ref,
             snapshot_working_dir=request.snapshot_working_dir,
+            conda_env=request.conda_env,
         )
         return JobResponse.from_job(job)
     except Exception as e:
