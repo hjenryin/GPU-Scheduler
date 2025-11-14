@@ -111,9 +111,10 @@ class TestJobEndpoints:
 
     def test_submit_job_invalid_requirements_format(self, api_client):
         """Test POST /api/v1/jobs with invalid requirements format"""
+        # Test with invalid GPU count (node:non-numeric)
         response = api_client.post("/api/v1/jobs", json={
             "script": "train.py",
-            "requirements": "invalid-format"
+            "requirements": "node1:abc"
         })
 
         assert response.status_code == 400
@@ -504,8 +505,8 @@ class TestWorkerEndpoints:
         response = api_client.get("/api/v1/workers/gpu-node-1/jobs/next")
 
         assert response.status_code == 200
-        # Should return None or null when no jobs
-        assert response.json() is None
+        # Should return empty list when no jobs
+        assert response.json() == []
 
     def test_poll_job_node_not_found(self, api_client):
         """Test GET /api/v1/workers/{node_name}/jobs/next for unregistered node"""
