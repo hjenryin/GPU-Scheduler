@@ -3,6 +3,7 @@ from textual.app import ComposeResult
 from textual.widgets import Header, Footer, Static, Button, TextArea
 from textual.containers import Container, Horizontal, VerticalScroll
 from scheduler.core import Job  # Import from peer submodule's public API
+from scheduler.core import format_eta_display
 from scheduler.tui.utils import format_runtime
 from rich.text import Text
 
@@ -164,6 +165,12 @@ class JobDetailScreen(Screen):
             if hasattr(job, "exit_code") and job.exit_code is not None
             else "N/A"
         )
+        # Format ETA
+        eta_str = (
+            format_eta_display(job.eta)
+            if hasattr(job, "eta") and job.eta
+            else "-"
+        )
 
         metadata = (
             f"Job ID:      {job.job_id}\n"
@@ -176,6 +183,7 @@ class JobDetailScreen(Screen):
             f"Started:     {started_time}\n"
             f"Completed:   {completed_time}\n"
             f"Runtime:     {runtime_str}\n"
+            f"ETA:         {eta_str}\n"
             f"Exit Code:   {exit_code_str}"
         )
         self.query_one("#job-metadata", Static).update(metadata)
