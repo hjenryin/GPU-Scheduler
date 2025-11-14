@@ -38,6 +38,7 @@ class JobDetailScreen(Screen):
         ("escape", "pop_screen", "Back"),
         ("l", "view_logs", "Logs"),
         ("c", "cancel_job", "Cancel"),
+        ("r", "show_retry_menu", "Retry"),
         ("q", "quit", "Quit"),
     ]
 
@@ -81,6 +82,14 @@ class JobDetailScreen(Screen):
                     Button("Cancel Job (c)", id="cancel-button", variant="error"),
                     Button("Back (esc)", id="back-button"),
                     id="action-buttons",
+                ),
+                Static("Retry Options", id="retry-header"),
+                Horizontal(
+                    Button("Retry In-Place", id="retry-inplace-button", variant="success"),
+                    Button("Retry --then", id="retry-then-button", variant="success"),
+                    Button("Retry --now", id="retry-now-button", variant="success"),
+                    Button("Retry --no-deps", id="retry-nodeps-button", variant="success"),
+                    id="retry-buttons",
                 ),
                 id="job-scroll"
             ),
@@ -129,6 +138,16 @@ class JobDetailScreen(Screen):
             job: Job instance
         """
         self.job_data = job
+
+        # Show/hide retry buttons based on job status
+        can_retry = job.status.value in ["failed", "cancelled", "completed"]
+        try:
+            retry_header = self.query_one("#retry-header", Static)
+            retry_buttons = self.query_one("#retry-buttons", Horizontal)
+            retry_header.display = can_retry
+            retry_buttons.display = can_retry
+        except Exception:
+            pass  # Widgets may not be mounted yet
 
         # Update metadata
         submitted_time = (
@@ -282,6 +301,97 @@ class JobDetailScreen(Screen):
                 "Job cannot be cancelled (not pending or running)", severity="warning"
             )
 
+    def action_show_retry_menu(self):
+        """
+        Show retry menu/info.
+
+        Bound to 'r' key.
+        """
+        if self.job_data and self.job_data.status.value in ["failed", "cancelled", "completed"]:
+            self.app.notify(
+                "Click a retry button below or use the Jobs screen to retry",
+                title="Retry Options",
+            )
+        else:
+            self.app.notify(
+                "Job cannot be retried (must be failed, cancelled, or completed)",
+                severity="warning"
+            )
+
+    def action_retry_inplace(self):
+        """Retry job in-place (same job_id)."""
+        if not self._can_retry():
+            return
+
+        if hasattr(self.app, "client"):
+            try:
+                response = self.app.client.session.post(
+                    f"{self.app.client.base_url}/jobs/{self.job_id}/retry-inplace",
+                    timeout=30
+                )
+                response.raise_for_status()
+                self.app.notify(f"Job {self.job_id} reset to PENDING (in-place)")
+                # Refresh job data
+                job = self.app.client.get_job(self.job_id)
+                self.update_data(job)
+            except Exception as e:
+                self.app.notify(f"Error retrying job: {e}", severity="error")
+
+    def action_retry_then(self):
+        """Retry job from original commit (new job_id)."""
+        if not self._can_retry():
+            return
+
+        if hasattr(self.app, "client"):
+            try:
+                new_job = self.app.client.retry_job_then(self.job_id)
+                self.app.notify(
+                    f"Created new job {new_job.job_id} from original commit",
+                    title="Retry Success"
+                )
+            except Exception as e:
+                self.app.notify(f"Error retrying job: {e}", severity="error")
+
+    def action_retry_now(self):
+        """Retry job with fresh snapshot (new job_id)."""
+        if not self._can_retry():
+            return
+
+        if hasattr(self.app, "client"):
+            try:
+                new_job = self.app.client.retry_job_now(self.job_id)
+                self.app.notify(
+                    f"Created new job {new_job.job_id} with fresh snapshot",
+                    title="Retry Success"
+                )
+            except Exception as e:
+                self.app.notify(f"Error retrying job: {e}", severity="error")
+
+    def action_retry_no_deps(self):
+        """Retry job with fresh snapshot without dependencies (new job_id)."""
+        if not self._can_retry():
+            return
+
+        if hasattr(self.app, "client"):
+            try:
+                new_job = self.app.client.retry_job_no_deps(self.job_id)
+                self.app.notify(
+                    f"Created new job {new_job.job_id} with fresh snapshot (no dependencies)",
+                    title="Retry Success"
+                )
+            except Exception as e:
+                self.app.notify(f"Error retrying job: {e}", severity="error")
+
+    def _can_retry(self) -> bool:
+        """Check if job can be retried."""
+        if not self.job_data or self.job_data.status.value not in ["failed", "cancelled", "completed"]:
+            self.app.notify(
+                "Job cannot be retried (must be failed, cancelled, or completed)",
+                severity="warning"
+            )
+            return False
+        return True
+
     def on_button_pressed(self, event):
         """Handle button presses."""
         if event.button.id == "logs-button":
@@ -290,3 +400,11 @@ class JobDetailScreen(Screen):
             self.action_cancel_job()
         elif event.button.id == "back-button":
             self.app.pop_screen()
+        elif event.button.id == "retry-inplace-button":
+            self.action_retry_inplace()
+        elif event.button.id == "retry-then-button":
+            self.action_retry_then()
+        elif event.button.id == "retry-now-button":
+            self.action_retry_now()
+        elif event.button.id == "retry-nodeps-button":
+            self.action_retry_no_deps()
