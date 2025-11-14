@@ -369,6 +369,48 @@ class SchedulerClient:
             priority=original_job.priority,
         )
 
+    def retry_job_no_deps(self, job_id: str) -> Job:
+        """
+        Retry a job with --no-deps mode (create fresh snapshot without dependencies).
+
+        This creates a new job with a new job_id and a fresh snapshot from the
+        current working directory state, but removes any job dependencies.
+
+        Args:
+            job_id: Original job ID to retry
+
+        Returns:
+            New Job instance
+
+        Raises:
+            JobNotFoundException: If job not found
+            ValidationException: If job cannot be retried
+            ConnectionException: If cannot connect
+        """
+        # 1. Fetch original job
+        original_job = self.get_job(job_id)
+
+        # 2. Validate state
+        if original_job.status not in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.COMPLETED]:
+            raise ValidationException(
+                f"Job {job_id} is in {original_job.status.value} state. "
+                f"Can only retry FAILED, CANCELLED, or COMPLETED jobs."
+            )
+
+        # 3. Use regular submit_job with original parameters but no dependencies
+        # This will generate new job_id and create fresh snapshot
+        logger.info(f"Retrying job {job_id} with --no-deps mode (fresh snapshot without dependencies)")
+        return self.submit_job(
+            script=original_job.script,
+            requirements=original_job.requirements.serialize(),
+            name=original_job.name,
+            script_args=original_job.script_args,
+            working_dir=original_job.working_dir,
+            env_vars=original_job.env_vars,
+            dependencies=None,  # Remove dependencies
+            priority=original_job.priority,
+        )
+
     def list_jobs(
         self,
         status_filter: Optional[str] = None,

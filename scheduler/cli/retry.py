@@ -16,11 +16,12 @@ logger = logging.getLogger(__name__)
 @click.option('--inplace', is_flag=True, help='Revert job to pending in-place (same job_id)')
 @click.option('--then', 'then_mode', is_flag=True, help='Retry from original commit (new job_id)')
 @click.option('--now', is_flag=True, help='Retry with fresh snapshot (new job_id)')
-def retry(job_id: str, inplace: bool, then_mode: bool, now: bool):
+@click.option('--no-deps', 'no_deps', is_flag=True, help='Retry with fresh snapshot without dependencies (new job_id)')
+def retry(job_id: str, inplace: bool, then_mode: bool, now: bool, no_deps: bool):
     """
     Retry a failed, cancelled, or completed job.
 
-    Exactly one of --inplace, --then, or --now must be specified:
+    Exactly one of --inplace, --then, --now, or --no-deps must be specified:
 
     \b
     --inplace: Revert the job to PENDING state with the same job_id.
@@ -37,20 +38,26 @@ def retry(job_id: str, inplace: bool, then_mode: bool, now: bool):
            from the current working directory state. This is equivalent
            to resubmitting the job.
 
+    \b
+    --no-deps: Create a new job with a new job_id and a fresh snapshot
+               from the current working directory state, but without any
+               job dependencies (--depends-on is removed).
+
     Examples:
 
     \b
         scheduler retry abc123 --inplace
         scheduler retry abc123 --then
         scheduler retry abc123 --now
+        scheduler retry abc123 --no-deps
     """
     # Validate exactly one flag is set
-    flags_set = sum([inplace, then_mode, now])
+    flags_set = sum([inplace, then_mode, now, no_deps])
     if flags_set == 0:
-        click.echo("Error: Must specify exactly one of --inplace, --then, or --now", err=True)
+        click.echo("Error: Must specify exactly one of --inplace, --then, --now, or --no-deps", err=True)
         raise click.Exit(1)
     elif flags_set > 1:
-        click.echo("Error: Can only specify one of --inplace, --then, or --now", err=True)
+        click.echo("Error: Can only specify one of --inplace, --then, --now, or --no-deps", err=True)
         raise click.Exit(1)
 
     try:
@@ -82,6 +89,15 @@ def retry(job_id: str, inplace: bool, then_mode: bool, now: bool):
             click.echo(f"Retrying job {job_id} with fresh snapshot...")
             new_job = client.retry_job_now(job_id)
             click.echo(f"✓ Created new job {new_job.job_id} with fresh snapshot")
+            click.echo(f"  Original job: {job_id}")
+            click.echo(f"  New job: {new_job.job_id}")
+            click.echo(f"  Status: {new_job.status.value}")
+
+        elif no_deps:
+            # CLIENT-side operation
+            click.echo(f"Retrying job {job_id} with fresh snapshot (without dependencies)...")
+            new_job = client.retry_job_no_deps(job_id)
+            click.echo(f"✓ Created new job {new_job.job_id} with fresh snapshot (no dependencies)")
             click.echo(f"  Original job: {job_id}")
             click.echo(f"  New job: {new_job.job_id}")
             click.echo(f"  Status: {new_job.status.value}")
