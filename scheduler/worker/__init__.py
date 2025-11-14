@@ -5,6 +5,7 @@ from scheduler.worker.job_executor import JobExecutor
 from scheduler.worker.heartbeat import HeartbeatSender
 from scheduler.worker.file_handler import FileHandler
 from scheduler.worker.git_snapshot import GitSnapshotManager
+from scheduler.worker.job_metadata_cache import JobMetadataCache
 
 __all__ = [
     "WorkerDaemon",
@@ -15,4 +16,5 @@ __all__ = [
     "HeartbeatSender",
     "FileHandler",
     "GitSnapshotManager",
+    "JobMetadataCache",
 ]
