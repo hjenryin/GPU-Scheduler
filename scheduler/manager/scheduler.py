@@ -101,6 +101,12 @@ class Scheduler:
         """
         Find a suitable node for a job.
 
+        Supports:
+        - Fixed count: "gpu1:4" - allocate exactly 4 GPUs
+        - Range: "gpu1:4-8" - allocate 4-8 GPUs (prefer more)
+        - Flexible: "gpu1" - allocate all available GPUs
+        - Repeated hosts: "gpu1:4,gpu1:8" - prefer more GPUs when available
+
         Args:
             job: Job to find node for
 
@@ -111,9 +117,18 @@ class Scheduler:
         nodes = self.node_manager.get_connected_nodes()
         logger.debug(f"Found {len(nodes)} connected nodes")
 
-        # Check each requirement alternative
-        for req_node, req_gpus in job.requirements.alternatives:
-            logger.debug(f"Checking requirement: node={req_node}, gpus={req_gpus}")
+        # Group alternatives by node name to handle repeated hosts
+        # For each node, collect all possible GPU counts and find the best match
+        from collections import defaultdict
+        node_requirements = defaultdict(list)
+
+        for req_node, min_gpus, max_gpus in job.requirements.alternatives:
+            node_requirements[req_node].append((min_gpus, max_gpus))
+
+        # Try each unique node (or None for any node)
+        for req_node, gpu_options in node_requirements.items():
+            logger.debug(f"Checking node '{req_node}' with {len(gpu_options)} options: {gpu_options}")
+
             # Filter nodes by requirement
             candidate_nodes = nodes if req_node is None else [
                 n for n in nodes if n.node_name == req_node
@@ -136,22 +151,38 @@ class Scheduler:
                 )
                 logger.debug(f"Node {node.node_name} has {len(free_gpus)} free GPUs: {free_gpus}")
 
-                # Check if enough GPUs are available
-                if req_gpus == -1:
-                    # Flexible allocation: take all available GPUs (minimum 1 required)
-                    if len(free_gpus) >= 1:
-                        selected_gpus = free_gpus  # Take ALL available GPUs
-                        logger.debug(f"Flexible allocation: selected all {len(selected_gpus)} GPUs {selected_gpus} for job {job.job_id}")
-                        return (node.node_name, selected_gpus)
+                # Find the best matching option for this node
+                # Sort options by max_gpus descending to prefer more GPUs
+                sorted_options = sorted(gpu_options, key=lambda x: (x[1] if x[1] != -1 else float('inf')), reverse=True)
+
+                for min_gpus, max_gpus in sorted_options:
+                    logger.debug(f"  Trying option: min={min_gpus}, max={max_gpus}")
+
+                    if max_gpus == -1:
+                        # Flexible allocation: take all available GPUs
+                        if len(free_gpus) >= min_gpus:
+                            selected_gpus = free_gpus  # Take ALL available GPUs
+                            logger.debug(f"Flexible allocation: selected all {len(selected_gpus)} GPUs {selected_gpus} for job {job.job_id}")
+                            return (node.node_name, selected_gpus)
+                        else:
+                            logger.debug(f"Node {node.node_name} has insufficient GPUs for flexible allocation: need {min_gpus}, have {len(free_gpus)}")
+                    elif min_gpus == max_gpus:
+                        # Fixed allocation: need exact count
+                        if len(free_gpus) >= min_gpus:
+                            selected_gpus = free_gpus[:min_gpus]
+                            logger.debug(f"Fixed allocation: selected {len(selected_gpus)} GPUs {selected_gpus} for job {job.job_id}")
+                            return (node.node_name, selected_gpus)
+                        else:
+                            logger.debug(f"Node {node.node_name} has insufficient GPUs: need {min_gpus}, have {len(free_gpus)}")
                     else:
-                        logger.debug(f"Node {node.node_name} has no free GPUs for flexible allocation")
-                elif len(free_gpus) >= req_gpus:
-                    # Fixed allocation: take the required number of GPUs
-                    selected_gpus = free_gpus[:req_gpus]
-                    logger.debug(f"Fixed allocation: selected {len(selected_gpus)} GPUs {selected_gpus} for job {job.job_id}")
-                    return (node.node_name, selected_gpus)
-                else:
-                    logger.debug(f"Node {node.node_name} has insufficient GPUs: need {req_gpus}, have {len(free_gpus)}")
+                        # Range allocation: take as many as available within range
+                        if len(free_gpus) >= min_gpus:
+                            num_to_allocate = min(len(free_gpus), max_gpus)
+                            selected_gpus = free_gpus[:num_to_allocate]
+                            logger.debug(f"Range allocation: selected {len(selected_gpus)} GPUs {selected_gpus} for job {job.job_id} (min={min_gpus}, max={max_gpus})")
+                            return (node.node_name, selected_gpus)
+                        else:
+                            logger.debug(f"Node {node.node_name} has insufficient GPUs for range: need {min_gpus}, have {len(free_gpus)}")
 
         # No suitable node found
         logger.debug(f"No suitable node found for job {job.job_id}")
