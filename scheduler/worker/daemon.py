@@ -14,6 +14,7 @@ from scheduler.worker.job_executor import JobExecutor
 from scheduler.worker.heartbeat import HeartbeatSender
 from scheduler.worker.file_handler import FileHandler
 from scheduler.worker.git_snapshot import GitSnapshotManager
+from scheduler.worker.job_metadata_cache import JobMetadataCache
 from scheduler.api import SchedulerClient
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,10 @@ class WorkerDaemon:
 
         # Initialize file handler
         self.file_handler = FileHandler(config)
+
+        # Initialize job metadata cache
+        cache_dir = os.path.expanduser(config.worker.temp_dir)
+        self.job_metadata_cache = JobMetadataCache(cache_dir)
 
         # Cleanup old system logs on startup (older than 24 hours)
         # Note: Job logs are NOT cleaned automatically - only via explicit purge commands
@@ -286,6 +291,10 @@ class WorkerDaemon:
                     'monitor_thread': monitor_thread
                 }
 
+            # Store job metadata for later cleanup
+            if job.snapshot_working_dir:
+                self.job_metadata_cache.store_job_metadata(job.job_id, job.snapshot_working_dir)
+
         except Exception as e:
             # Clean up placeholder on error
             with self.active_jobs_lock:
@@ -439,11 +448,17 @@ class WorkerDaemon:
             # Clean up git snapshot
             git_manager = GitSnapshotManager(self.config)
 
+            # Get snapshot working directory from cache
+            snapshot_working_dir = self.job_metadata_cache.get_snapshot_working_dir(job_id)
+
             try:
-                git_manager.purge_job_snapshots(job_id)
+                git_manager.purge_job_snapshots(job_id, snapshot_working_dir)
                 logger.info(f"Cleaned up git snapshots for job {job_id}")
             except Exception as e:
                 logger.warning(f"Failed to clean up git snapshots for job {job_id}: {e}")
+
+            # Remove job metadata from cache after successful purge
+            self.job_metadata_cache.remove_job_metadata(job_id)
 
             logger.info(f"Successfully purged job {job_id}")
 
