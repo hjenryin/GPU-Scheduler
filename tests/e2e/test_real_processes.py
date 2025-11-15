@@ -255,10 +255,21 @@ class TestRealProcesses:
 
     def test_simple_job_submission(self, running_cluster, temp_cluster_dir):
         """Test submitting and running a simple job"""
-        client = SchedulerClient(address=running_cluster['head_address'])
+        from scheduler.core.config import CondaConfig
+
+        # Create workspace with conda config
+        workspace = os.path.join(temp_cluster_dir, "workspace")
+        os.makedirs(workspace, exist_ok=True)
+        os.makedirs(os.path.join(workspace, '.git'), exist_ok=True)
+
+        config = Config(
+            address=running_cluster['head_address'],
+            conda=CondaConfig(command='conda', envs={workspace: 'test-env'})
+        )
+        client = SchedulerClient(config=config)
 
         # Create a simple test script
-        script_path = os.path.join(temp_cluster_dir, "test_job.py")
+        script_path = os.path.join(workspace, "test_job.py")
         with open(script_path, 'w') as f:
             f.write("import os\n")
             f.write("print('Job is running!')\n")
@@ -271,11 +282,14 @@ class TestRealProcesses:
         job = client.submit_job(
             script=script_path,
             requirements="1",
-            name="test-simple-job"
+            name="test-simple-job",
+            working_dir=workspace
         )
 
         assert job.job_id is not None
         assert job.status == JobStatus.PENDING
+        print(f"\nDEBUG: Job conda_env after submit: {job.conda_env}")
+        assert job.conda_env == 'test-env', f"Expected conda_env='test-env', got {job.conda_env}"
 
         # Wait for job to complete
         max_wait = 60  # Increased timeout for real hardware execution
