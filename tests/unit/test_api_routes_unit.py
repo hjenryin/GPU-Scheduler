@@ -138,7 +138,7 @@ class TestSubmitJobRoute:
     async def test_submit_job_success(self, mock_job_manager):
         """Test successful job submission"""
         request = JobSubmitRequest(
-            script="/path/script.py",
+            command=["/path/script.py"],
             requirements="2",
             name="test_job"
         )
@@ -146,7 +146,7 @@ class TestSubmitJobRoute:
         mock_job = Job(
             job_id="job_123",
             name="test_job",
-            script="/path/script.py",
+            command=["/path/script.py"],
             requirements=JobRequirement("2"),
             status=JobStatus.PENDING
         )
@@ -162,10 +162,9 @@ class TestSubmitJobRoute:
     async def test_submit_job_with_all_parameters(self, mock_job_manager):
         """Test submit with all optional parameters"""
         request = JobSubmitRequest(
-            script="/path/script.py",
+            command=["/path/script.py"],
             requirements="4",
             name="my-job",
-            script_args=['arg1', 'arg2'],
             working_dir="/tmp",
             env_vars={'KEY': 'value'},
             dependencies=['job-1', 'job-2'],
@@ -175,7 +174,7 @@ class TestSubmitJobRoute:
         mock_job = Job(
             job_id="job_123",
             name="my-job",
-            script="/path/script.py",
+            command=["/path/script.py"],
             requirements=JobRequirement("4"),
             status=JobStatus.PENDING
         )
@@ -186,7 +185,7 @@ class TestSubmitJobRoute:
         assert result.job_id == "job_123"
         # Verify all parameters passed through
         call_kwargs = mock_job_manager.submit_job.call_args[1]
-        assert call_kwargs['script'] == "/path/script.py"
+        assert call_kwargs['command'] == ["/path/script.py"]
         assert call_kwargs['requirements'] == "4"
         assert call_kwargs['name'] == "my-job"
 
@@ -194,7 +193,7 @@ class TestSubmitJobRoute:
     async def test_submit_job_exception(self, mock_logger, mock_job_manager):
         """Test submit job with exception"""
         request = JobSubmitRequest(
-            script="/path/script.py",
+            command=["/path/script.py"],
             requirements="2",
             name="test_job"
         )
@@ -217,7 +216,7 @@ class TestGetJobRoute:
         mock_job = Job(
             job_id="job_123",
             name="test_job",
-            script="/path/script.py",
+            command=["/path/script.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.RUNNING
         )
@@ -249,7 +248,7 @@ class TestGetJobRoute:
         mock_job = Job(
             job_id="job_123",
             name="test_job",
-            script="/path/script.py",
+            command=["/path/script.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.COMPLETED,
             exit_code=0,
@@ -282,7 +281,7 @@ class TestListJobsRoute:
         mock_job = Job(
             job_id="job_123",
             name="test",
-            script="/path/script.py",
+            command=["/path/script.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING
         )
@@ -300,7 +299,7 @@ class TestListJobsRoute:
         mock_job = Job(
             job_id="job_123",
             name="test",
-            script="/path/script.py",
+            command=["/path/script.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.RUNNING
         )
@@ -622,7 +621,7 @@ class TestPollJobRoute:
         mock_job = Job(
             job_id="job_123",
             name="test",
-            script="/path/script.py",
+            command=["/path/script.py"],
             requirements=JobRequirement("2"),
             status=JobStatus.RUNNING,
             assigned_node="node1"
@@ -653,7 +652,7 @@ class TestPollJobRoute:
         mock_job1 = Job(
             job_id="job_123",
             name="test1",
-            script="/path/script1.py",
+            command=["/path/script1.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.RUNNING,
             assigned_node="node1"
@@ -661,7 +660,7 @@ class TestPollJobRoute:
         mock_job2 = Job(
             job_id="job_456",
             name="test2",
-            script="/path/script2.py",
+            command=["/path/script2.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.RUNNING,
             assigned_node="node1"
@@ -747,9 +746,9 @@ class TestFailJobRoute:
         mock_node_manager.get_node.return_value = create_autospec(Node, instance=True, spec_set=True)
         
         result = await fail_job_route("job_123", "Error occurred")
-        
+
         assert result['status'] == "failed"
-        mock_job_manager.fail_job.assert_called_once_with("job_123", "Error occurred", None)
+        mock_job_manager.fail_job.assert_called_once_with("job_123", "Error occurred", None, None)
 
     @pytest.mark.asyncio
     async def test_fail_job_not_found(self, mock_job_manager, mock_node_manager):

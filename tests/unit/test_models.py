@@ -250,15 +250,14 @@ class TestJob:
         job = Job(
             job_id="job-001",
             name="test-job",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=req
         )
 
         assert job.job_id == "job-001"
         assert job.name == "test-job"
-        assert job.script == "/path/to/script.py"
+        assert job.command == ["/path/to/script.py"]
         assert job.status == JobStatus.PENDING
-        assert job.script_args == []
         assert job.env_vars == {}
         assert job.dependencies == []
 
@@ -334,9 +333,8 @@ class TestJob:
         job = Job(
             job_id="job-001",
             name="test-job",
-            script="/path/to/script.py",
+            command=["/path/to/script.py", "--epochs", "100"],
             requirements=req,
-            script_args=["--epochs", "100"],
             env_vars={"KEY": "value"},
             priority=5
         )
@@ -346,7 +344,7 @@ class TestJob:
 
         assert job_restored.job_id == "job-001"
         assert job_restored.name == "test-job"
-        assert job_restored.script_args == ["--epochs", "100"]
+        assert job_restored.command == ["/path/to/script.py", "--epochs", "100"]
         assert job_restored.env_vars == {"KEY": "value"}
         assert job_restored.priority == 5
 

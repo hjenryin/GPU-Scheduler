@@ -28,23 +28,23 @@ class TestJobManager:
     def test_submit_job_minimal(self, job_manager):
         """Test submitting job with minimal parameters"""
         job = job_manager.submit_job(
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements="2"
         )
 
         assert job.job_id is not None
-        assert job.name == "script.py"
-        assert job.script == "/path/to/script.py"
+        # When no name is provided, uses full command string as name
+        assert job.name == "/path/to/script.py"
+        assert job.command == ["/path/to/script.py"]
         assert job.status == JobStatus.PENDING
         assert job.submitted_at is not None
 
     def test_submit_job_full_params(self, job_manager):
         """Test submitting job with all parameters"""
         job = job_manager.submit_job(
-            script="/path/to/script.py",
+            command=["/path/to/script.py", "--epochs", "100"],
             requirements="gpu1:4",
             name="my-job",
-            script_args=["--epochs", "100"],
             working_dir="/home/user",
             env_vars={"KEY": "value"},
             dependencies=["job-000"],
@@ -52,7 +52,7 @@ class TestJobManager:
         )
 
         assert job.name == "my-job"
-        assert job.script_args == ["--epochs", "100"]
+        assert job.command == ["/path/to/script.py", "--epochs", "100"]
         assert job.working_dir == "/home/user"
         assert job.env_vars == {"KEY": "value"}
         assert job.dependencies == ["job-000"]
@@ -65,7 +65,7 @@ class TestJobManager:
         # Test with invalid GPU count (not a number)
         with pytest.raises(InvalidRequirementException):
             job_manager.submit_job(
-                script="/script.py",
+                command=["/script.py"],
                 requirements="node:abc"
             )
 
@@ -76,8 +76,8 @@ class TestJobManager:
 
     def test_list_jobs(self, job_manager):
         """Test listing all jobs"""
-        job1 = job_manager.submit_job("/script1.py", "2")
-        job2 = job_manager.submit_job("/script2.py", "1")
+        job1 = job_manager.submit_job(["/script1.py"], "2")
+        job2 = job_manager.submit_job(["/script2.py"], "1")
 
         all_jobs = job_manager.list_jobs()
 
@@ -88,9 +88,9 @@ class TestJobManager:
 
     def test_get_pending_jobs(self, job_manager):
         """Test getting pending jobs sorted by priority"""
-        job_low = job_manager.submit_job("/script1.py", "2", priority=1)
-        job_high = job_manager.submit_job("/script2.py", "2", priority=10)
-        job_med = job_manager.submit_job("/script3.py", "2", priority=5)
+        job_low = job_manager.submit_job(["/script1.py"], "2", priority=1)
+        job_high = job_manager.submit_job(["/script2.py"], "2", priority=10)
+        job_med = job_manager.submit_job(["/script3.py"], "2", priority=5)
 
         # Start one job
         job_manager.start_job(job_low.job_id, "gpu1", [0, 1])
@@ -104,8 +104,8 @@ class TestJobManager:
 
     def test_get_running_jobs(self, job_manager):
         """Test getting running jobs"""
-        job1 = job_manager.submit_job("/script1.py", "2")
-        job2 = job_manager.submit_job("/script2.py", "2")
+        job1 = job_manager.submit_job(["/script1.py"], "2")
+        job2 = job_manager.submit_job(["/script2.py"], "2")
 
         # Start job1
         job_manager.start_job(job1.job_id, "gpu1", [0, 1])
@@ -117,8 +117,8 @@ class TestJobManager:
 
     def test_get_completed_job_ids(self, job_manager):
         """Test getting completed job IDs"""
-        job1 = job_manager.submit_job("/script1.py", "2")
-        job2 = job_manager.submit_job("/script2.py", "2")
+        job1 = job_manager.submit_job(["/script1.py"], "2")
+        job2 = job_manager.submit_job(["/script2.py"], "2")
 
         # Complete job1
         job_manager.start_job(job1.job_id, "gpu1", [0, 1])
@@ -131,7 +131,7 @@ class TestJobManager:
 
     def test_start_job(self, job_manager):
         """Test starting a job"""
-        job = job_manager.submit_job("/script.py", "2")
+        job = job_manager.submit_job(["/script.py"], "2")
 
         job_manager.start_job(job.job_id, "gpu1", [0, 1])
 
@@ -143,7 +143,7 @@ class TestJobManager:
 
     def test_complete_job(self, job_manager):
         """Test completing a job"""
-        job = job_manager.submit_job("/script.py", "2")
+        job = job_manager.submit_job(["/script.py"], "2")
         job_manager.start_job(job.job_id, "gpu1", [0, 1])
 
         job_manager.complete_job(job.job_id, exit_code=0)
@@ -155,7 +155,7 @@ class TestJobManager:
 
     def test_fail_job(self, job_manager):
         """Test failing a job"""
-        job = job_manager.submit_job("/script.py", "2")
+        job = job_manager.submit_job(["/script.py"], "2")
         job_manager.start_job(job.job_id, "gpu1", [0, 1])
 
         job_manager.fail_job(job.job_id, error_message="Out of memory")
@@ -167,7 +167,7 @@ class TestJobManager:
 
     def test_cancel_job_pending(self, job_manager):
         """Test canceling a pending job"""
-        job = job_manager.submit_job("/script.py", "2")
+        job = job_manager.submit_job(["/script.py"], "2")
 
         job_manager.cancel_job(job.job_id)
 
@@ -176,7 +176,7 @@ class TestJobManager:
 
     def test_cancel_job_running(self, job_manager):
         """Test canceling a running job"""
-        job = job_manager.submit_job("/script.py", "2")
+        job = job_manager.submit_job(["/script.py"], "2")
         job_manager.start_job(job.job_id, "gpu1", [0, 1])
 
         job_manager.cancel_job(job.job_id)
@@ -186,9 +186,9 @@ class TestJobManager:
 
     def test_list_jobs_by_status(self, job_manager):
         """Test filtering jobs by status using list_jobs"""
-        job1 = job_manager.submit_job("/script1.py", "2")
-        job2 = job_manager.submit_job("/script2.py", "2")
-        job3 = job_manager.submit_job("/script3.py", "2")
+        job1 = job_manager.submit_job(["/script1.py"], "2")
+        job2 = job_manager.submit_job(["/script2.py"], "2")
+        job3 = job_manager.submit_job(["/script3.py"], "2")
 
         job_manager.start_job(job1.job_id, "gpu1", [0, 1])
         job_manager.complete_job(job1.job_id, exit_code=0)
@@ -206,7 +206,7 @@ class TestJobManager:
         """Test jobs are persisted and loaded"""
         # Create first manager and add job
         manager1 = JobManager(persistence=persistence_manager, config=test_config)
-        job = manager1.submit_job("/script.py", "2", name="persistent-job")
+        job = manager1.submit_job(["/script.py"], "2", name="persistent-job")
         job_id = job.job_id
 
         # Create second manager (simulates restart)
@@ -219,7 +219,7 @@ class TestJobManager:
 
     def test_job_versioned_script_assignment(self, job_manager):
         """Test that versioned script path can be assigned to jobs"""
-        job = job_manager.submit_job("/script.py", "2")
+        job = job_manager.submit_job(["/script.py"], "2")
 
         # Directly update the job's versioned script path (simulating worker behavior)
         job.versioned_script_path = "/tmp/script.py.scheduler_job001_abc123.py"
@@ -233,7 +233,7 @@ class TestJobManager:
         # Submit multiple jobs
         for i in range(5):
             job_manager.submit_job(
-                script=f"/path/to/script{i}.py",
+                command=[f"/path/to/script{i}.py"],
                 requirements="1"
             )
         
@@ -262,27 +262,27 @@ class TestJobManager:
 
     def test_resolve_dependency_shorthand_single_caret(self, job_manager):
         """Test resolving ^ to most recent job"""
-        job1 = job_manager.submit_job("/script1.py", "1")
-        job2 = job_manager.submit_job("/script2.py", "1")
+        job1 = job_manager.submit_job(["/script1.py"], "1")
+        job2 = job_manager.submit_job(["/script2.py"], "1")
 
         resolved = job_manager.resolve_dependency_shorthand("^")
         assert resolved == job2.job_id
 
     def test_resolve_dependency_shorthand_double_caret(self, job_manager):
         """Test resolving ^^ to second most recent job"""
-        job1 = job_manager.submit_job("/script1.py", "1")
-        job2 = job_manager.submit_job("/script2.py", "1")
-        job3 = job_manager.submit_job("/script3.py", "1")
+        job1 = job_manager.submit_job(["/script1.py"], "1")
+        job2 = job_manager.submit_job(["/script2.py"], "1")
+        job3 = job_manager.submit_job(["/script3.py"], "1")
 
         resolved = job_manager.resolve_dependency_shorthand("^^")
         assert resolved == job2.job_id
 
     def test_resolve_dependency_shorthand_triple_caret(self, job_manager):
         """Test resolving ^^^ to third most recent job"""
-        job1 = job_manager.submit_job("/script1.py", "1")
-        job2 = job_manager.submit_job("/script2.py", "1")
-        job3 = job_manager.submit_job("/script3.py", "1")
-        job4 = job_manager.submit_job("/script4.py", "1")
+        job1 = job_manager.submit_job(["/script1.py"], "1")
+        job2 = job_manager.submit_job(["/script2.py"], "1")
+        job3 = job_manager.submit_job(["/script3.py"], "1")
+        job4 = job_manager.submit_job(["/script4.py"], "1")
 
         resolved = job_manager.resolve_dependency_shorthand("^^^")
         assert resolved == job2.job_id
@@ -300,7 +300,7 @@ class TestJobManager:
 
     def test_resolve_dependency_shorthand_insufficient_history(self, job_manager):
         """Test error when not enough jobs exist"""
-        job1 = job_manager.submit_job("/script1.py", "1")
+        job1 = job_manager.submit_job(["/script1.py"], "1")
 
         with pytest.raises(ValueError, match="Only 1 job available"):
             job_manager.resolve_dependency_shorthand("^^")
@@ -312,11 +312,11 @@ class TestJobManager:
 
     def test_resolve_dependency_shorthand_excludes_failed(self, job_manager):
         """Test that FAILED jobs are excluded from ^ resolution"""
-        job1 = job_manager.submit_job("/script1.py", "1")
+        job1 = job_manager.submit_job(["/script1.py"], "1")
         job_manager.start_job(job1.job_id, "node1", [0])
         job_manager.fail_job(job1.job_id, "Test failure")
 
-        job2 = job_manager.submit_job("/script2.py", "1")
+        job2 = job_manager.submit_job(["/script2.py"], "1")
 
         # ^ should resolve to job2, not job1 (which is FAILED)
         resolved = job_manager.resolve_dependency_shorthand("^")
@@ -324,10 +324,10 @@ class TestJobManager:
 
     def test_resolve_dependency_shorthand_excludes_cancelled(self, job_manager):
         """Test that CANCELLED jobs are excluded from ^ resolution"""
-        job1 = job_manager.submit_job("/script1.py", "1")
+        job1 = job_manager.submit_job(["/script1.py"], "1")
         job_manager.cancel_job(job1.job_id)
 
-        job2 = job_manager.submit_job("/script2.py", "1")
+        job2 = job_manager.submit_job(["/script2.py"], "1")
 
         # ^ should resolve to job2, not job1 (which is CANCELLED)
         resolved = job_manager.resolve_dependency_shorthand("^")
@@ -335,23 +335,23 @@ class TestJobManager:
 
     def test_submit_job_with_caret_dependency(self, job_manager):
         """Test submitting job with ^ dependency gets resolved"""
-        job1 = job_manager.submit_job("/script1.py", "1")
-        job2 = job_manager.submit_job("/script2.py", "1", dependencies=["^"])
+        job1 = job_manager.submit_job(["/script1.py"], "1")
+        job2 = job_manager.submit_job(["/script2.py"], "1", dependencies=["^"])
 
         assert job2.dependencies == [job1.job_id]
 
     def test_submit_job_with_mixed_dependencies(self, job_manager):
         """Test submitting job with mix of ^ and regular job IDs"""
-        job1 = job_manager.submit_job("/script1.py", "1")
+        job1 = job_manager.submit_job(["/script1.py"], "1")
         explicit_job_id = "job_explicit123"
 
-        job2 = job_manager.submit_job("/script2.py", "1", dependencies=["^", explicit_job_id])
+        job2 = job_manager.submit_job(["/script2.py"], "1", dependencies=["^", explicit_job_id])
 
         assert job2.dependencies == [job1.job_id, explicit_job_id]
 
     def test_purge_job_success(self, job_manager):
         """Test purging a specific job"""
-        job = job_manager.submit_job("/script.py", "2")
+        job = job_manager.submit_job(["/script.py"], "2")
         job_manager.complete_job(job.job_id, exit_code=0)
 
         # Purge the job
@@ -368,9 +368,9 @@ class TestJobManager:
     def test_purge_jobs_by_criteria_with_status_filter(self, job_manager):
         """Test purging jobs by status"""
         # Create various jobs
-        job1 = job_manager.submit_job("/script1.py", "2")
-        job2 = job_manager.submit_job("/script2.py", "2")
-        job3 = job_manager.submit_job("/script3.py", "2")
+        job1 = job_manager.submit_job(["/script1.py"], "2")
+        job2 = job_manager.submit_job(["/script2.py"], "2")
+        job3 = job_manager.submit_job(["/script3.py"], "2")
 
         # Complete and fail jobs
         job_manager.complete_job(job1.job_id, exit_code=0)
@@ -389,7 +389,7 @@ class TestJobManager:
         """Test purging jobs by time"""
         from datetime import datetime, timedelta
 
-        job1 = job_manager.submit_job("/script1.py", "2")
+        job1 = job_manager.submit_job(["/script1.py"], "2")
         job_manager.complete_job(job1.job_id, exit_code=0)
 
         # Set completed_at to past
@@ -397,7 +397,7 @@ class TestJobManager:
         job1_obj.completed_at = datetime.now() - timedelta(days=10)
         job_manager.persistence.save_job(job1_obj)
 
-        job2 = job_manager.submit_job("/script2.py", "2")
+        job2 = job_manager.submit_job(["/script2.py"], "2")
         job_manager.complete_job(job2.job_id, exit_code=0)
 
         # Purge jobs completed before 5 days ago
@@ -410,7 +410,7 @@ class TestJobManager:
 
     def test_purge_jobs_by_criteria_invalid_status(self, job_manager):
         """Test purging with invalid status is handled gracefully"""
-        job = job_manager.submit_job("/script.py", "2")
+        job = job_manager.submit_job(["/script.py"], "2")
         job_manager.complete_job(job.job_id, exit_code=0)
 
         # Invalid status should be ignored
@@ -421,8 +421,8 @@ class TestJobManager:
 
     def test_purge_jobs_by_criteria_no_time_filter(self, job_manager):
         """Test purging all jobs matching status without time filter"""
-        job1 = job_manager.submit_job("/script1.py", "2")
-        job2 = job_manager.submit_job("/script2.py", "2")
+        job1 = job_manager.submit_job(["/script1.py"], "2")
+        job2 = job_manager.submit_job(["/script2.py"], "2")
         job_manager.complete_job(job1.job_id, exit_code=0)
         job_manager.fail_job(job2.job_id, "error")
 
@@ -435,9 +435,9 @@ class TestJobManager:
 
     def test_get_active_jobs_for_node(self, job_manager):
         """Test getting active jobs for a specific node"""
-        job1 = job_manager.submit_job("/script1.py", "2")
-        job2 = job_manager.submit_job("/script2.py", "2")
-        job3 = job_manager.submit_job("/script3.py", "2")
+        job1 = job_manager.submit_job(["/script1.py"], "2")
+        job2 = job_manager.submit_job(["/script2.py"], "2")
+        job3 = job_manager.submit_job(["/script3.py"], "2")
 
         # Start jobs on different nodes
         job_manager.start_job(job1.job_id, "node1", [0, 1])
@@ -459,7 +459,7 @@ class TestJobManager:
 
     def test_untrack_job_success(self, job_manager):
         """Test untracking a job (marks as UNTRACKED status)"""
-        job = job_manager.submit_job("/script.py", "2")
+        job = job_manager.submit_job(["/script.py"], "2")
         job_manager.start_job(job.job_id, "node1", [0])
         
         # Untrack the job
@@ -476,7 +476,7 @@ class TestJobManager:
 
     def test_retry_job_inplace_success(self, job_manager):
         """Test retrying a failed job in place"""
-        job = job_manager.submit_job("/script.py", "2", name="test-job")
+        job = job_manager.submit_job(["/script.py"], "2", name="test-job")
         job_manager.start_job(job.job_id, "node1", [0, 1])
         job_manager.fail_job(job.job_id, "error message")
 
@@ -498,7 +498,7 @@ class TestJobManager:
 
     def test_retry_job_inplace_not_failed_or_cancelled(self, job_manager):
         """Test retrying job that is not in terminal state raises exception"""
-        job = job_manager.submit_job("/script.py", "2")
+        job = job_manager.submit_job(["/script.py"], "2")
 
         # Job is pending, should not be retryable
         with pytest.raises(ValueError, match="Can only retry"):
@@ -506,7 +506,7 @@ class TestJobManager:
 
     def test_retry_job_inplace_resets_execution_fields(self, job_manager):
         """Test retrying job resets execution-related fields"""
-        job = job_manager.submit_job("/script.py", "2", name="test-job")
+        job = job_manager.submit_job(["/script.py"], "2", name="test-job")
         job_manager.start_job(job.job_id, "node1", [0])
         job_manager.fail_job(job.job_id, "error")
 

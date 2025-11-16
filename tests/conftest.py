@@ -150,9 +150,8 @@ def sample_job() -> Job:
     return Job(
         job_id="job-001",
         name="test-job",
-        script="/path/to/script.py",
+        command=["/path/to/script.py", "--epochs", "100"],
         requirements=JobRequirement("2"),
-        script_args=["--epochs", "100"],
         working_dir="/home/user/project",
         env_vars={"PYTHONPATH": "/home/user/lib"},
         priority=1,

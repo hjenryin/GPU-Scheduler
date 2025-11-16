@@ -100,7 +100,7 @@ class TestHeartbeatSender:
         mock_job = Job(
             job_id="job-001",
             name="test-job",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING
         )

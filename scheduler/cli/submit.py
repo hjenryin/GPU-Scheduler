@@ -151,11 +151,6 @@ def submit_command(
             key, value = env_var.split('=', 1)
             env_vars[key] = value
 
-    # Store command as script (first element) and script_args (remaining elements)
-    # This maintains backward compatibility with the Job model
-    script = command[0]
-    script_args = command[1:] if len(command) > 1 else None
-
     # Use current directory if not specified (must be set on client side, not server side)
     if working_dir is None:
         working_dir = os.getcwd()
@@ -186,10 +181,9 @@ def submit_command(
         command_str = ' '.join(command)
         click.echo(f"Submitting job: {command_str}")
         job = client.submit_job(
-            script=script,
+            command=command,
             requirements=req,
             name=name,
-            script_args=script_args,
             working_dir=working_dir,
             env_vars=env_vars,
             dependencies=depends_on,

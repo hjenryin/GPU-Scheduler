@@ -451,7 +451,7 @@ class TestRealProcesses:
             f.write("print('Job 1 done')\n")
 
         job1 = client.submit_job(
-            script=script1_path,
+            command=[script1_path],
             requirements="1",
             name="job1-create-file"
         )
@@ -464,7 +464,7 @@ class TestRealProcesses:
             f.write("    print(f'Read: {{content}}')\n")
 
         job2 = client.submit_job(
-            script=script2_path,
+            command=[script2_path],
             requirements="1",
             name="job2-read-file",
             dependencies=[job1.job_id]

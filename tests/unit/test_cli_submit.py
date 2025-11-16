@@ -98,10 +98,9 @@ class TestSubmitCommand:
                 assert result == 0
                 # Verify all parameters passed through
                 call_kwargs = mock_client.submit_job.call_args[1]
-                assert call_kwargs['script'] == "python"
+                assert call_kwargs['command'] == ["python", temp_script, "arg1", "arg2"]
                 assert call_kwargs['requirements'] == "4"
                 assert call_kwargs['name'] == "my-job"
-                assert call_kwargs['script_args'] == [temp_script, "arg1", "arg2"]
                 assert call_kwargs['working_dir'] == "/tmp/work"
                 assert call_kwargs['env_vars']['KEY1'] == "value1"
                 assert call_kwargs['env_vars']['KEY2'] == "value2"
@@ -261,8 +260,7 @@ class TestSubmitCommand:
             )
             assert result == 0
             call_kwargs = mock_client.submit_job.call_args[1]
-            assert call_kwargs['script'] == "python"
-            assert call_kwargs['script_args'] == ["train.py", "--epochs", "10", "--lr", "0.01"]
+            assert call_kwargs['command'] == ["python", "train.py", "--epochs", "10", "--lr", "0.01"]
 
     @patch('scheduler.cli.submit.load_config', autospec=True)
     @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
@@ -283,8 +281,7 @@ class TestSubmitCommand:
             )
             assert result == 0
             call_kwargs = mock_client.submit_job.call_args[1]
-            assert call_kwargs['script'] == "bash"
-            assert call_kwargs['script_args'] == ["run.sh", "arg1", "arg2"]
+            assert call_kwargs['command'] == ["bash", "run.sh", "arg1", "arg2"]
 
     @patch('scheduler.cli.submit.load_config', autospec=True)
     @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
@@ -305,8 +302,7 @@ class TestSubmitCommand:
             )
             assert result == 0
             call_kwargs = mock_client.submit_job.call_args[1]
-            assert call_kwargs['script'] == "./myexec"
-            assert call_kwargs['script_args'] == ["--option", "value", "--flag"]
+            assert call_kwargs['command'] == ["./myexec", "--option", "value", "--flag"]
 
     @patch('scheduler.cli.submit.load_config', autospec=True)
     @patch('scheduler.cli.submit.SchedulerClient', autospec=True)
@@ -330,11 +326,10 @@ class TestSubmitCommand:
             )
             assert result == 0
             call_kwargs = mock_client.submit_job.call_args[1]
-            assert call_kwargs['script'] == "cmd"
-            # Verify all arguments are preserved in exact order
-            expected_args = ["--aaa=1", "-d", "--async2", "-f", "--ff", "file.txt", 
+            # Verify full command is preserved in exact order
+            expected_cmd = ["cmd", "--aaa=1", "-d", "--async2", "-f", "--ff", "file.txt", 
                            "--req=1", "-D", "--name", "2", "-g", "--env", "--name", "3"]
-            assert call_kwargs['script_args'] == expected_args
+            assert call_kwargs['command'] == expected_cmd
 
     @patch('scheduler.cli.submit.load_config', autospec=True)
     @patch('scheduler.cli.submit.SchedulerClient', autospec=True)

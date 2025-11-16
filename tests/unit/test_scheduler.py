@@ -37,7 +37,7 @@ class TestScheduler:
 
         # Submit a job requiring 2 GPUs
         job = job_manager.submit_job(
-            script="/script.py",
+            command=["/script.py"],
             requirements="2",
             name="test-job"
         )
@@ -64,14 +64,14 @@ class TestScheduler:
 
         # Submit dependency job first
         dep_job = job_manager.submit_job(
-            script="/dep.py",
+            command=["/dep.py"],
             requirements="1",
             name="dependency"
         )
 
         # Submit job with dependency
         job = job_manager.submit_job(
-            script="/script.py",
+            command=["/script.py"],
             requirements="1",
             name="dependent-job",
             dependencies=[dep_job.job_id]
@@ -116,7 +116,7 @@ class TestScheduler:
 
         # Submit job
         job = job_manager.submit_job(
-            script="/script.py",
+            command=["/script.py"],
             requirements="1",
             name="test-job"
         )
@@ -140,7 +140,7 @@ class TestScheduler:
 
         # Submit job requiring 2 GPUs
         job = job_manager.submit_job(
-            script="/script.py",
+            command=["/script.py"],
             requirements="2",
             name="test-job"
         )
@@ -169,7 +169,7 @@ class TestScheduler:
 
         # Submit job requiring gpu2 specifically
         job = job_manager.submit_job(
-            script="/script.py",
+            command=["/script.py"],
             requirements="gpu2:2",
             name="test-job"
         )
@@ -199,7 +199,7 @@ class TestScheduler:
         # Submit job with alternatives (gpu1:2 OR gpu2:2)
         # Since only gpu2 exists, should schedule on gpu2
         job = job_manager.submit_job(
-            script="/script.py",
+            command=["/script.py"],
             requirements="gpu1:2,gpu2:2",
             name="test-job"
         )
@@ -225,7 +225,7 @@ class TestScheduler:
 
         # Submit job
         job = job_manager.submit_job(
-            script="/script.py",
+            command=["/script.py"],
             requirements="1",
             name="test-job"
         )
@@ -249,14 +249,14 @@ class TestScheduler:
 
         # Submit jobs with different priorities (low priority first)
         low_priority_job = job_manager.submit_job(
-            script="/low.py",
+            command=["/low.py"],
             requirements="1",
             name="low-priority",
             priority=1
         )
 
         high_priority_job = job_manager.submit_job(
-            script="/high.py",
+            command=["/high.py"],
             requirements="1",
             name="high-priority",
             priority=10
@@ -288,7 +288,7 @@ class TestScheduler:
 
         # Submit job
         job = job_manager.submit_job(
-            script="/script.py",
+            command=["/script.py"],
             requirements="2",
             name="test-job"
         )
@@ -313,7 +313,7 @@ class TestScheduler:
 
         # Submit job requiring 4 GPUs
         job = job_manager.submit_job(
-            script="/script.py",
+            command=["/script.py"],
             requirements="4",
             name="test-job"
         )

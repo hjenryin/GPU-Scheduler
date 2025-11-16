@@ -49,7 +49,7 @@ class TestJobEndpoints:
     def test_submit_job_minimal(self, api_client):
         """Test POST /api/v1/jobs with minimal required fields"""
         response = api_client.post("/api/v1/jobs", json={
-            "script": "train.py",
+            "command": ["train.py"],
             "requirements": "2"
         })
 
@@ -57,16 +57,15 @@ class TestJobEndpoints:
         data = response.json()
         assert "job_id" in data
         assert data["status"] == "pending"
-        assert data["script"] == "train.py"
+        assert data["command"] == ["train.py"]
         # Requirements format may vary
 
     def test_submit_job_full(self, api_client):
         """Test POST /api/v1/jobs with all optional fields"""
         response = api_client.post("/api/v1/jobs", json={
-            "script": "train.py",
+            "command": ["train.py"],
             "requirements": "2",
             "name": "my-training-job",
-            "script_args": ["--epochs", "100", "--lr", "0.001"],
             "working_dir": "/home/user/project",
             "env_vars": {"PYTHONPATH": "/home/user/lib", "DEBUG": "1"},
             "dependencies": [],
@@ -77,13 +76,13 @@ class TestJobEndpoints:
         data = response.json()
         # Name is used by JobManager - it may be in the response
         assert data["status"] == "pending"
-        assert data["script"] == "train.py"
+        assert data["command"][0] == "train.py"
 
     def test_submit_job_with_dependencies(self, api_client):
         """Test POST /api/v1/jobs with job dependencies"""
         # Submit first job
         response1 = api_client.post("/api/v1/jobs", json={
-            "script": "preprocess.py",
+            "command": ["preprocess.py"],
             "requirements": "1"
         })
         assert response1.status_code == 200
@@ -91,7 +90,7 @@ class TestJobEndpoints:
 
         # Submit dependent job
         response2 = api_client.post("/api/v1/jobs", json={
-            "script": "train.py",
+            "command": ["train.py"],
             "requirements": "2",
             "dependencies": [job1_id]
         })
@@ -103,7 +102,7 @@ class TestJobEndpoints:
     def test_submit_job_invalid_requirements_empty(self, api_client):
         """Test POST /api/v1/jobs with empty requirements returns 400"""
         response = api_client.post("/api/v1/jobs", json={
-            "script": "train.py",
+            "command": ["train.py"],
             "requirements": ""
         })
 
@@ -113,7 +112,7 @@ class TestJobEndpoints:
         """Test POST /api/v1/jobs with invalid requirements format"""
         # Test with invalid GPU count (node:non-numeric)
         response = api_client.post("/api/v1/jobs", json={
-            "script": "train.py",
+            "command": ["train.py"],
             "requirements": "node1:abc"
         })
 
@@ -130,7 +129,7 @@ class TestJobEndpoints:
     def test_submit_job_missing_requirements(self, api_client):
         """Test POST /api/v1/jobs without requirements field returns 422"""
         response = api_client.post("/api/v1/jobs", json={
-            "script": "train.py"
+            "command": ["train.py"]
         })
 
         assert response.status_code == 422  # Pydantic validation error
@@ -138,7 +137,7 @@ class TestJobEndpoints:
     def test_submit_job_negative_priority(self, api_client):
         """Test POST /api/v1/jobs with negative priority"""
         response = api_client.post("/api/v1/jobs", json={
-            "script": "train.py",
+            "command": ["train.py"],
             "requirements": "2",
             "priority": -10
         })
@@ -153,7 +152,7 @@ class TestJobEndpoints:
         """Test GET /api/v1/jobs/{job_id} for existing job"""
         # Submit a job first
         submit_response = api_client.post("/api/v1/jobs", json={
-            "script": "train.py",
+            "command": ["train.py"],
             "requirements": "2",
             "name": "test-job"
         })
@@ -189,9 +188,9 @@ class TestJobEndpoints:
     def test_list_jobs_multiple(self, api_client):
         """Test GET /api/v1/jobs returns all jobs"""
         # Submit multiple jobs
-        api_client.post("/api/v1/jobs", json={"script": "job1.py", "requirements": "1"})
-        api_client.post("/api/v1/jobs", json={"script": "job2.py", "requirements": "2"})
-        api_client.post("/api/v1/jobs", json={"script": "job3.py", "requirements": "1"})
+        api_client.post("/api/v1/jobs", json={"command": ["job1.py"], "requirements": "1"})
+        api_client.post("/api/v1/jobs", json={"command": ["job2.py"], "requirements": "2"})
+        api_client.post("/api/v1/jobs", json={"command": ["job3.py"], "requirements": "1"})
 
         response = api_client.get("/api/v1/jobs")
 
@@ -203,8 +202,8 @@ class TestJobEndpoints:
     def test_list_jobs_filter_by_status(self, api_client):
         """Test GET /api/v1/jobs?status=pending filters jobs"""
         # Submit jobs
-        r1 = api_client.post("/api/v1/jobs", json={"script": "job1.py", "requirements": "1"})
-        r2 = api_client.post("/api/v1/jobs", json={"script": "job2.py", "requirements": "2"})
+        r1 = api_client.post("/api/v1/jobs", json={"command": ["job1.py"], "requirements": "1"})
+        r2 = api_client.post("/api/v1/jobs", json={"command": ["job2.py"], "requirements": "2"})
         assert r1.status_code == 200
         assert r2.status_code == 200
 
@@ -247,7 +246,7 @@ class TestJobEndpoints:
         """Test DELETE /api/v1/jobs/{job_id} cancels pending job"""
         # Submit a job
         submit_response = api_client.post("/api/v1/jobs", json={
-            "script": "train.py",
+            "command": ["train.py"],
             "requirements": "2"
         })
         assert submit_response.status_code == 200
@@ -521,7 +520,7 @@ class TestWorkerEndpoints:
         """Test POST /api/v1/workers/jobs/{job_id}/complete marks job complete"""
         # Submit and manually assign a job
         submit_response = api_client.post("/api/v1/jobs", json={
-            "script": "train.py",
+            "command": ["train.py"],
             "requirements": "2"
         })
         assert submit_response.status_code == 200
@@ -590,7 +589,7 @@ class TestWorkerEndpoints:
         """Test POST /api/v1/workers/jobs/{job_id}/complete with non-zero exit code"""
         # Submit and assign a job
         submit_response = api_client.post("/api/v1/jobs", json={
-            "script": "train.py",
+            "command": ["train.py"],
             "requirements": "1"
         })
         assert submit_response.status_code == 200
@@ -652,7 +651,7 @@ class TestWorkerEndpoints:
         """Test POST /api/v1/workers/jobs/{job_id}/fail marks job as failed"""
         # Submit and assign a job
         submit_response = api_client.post("/api/v1/jobs", json={
-            "script": "train.py",
+            "command": ["train.py"],
             "requirements": "2"
         })
         assert submit_response.status_code == 200
@@ -746,7 +745,7 @@ class TestErrorHandling:
         """Test POST without Content-Type header"""
         response = api_client.post(
             "/api/v1/jobs",
-            data='{"script": "train.py", "requirements": "2"}'
+            data='{"command": ["train.py"], "requirements": "2"}'
         )
 
         # FastAPI TestClient usually handles this, but verify it doesn't crash
@@ -772,7 +771,7 @@ class TestResponseSchemas:
     def test_job_response_schema(self, api_client):
         """Test JobResponse contains all expected fields"""
         submit_response = api_client.post("/api/v1/jobs", json={
-            "script": "train.py",
+            "command": ["train.py"],
             "requirements": "2",
             "name": "test-job"
         })

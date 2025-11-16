@@ -5,10 +5,9 @@ from scheduler.core import Job, Node
 
 class JobSubmitRequest(BaseModel):
     """Job submission request schema"""
-    script: str
+    command: List[str]
     requirements: str
     name: Optional[str] = None
-    script_args: Optional[List[str]] = None
     working_dir: Optional[str] = None
     env_vars: Optional[Dict[str, str]] = None
     dependencies: Optional[List[str]] = None
@@ -23,7 +22,7 @@ class JobResponse(BaseModel):
     """Job response schema"""
     job_id: str
     name: str
-    script: str
+    command: List[str]
     requirements: str
     status: str
     submitted_at: str
@@ -33,7 +32,6 @@ class JobResponse(BaseModel):
     assigned_gpus: Optional[List[int]] = None
     exit_code: Optional[int] = None
     error_message: Optional[str] = None
-    script_args: Optional[List[str]] = None
     working_dir: Optional[str] = None
     env_vars: Optional[Dict[str, str]] = None
     dependencies: Optional[List[str]] = None
@@ -49,7 +47,7 @@ class JobResponse(BaseModel):
         return cls(
             job_id=job.job_id,
             name=job.name,
-            script=job.script,
+            command=job.command,
             requirements=job.requirements.serialize(),  # Use serialize() for machine-readable format
             status=job.status.value,
             submitted_at=job.submitted_at.isoformat() if job.submitted_at else "",
@@ -59,7 +57,6 @@ class JobResponse(BaseModel):
             assigned_gpus=job.assigned_gpus,
             exit_code=job.exit_code,
             error_message=job.error_message,
-            script_args=job.script_args,
             working_dir=job.working_dir,
             env_vars=job.env_vars,
             dependencies=job.dependencies,

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 import logging
 
 from scheduler.core.exceptions import InvalidRequirementException
@@ -380,13 +380,12 @@ class JobRequirement:
 
 class Job:
     """Job representation"""
-    
+
     # Class attributes with defaults (enables create_autospec to work with spec_set)
     job_id: str = None
     name: str = None
-    script: str = None
+    command: List[str] = None
     requirements: JobRequirement = None
-    script_args: List[str] = None
     working_dir: Optional[str] = None
     env_vars: Dict[str, str] = None
     dependencies: List[str] = None
@@ -409,9 +408,8 @@ class Job:
         self,
         job_id: str,
         name: str,
-        script: str,
+        command: List[str],
         requirements: JobRequirement,
-        script_args: List[str] = None,
         working_dir: str = None,
         env_vars: Dict[str, str] = None,
         dependencies: List[str] = None,
@@ -436,9 +434,8 @@ class Job:
         Args:
             job_id: Unique job identifier
             name: Human-readable job name
-            script: Path to script to execute
+            command: Command to execute as a list (e.g., ["python", "train.py", "--epochs", "10"])
             requirements: JobRequirement instance
-            script_args: Arguments to pass to script
             working_dir: Working directory for execution
             env_vars: Environment variables
             dependencies: List of job IDs this job depends on
@@ -459,9 +456,8 @@ class Job:
         """
         self.job_id = job_id
         self.name = name
-        self.script = script
+        self.command = command if command else []
         self.requirements = requirements
-        self.script_args = script_args or []
         self.working_dir = working_dir
         self.env_vars = env_vars or {}
         self.dependencies = dependencies or []
@@ -525,9 +521,8 @@ class Job:
         return {
             'job_id': self.job_id,
             'name': self.name,
-            'script': self.script,
+            'command': self.command,
             'requirements': self.requirements.serialize(),
-            'script_args': self.script_args,
             'working_dir': self.working_dir,
             'env_vars': self.env_vars,
             'dependencies': self.dependencies,
@@ -568,12 +563,21 @@ class Job:
         # Parse requirements
         requirements = JobRequirement(data['requirements'])
 
+        # Handle migration from old format (script + script_args) to new format (command)
+        # TEMPORARY MIGRATION CODE - Can be removed after all storage is migrated
+        if 'command' in data:
+            command = data['command']
+        else:
+            # Old format: convert script + script_args to command
+            command = [data['script']]
+            if data.get('script_args'):
+                command.extend(data['script_args'])
+
         return cls(
             job_id=data['job_id'],
             name=data['name'],
-            script=data['script'],
+            command=command,
             requirements=requirements,
-            script_args=data.get('script_args'),
             working_dir=data.get('working_dir'),
             env_vars=data.get('env_vars'),
             dependencies=data.get('dependencies'),
@@ -604,11 +608,10 @@ class JobSubmitRequest:
     def __init__(
         self,
         job_id: str,
-        script: str,
+        command: List[str],
         requirements: str,
         working_dir: str,
         name: Optional[str] = None,
-        script_args: Optional[List[str]] = None,
         env_vars: Optional[Dict[str, str]] = None,
         dependencies: Optional[List[str]] = None,
         priority: int = 0,
@@ -621,11 +624,10 @@ class JobSubmitRequest:
 
         Args:
             job_id: Unique job identifier
-            script: Path to script to execute
+            command: Command to execute as a list (e.g., ["python", "train.py", "--epochs", "10"])
             requirements: Resource requirement string (e.g., "2", "gpu1:4")
             working_dir: Working directory for execution
             name: Human-readable job name
-            script_args: Arguments to pass to script
             env_vars: Environment variables
             dependencies: List of job IDs this job depends on
             priority: Job priority (higher = more important)
@@ -634,11 +636,10 @@ class JobSubmitRequest:
             conda_env: Conda environment name
         """
         self.job_id = job_id
-        self.script = script
+        self.command = command
         self.requirements = requirements
         self.working_dir = working_dir
         self.name = name
-        self.script_args = script_args
         self.env_vars = env_vars
         self.dependencies = dependencies
         self.priority = priority
@@ -650,11 +651,10 @@ class JobSubmitRequest:
         """Convert to dict for API payload."""
         return {
             "job_id": self.job_id,
-            "script": self.script,
+            "command": self.command,
             "requirements": self.requirements,
             "working_dir": self.working_dir,
             "name": self.name,
-            "script_args": self.script_args,
             "env_vars": self.env_vars,
             "dependencies": self.dependencies,
             "priority": self.priority,

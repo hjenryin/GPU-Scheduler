@@ -117,9 +117,11 @@ def test_submit_batch_with_script_args(mock_file, mock_exists, mock_client_class
     result = submit_batch_command("/tmp/scripts.txt")
     assert result == 0
     
-    # Verify first job was submitted with args
+    # Verify first job was submitted with args in command
     first_call = mock_client.submit_job.call_args_list[0]
-    assert first_call[1]['script_args'] == ['arg1', 'arg2']
+    first_cmd = first_call[1]['command']
+    assert 'arg1' in first_cmd
+    assert 'arg2' in first_cmd
 
 
 @patch('scheduler.cli.submit_batch.load_config', autospec=True)

@@ -202,10 +202,17 @@ class TestSubmitBatchCommand:
                 
                 # Verify args passed correctly
                 first_call = mock_client.submit_job.call_args_list[0]
-                assert first_call[1]['script_args'] == ['--arg1', 'value1']
+                # Command should include script and its args
+                first_cmd = first_call[1]['command']
+                assert '--arg1' in first_cmd
+                assert 'value1' in first_cmd
                 
                 second_call = mock_client.submit_job.call_args_list[1]
-                assert second_call[1]['script_args'] == ['--arg2', 'value2', '--arg3']
+                # Command should include script and its args
+                second_cmd = second_call[1]['command']
+                assert '--arg2' in second_cmd
+                assert 'value2' in second_cmd
+                assert '--arg3' in second_cmd
         finally:
             os.unlink(script_list_file)
             for script in test_scripts:
@@ -254,7 +261,8 @@ class TestSubmitBatchCommand:
                 
                 # Verify all parameters passed through for first call
                 first_call = mock_client.submit_job.call_args_list[0]
-                assert first_call[1]['script'] == os.path.abspath(test_scripts[0])
+                # Command should include the absolute path
+                assert first_call[1]['command'][0] == os.path.abspath(test_scripts[0])
                 assert first_call[1]['requirements'] == "4"
                 assert first_call[1]['name'] == "batch-job"
                 assert first_call[1]['priority'] == 5

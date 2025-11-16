@@ -125,10 +125,9 @@ class SchedulerClient:
 
     def submit_job(
         self,
-        script: str,
+        command: List[str],
         requirements: str,
         name: Optional[str] = None,
-        script_args: List[str] = None,
         working_dir: Optional[str] = None,
         env_vars: Dict[str, str] = None,
         dependencies: List[str] = None,
@@ -143,7 +142,13 @@ class SchedulerClient:
         3. Sends job with snapshot info to head node
 
         Args:
-            (same as JobManager.submit_job)
+            command: Command to execute as a list (e.g., ["python", "train.py", "--epochs", "10"])
+            requirements: Requirement string
+            name: Job name
+            working_dir: Working directory
+            env_vars: Environment variables
+            dependencies: Job dependencies
+            priority: Job priority
 
         Returns:
             Created Job instance
@@ -194,11 +199,10 @@ class SchedulerClient:
         # Create submission request using schema
         request = JobSubmitRequest(
             job_id=job_id,
-            script=script,
+            command=command,
             requirements=requirements,
             working_dir=working_dir,
             name=name,
-            script_args=script_args,
             env_vars=env_vars,
             dependencies=dependencies,
             priority=priority,
@@ -302,16 +306,16 @@ class SchedulerClient:
         # 5. Submit new job with original parameters
         payload = {
             "job_id": new_job_id,
-            "script": original_job.script,
+            "command": original_job.command,
             "requirements": original_job.requirements.serialize(),
             "name": original_job.name,
-            "script_args": original_job.script_args,
             "working_dir": original_job.working_dir,
             "env_vars": original_job.env_vars,
             "dependencies": original_job.dependencies,  # Already resolved
             "priority": original_job.priority,
             "snapshot_ref": original_job.snapshot_ref,  # Reuse same commit
             "snapshot_working_dir": original_job.snapshot_working_dir,
+            "conda_env": original_job.conda_env,
         }
 
         try:
@@ -359,10 +363,9 @@ class SchedulerClient:
         # This will generate new job_id and create fresh snapshot
         logger.info(f"Retrying job {job_id} with --now mode (fresh snapshot)")
         return self.submit_job(
-            script=original_job.script,
+            command=original_job.command,
             requirements=original_job.requirements.serialize(),
             name=original_job.name,
-            script_args=original_job.script_args,
             working_dir=original_job.working_dir,
             env_vars=original_job.env_vars,
             dependencies=original_job.dependencies,  # Already resolved
@@ -401,10 +404,9 @@ class SchedulerClient:
         # This will generate new job_id and create fresh snapshot
         logger.info(f"Retrying job {job_id} with --no-deps mode (fresh snapshot without dependencies)")
         return self.submit_job(
-            script=original_job.script,
+            command=original_job.command,
             requirements=original_job.requirements.serialize(),
             name=original_job.name,
-            script_args=original_job.script_args,
             working_dir=original_job.working_dir,
             env_vars=original_job.env_vars,
             dependencies=None,  # Remove dependencies
@@ -775,21 +777,24 @@ class SchedulerClient:
             logger.error(f"Failed to report completion for job {job_id}: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")
 
-    def report_job_failed(self, job_id: str, error_message: str, after_commit_ref: Optional[str] = None):
+    def report_job_failed(self, job_id: str, error_message: str, exit_code: Optional[int] = None, after_commit_ref: Optional[str] = None):
         """
         Report job failure (worker use only).
 
         Args:
             job_id: Job ID
             error_message: Error message
+            exit_code: Optional exit code
             after_commit_ref: Optional commit SHA of the "after" commit
 
         Raises:
             ConnectionException: If cannot connect
         """
-        # Fixed: Send error_message as query parameter (not JSON body)
+        # Fixed: Send error_message and exit_code as query parameters (not JSON body)
         try:
             params = {"error_message": error_message}
+            if exit_code is not None:
+                params["exit_code"] = exit_code
             if after_commit_ref:
                 params["after_commit_ref"] = after_commit_ref
             response = self.session.post(
@@ -841,7 +846,7 @@ class SchedulerClient:
         return Job(
             job_id=data["job_id"],
             name=data["name"],
-            script=data["script"],
+            command=data["command"],
             requirements=requirements,
             status=status,
             submitted_at=submitted_at,
@@ -851,7 +856,6 @@ class SchedulerClient:
             assigned_gpus=data.get("assigned_gpus"),
             exit_code=data.get("exit_code"),
             error_message=data.get("error_message"),
-            script_args=data.get("script_args"),
             working_dir=data.get("working_dir"),
             env_vars=data.get("env_vars"),
             dependencies=data.get("dependencies"),

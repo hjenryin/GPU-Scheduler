@@ -356,7 +356,7 @@ class TestWorkerDaemon:
         job = Job(
             job_id="job-001",
             name="test-job",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=JobRequirement("2"),
             status=JobStatus.PENDING,
             assigned_gpus=[0, 1]
@@ -418,7 +418,7 @@ class TestWorkerDaemon:
         job = Job(
             job_id="job-003",
             name="test-job",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=JobRequirement("4"),
             status=JobStatus.PENDING
             # No assigned_gpus
@@ -462,7 +462,7 @@ class TestWorkerDaemon:
         job = Job(
             job_id="job-004",
             name="test-job",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING
         )

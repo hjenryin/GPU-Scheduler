@@ -208,10 +208,15 @@ class JobDetailScreen(Screen):
         self.query_one("#job-metadata", Static).update(metadata)
 
         # Update configuration
+        cmd_str = ' '.join(job.command)
+
         config = (
-            f"Script:      {job.script}\n"
-            f"Arguments:   {' '.join(job.script_args) if job.script_args else 'None'}\n"
+            f"Command:     {cmd_str}\n"
             f"Working Dir: {job.working_dir or 'Default'}\n"
+        )
+        if job.conda_env:
+            config += f"Conda Env:   {job.conda_env}\n"
+        config += (
             f"Environment: {len(job.env_vars) if job.env_vars else 0} variables\n"
             f"Requirements: {str(job.requirements) if job.requirements else '?'}"
         )

@@ -40,10 +40,9 @@ class TestFullWorkflow:
 
         # Step 3: User submits job
         job = job_manager.submit_job(
-            script="/path/to/train.py",
+            command=["/path/to/train.py"],
             requirements="2",
-            name="training-job",
-            script_args=["--epochs", "100"]
+            name="training-job"
         )
 
         assert job.status == JobStatus.PENDING
@@ -97,7 +96,7 @@ class TestFullWorkflow:
         jobs = []
         for i in range(5):
             job = job_manager.submit_job(
-                script=f"/job{i}.py",
+                command=[f"/job{i}.py"],
                 requirements="2",
                 name=f"job-{i}",
                 priority=i
@@ -132,7 +131,7 @@ class TestFullWorkflow:
             gpu.stable_since = stable_time
 
         # Submit and schedule job
-        job = job_manager.submit_job("/script.py", "2")
+        job = job_manager.submit_job(["/script.py"], "2")
         scheduler.schedule_cycle()
 
         # Simulate job failure
@@ -173,7 +172,7 @@ class TestFullWorkflow:
             gpu.stable_since = stable_time
 
         # Submit and schedule job
-        job = job_manager.submit_job("/long_running.py", "2")
+        job = job_manager.submit_job(["/long_running.py"], "2")
         scheduler.schedule_cycle()
 
         assert job_manager.get_job(job.job_id).status == JobStatus.RUNNING

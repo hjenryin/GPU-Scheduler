@@ -322,7 +322,7 @@ class WorkerDaemon:
                         self.client.report_job_complete(job.job_id, exit_code, after_commit_ref)
                     else:
                         logger.error(f"Job {job.job_id} failed with exit code {exit_code}")
-                        self.client.report_job_failed(job.job_id, f"Exit code: {exit_code}", after_commit_ref)
+                        self.client.report_job_failed(job.job_id, f"Job exited with code {exit_code}", exit_code, after_commit_ref)
 
                     # NOTE: Do NOT remove from active_jobs here!
                     # Jobs are removed from active_jobs only when they're no longer in the poll response.

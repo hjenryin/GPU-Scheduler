@@ -430,7 +430,7 @@ class TestTUIPerformance:
             job = Job(
                 job_id=f"job_{i:04d}",
                 name=f"experiment-{i}",
-                script=f"/path/to/script_{i}.py",
+                command=[f"/path/to/script_{i}.py"],
                 requirements=req,
                 status=JobStatus.RUNNING if i % 4 == 0 else JobStatus.PENDING,
                 assigned_node=f"worker-{i % 100:03d}" if i % 4 == 0 else None,

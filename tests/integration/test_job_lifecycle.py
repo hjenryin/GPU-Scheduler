@@ -60,7 +60,7 @@ class TestJobLifecycle:
 
         # Submit a job
         job = job_manager.submit_job(
-            script="/path/to/train.py",
+            command=["/path/to/train.py"],
             requirements="2",
             name="training-job"
         )

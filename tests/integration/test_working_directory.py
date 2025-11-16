@@ -77,7 +77,7 @@ class TestWorkingDirectoryWithoutSnapshot:
         job = Job(
             job_id='test_job_1',
             name='test_pwd',
-            script=temp_workspace['bash_script'],
+            command=[temp_workspace['bash_script']],
             requirements=JobRequirement('1'),
             working_dir=temp_workspace['subdir'],
             status=JobStatus.PENDING
@@ -122,7 +122,7 @@ class TestWorkingDirectoryWithSnapshot:
         job = Job(
             job_id='test_job_2',
             name='test_pwd_snapshot',
-            script=temp_workspace['bash_script'],
+            command=[temp_workspace['bash_script']],
             requirements=JobRequirement('1'),
             working_dir=temp_workspace['subdir'],
             snapshot_ref=snapshot_ref,

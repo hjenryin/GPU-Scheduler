@@ -94,21 +94,15 @@ class JobExecutor:
                         logger.warning(f"Job working_dir {job.working_dir} is outside snapshot root {job.snapshot_working_dir}, using worktree root")
                         working_dir = worktree_path
                     
-                    # Use script as-is (commands from PATH or relative paths work from correct working directory)
-                    script_path = job.script
-                    
                     logger.info(f"Job {job.job_id} will execute in worktree: {working_dir}")
-                    logger.info(f"Job {job.job_id} script: {script_path}")
                 else:
                     logger.warning(f"Failed to restore snapshot for job {job.job_id}, using original working directory")
-                    working_dir = job.working_dir or os.path.dirname(os.path.abspath(job.script))
-                    script_path = job.script
+                    working_dir = job.working_dir
             else:
                 # No snapshot, use original working directory
                 # Assert working_dir is not None (validated at Job construction)
                 assert job.working_dir is not None, f"Job {job.job_id}: working_dir must not be None"
                 working_dir = job.working_dir
-                script_path = job.script
                 logger.info(f"Job {job.job_id} has no snapshot, using working directory: {working_dir}")
 
             # Clean up old log files (older than 24 hours) before starting new job
@@ -118,45 +112,43 @@ class JobExecutor:
             stdout_log = self.file_handler.get_job_log_path(job.job_id, stderr=False)
             stderr_log = self.file_handler.get_job_log_path(job.job_id, stderr=True)
 
-            # Build command from script and script_args
-            cmd = [script_path]
-            if job.script_args:
-                cmd.extend(job.script_args)
-
-            # Wrap with conda run if conda environment is specified
-            if job.conda_env:
-                conda_cmd = self.config.conda.command
-                cmd = [conda_cmd, 'run', '-n', job.conda_env] + cmd
-                logger.info(f"Running job {job.job_id} in conda environment '{job.conda_env}'")
-
-            logger.info(f"Executing job {job.job_id}: {script_path}")
-            logger.info(f"Command: {' '.join(cmd)}")
-            logger.info(f"Working directory: {working_dir}")
-            logger.info(f"CUDA_VISIBLE_DEVICES: {env['CUDA_VISIBLE_DEVICES']}")
-            logger.info(f"Stdout log: {stdout_log}")
-            logger.info(f"Stderr log: {stderr_log}")
+            # Use job command directly
+            cmd_parts = job.command
 
             # Ensure log directories exist
             os.makedirs(os.path.dirname(stdout_log), exist_ok=True)
             os.makedirs(os.path.dirname(stderr_log), exist_ok=True)
 
-            # Open log files
-            stdout_file = open(stdout_log, 'w')
-            stderr_file = open(stderr_log, 'w')
+            # Build the complete command string with output redirection
+            # This ensures output is written immediately without buffering issues
+            cmd_str = ' '.join(cmd_parts)
+            bash_cmd = f"{cmd_str} > {stdout_log} 2> {stderr_log}"
 
-            # Start the process
+            # Wrap with conda run if conda environment is specified
+            # Use bash -c to handle redirection AFTER conda activates the environment
+            # This avoids conda's output buffering that causes log loss on early termination
+            if job.conda_env:
+                conda_cmd = self.config.conda.command
+                cmd = [conda_cmd, 'run', '-n', job.conda_env, 'bash', '-c', bash_cmd]
+                logger.info(f"Running job {job.job_id} in conda environment '{job.conda_env}'")
+            else:
+                cmd = ['bash', '-c', bash_cmd]
+
+            logger.info(f"Executing job {job.job_id}")
+            logger.info(f"Command: {cmd_str}")
+            logger.info(f"Working directory: {working_dir}")
+            logger.info(f"CUDA_VISIBLE_DEVICES: {env['CUDA_VISIBLE_DEVICES']}")
+            logger.info(f"Stdout log: {stdout_log}")
+            logger.info(f"Stderr log: {stderr_log}")
+
+            # Start the process with output redirection handled by bash
+            # Don't pass stdout/stderr to Popen - they're handled by the bash command
             process = subprocess.Popen(
                 cmd,
                 env=env,
                 cwd=working_dir,
-                stdout=stdout_file,
-                stderr=stderr_file,
                 start_new_session=True  # Create new process group
             )
-            
-            # Close file handles in parent process (child process has its own copies)
-            stdout_file.close()
-            stderr_file.close()
 
             pid = process.pid
             self.processes[pid] = process
@@ -209,21 +201,41 @@ class JobExecutor:
 
     def terminate_job(self, pid: int):
         """
-        Terminate a running job.
+        Terminate a running job and all its child processes.
+
+        Since jobs are started with start_new_session=True, they run in their own
+        process group. We need to kill the entire process group to ensure all
+        child processes are terminated.
 
         Args:
-            pid: Process ID
+            pid: Process ID (also the process group ID due to start_new_session=True)
         """
         try:
             if pid in self.processes:
                 process = self.processes[pid]
-                process.terminate()  # SIGTERM
-                logger.info(f"Terminated job with PID {pid}")
+                # Kill the entire process group
+                try:
+                    os.killpg(pid, signal.SIGTERM)
+                    logger.info(f"Terminated process group {pid} (SIGTERM)")
+                except ProcessLookupError:
+                    # Process group already dead
+                    logger.info(f"Process group {pid} already terminated")
+                except PermissionError:
+                    # Fallback to single process kill
+                    process.terminate()
+                    logger.warning(f"Cannot kill process group {pid}, terminated parent process only")
                 del self.processes[pid]
             else:
-                # Try to kill process directly using SIGTERM
-                os.kill(pid, signal.SIGTERM)
-                logger.info(f"Sent SIGTERM to PID {pid}")
+                # Try to kill process group directly using SIGTERM
+                try:
+                    os.killpg(pid, signal.SIGTERM)
+                    logger.info(f"Sent SIGTERM to process group {pid}")
+                except ProcessLookupError:
+                    logger.info(f"Process group {pid} not found (already terminated)")
+                except PermissionError:
+                    # Fallback to single process
+                    os.kill(pid, signal.SIGTERM)
+                    logger.warning(f"Cannot kill process group {pid}, sent SIGTERM to process only")
         except OSError as e:
             logger.warning(f"Failed to terminate job with PID {pid}: {e}")
 

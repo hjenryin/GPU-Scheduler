@@ -139,7 +139,7 @@ class TestPrintJobTable:
             Job(
                 job_id="job_123",
                 name="test_job",
-                script="/path/script.py",
+                command=["/path/script.py"],
                 requirements=JobRequirement("2"),
                 status=JobStatus.RUNNING,
                 assigned_node="node1",
@@ -162,7 +162,7 @@ class TestPrintJobDetails:
         job = Job(
             job_id="job_123",
             name="test_job",
-            script="/path/script.py",
+            command=["/path/script.py"],
             requirements=JobRequirement("2"),
             status=JobStatus.COMPLETED,
             assigned_node="node1",
@@ -181,7 +181,7 @@ class TestPrintJobDetails:
         job = Job(
             job_id="job_123",
             name="test_job",
-            script="/path/script.py",
+            command=["/path/script.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING
         )

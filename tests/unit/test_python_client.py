@@ -87,7 +87,7 @@ class TestSubmitJob:
         mock_response.json.return_value = {
             "job_id": "job_123",
             "name": "test_job",
-            "script": "train.py",
+            "command": ["train.py", "--epochs", "10"],
             "requirements": "2",
             "status": "pending",
             "submitted_at": "2025-01-01T00:00:00",
@@ -97,7 +97,6 @@ class TestSubmitJob:
             "assigned_gpus": None,
             "exit_code": None,
             "error_message": None,
-            "script_args": ["--epochs", "10"],
             "working_dir": "/workspace",
             "env_vars": {"KEY": "value"},
             "dependencies": [],
@@ -107,19 +106,17 @@ class TestSubmitJob:
 
         with patch.object(client.session, 'post', return_value=mock_response):
             job = client.submit_job(
-                script="train.py",
+                command=["train.py", "--epochs", "10"],
                 requirements="2",
                 name="test_job",
-                script_args=["--epochs", "10"],
                 working_dir="/workspace",
                 env_vars={"KEY": "value"}
             )
 
         assert job.job_id == "job_123"
         assert job.name == "test_job"
-        assert job.script == "train.py"
+        assert job.command == ["train.py", "--epochs", "10"]
         assert job.status == JobStatus.PENDING
-        assert job.script_args == ["--epochs", "10"]
 
     @patch('scheduler.api.client.load_config', autospec=True)
     def test_submit_job_connection_error(self, mock_load_config):
@@ -160,7 +157,7 @@ class TestSubmitJob:
         mock_response.json.return_value = {
             "job_id": "job_456",
             "name": "complex_job",
-            "script": "train.py",
+            "command": ["train.py"],
             "requirements": "4",
             "status": "pending",
             "submitted_at": "2025-01-01T00:00:00",
@@ -170,7 +167,6 @@ class TestSubmitJob:
             "assigned_gpus": None,
             "exit_code": None,
             "error_message": None,
-            "script_args": ["--arg1", "val1"],
             "working_dir": "/work",
             "env_vars": {"ENV": "prod"},
             "dependencies": ["job_123"],
@@ -179,10 +175,9 @@ class TestSubmitJob:
 
         with patch.object(client.session, 'post', return_value=mock_response) as mock_post:
             job = client.submit_job(
-                script="train.py",
+                command=["train.py"],
                 requirements="4",
                 name="complex_job",
-                script_args=["--arg1", "val1"],
                 working_dir="/work",
                 env_vars={"ENV": "prod"},
                 dependencies=["job_123"],
@@ -192,7 +187,7 @@ class TestSubmitJob:
         # Verify the payload sent
         call_kwargs = mock_post.call_args
         payload = call_kwargs[1]['json']
-        assert payload["script"] == "train.py"
+        assert payload["command"] == ["train.py"]
         assert payload["requirements"] == "4"
         assert payload["priority"] == 10
 
@@ -211,7 +206,7 @@ class TestGetJob:
         mock_response.json.return_value = {
             "job_id": "job_123",
             "name": "test_job",
-            "script": "train.py",
+            "command": ["train.py"],
             "requirements": "2",
             "status": "running",
             "submitted_at": "2025-01-01T00:00:00",
@@ -221,7 +216,6 @@ class TestGetJob:
             "assigned_gpus": [0, 1],
             "exit_code": None,
             "error_message": None,
-            "script_args": None,
             "working_dir": None,
             "env_vars": None,
             "dependencies": None,
@@ -279,7 +273,7 @@ class TestListJobs:
                 {
                     "job_id": "job_1",
                     "name": "job1",
-                    "script": "train1.py",
+                    "command": ["train1.py"],
                     "requirements": "2",
                     "status": "running",
                     "submitted_at": "2025-01-01T00:00:00",
@@ -294,7 +288,7 @@ class TestListJobs:
                 {
                     "job_id": "job_2",
                     "name": "job2",
-                    "script": "train2.py",
+                    "command": ["train2.py"],
                     "requirements": "1",
                     "status": "pending",
                     "submitted_at": "2025-01-01T00:00:00",
@@ -583,7 +577,7 @@ class TestWorkerMethods:
         mock_response.json.return_value = {
             "job_id": "job_123",
             "name": "polled_job",
-            "script": "train.py",
+            "command": ["train.py"],
             "requirements": "2",
             "status": "pending",
             "submitted_at": "2025-01-01T00:00:00",
@@ -717,7 +711,7 @@ class TestResponseParsing:
         data = {
             "job_id": "job_123",
             "name": "completed_job",
-            "script": "train.py",
+            "command": ["train.py"],
             "requirements": "2",
             "status": "completed",
             "submitted_at": "2025-01-01T00:00:00",
@@ -727,7 +721,6 @@ class TestResponseParsing:
             "assigned_gpus": [0, 1],
             "exit_code": 0,
             "error_message": None,
-            "script_args": ["--epochs", "100"],
             "working_dir": "/workspace",
             "env_vars": {"CUDA_VISIBLE_DEVICES": "0,1"},
             "dependencies": ["job_100"],

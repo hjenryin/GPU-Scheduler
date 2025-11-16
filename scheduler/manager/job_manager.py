@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 import os
 import asyncio
+import json
 
 from scheduler.core import InvalidRequirementException, JobNotFoundException
 from scheduler.core import Job, JobStatus, JobRequirement
@@ -38,8 +39,76 @@ class JobManager:
         # Maps node_name -> asyncio.Event that gets set when a new job is assigned
         self._job_assignment_events: Dict[str, asyncio.Event] = {}
 
+        # TEMPORARY: Migrate storage from old format (script+script_args) to new format (command)
+        # This can be safely removed after all storage is migrated
+        self._TEMPORARY_migrate_storage_format()
+
         # Load existing jobs from storage
         self._load_jobs()
+
+    def _TEMPORARY_migrate_storage_format(self):
+        """
+        TEMPORARY MIGRATION FUNCTION - Can be safely removed after all storage is migrated.
+        
+        Migrates job storage from old format (script + script_args) to new format (command).
+        This runs at head node startup and updates the storage files directly.
+        """
+        try:
+            # Load raw job data from storage backend
+            if hasattr(self.persistence.backend, '_read_json'):
+                # FileBackend
+                jobs_data = self.persistence.backend._read_json(self.persistence.backend.jobs_file)
+            elif hasattr(self.persistence.backend, 'conn'):
+                # SQLiteBackend
+                cursor = self.persistence.backend.conn.cursor()
+                cursor.execute('SELECT job_id, data FROM jobs')
+                rows = cursor.fetchall()
+                jobs_data = {row['job_id']: json.loads(row['data']) for row in rows}
+            else:
+                logger.warning("Unknown storage backend type, skipping migration")
+                return
+
+            migrated_count = 0
+            for job_id, job_data in jobs_data.items():
+                # Check if job is in old format (has 'script' but not 'command')
+                if 'script' in job_data and 'command' not in job_data:
+                    # Migrate: convert script + script_args to command
+                    command = [job_data['script']]
+                    if job_data.get('script_args'):
+                        command.extend(job_data['script_args'])
+                    
+                    job_data['command'] = command
+                    # Remove old fields (optional, but cleaner)
+                    # job_data.pop('script', None)
+                    # job_data.pop('script_args', None)
+                    
+                    # Save back to storage
+                    if hasattr(self.persistence.backend, '_write_json'):
+                        # FileBackend - update the dict and write back
+                        jobs_data[job_id] = job_data
+                    elif hasattr(self.persistence.backend, 'conn'):
+                        # SQLiteBackend - update directly
+                        cursor = self.persistence.backend.conn.cursor()
+                        cursor.execute('UPDATE jobs SET data = ? WHERE job_id = ?', 
+                                     (json.dumps(job_data), job_id))
+                    
+                    migrated_count += 1
+                    logger.info(f"Migrated job {job_id} from script+script_args to command format in storage")
+            
+            # For FileBackend, write the updated jobs back to file
+            if migrated_count > 0 and hasattr(self.persistence.backend, '_write_json'):
+                self.persistence.backend._write_json(self.persistence.backend.jobs_file, jobs_data)
+                logger.info(f"TEMPORARY MIGRATION: Updated storage file with {migrated_count} migrated jobs")
+            elif migrated_count > 0 and hasattr(self.persistence.backend, 'conn'):
+                self.persistence.backend.conn.commit()
+                logger.info(f"TEMPORARY MIGRATION: Updated database with {migrated_count} migrated jobs")
+            
+            if migrated_count > 0:
+                logger.info("Storage migration complete. This migration function can be removed in a future version")
+        
+        except Exception as e:
+            logger.error(f"Error during storage migration: {e}")
+            logger.warning("Continuing with normal startup, jobs will still work via in-memory migration")
 
     def _load_jobs(self):
         """Load jobs from storage into memory"""
@@ -113,10 +182,9 @@ class JobManager:
 
     def submit_job(
         self,
-        script: str,
+        command: List[str],
         requirements: str,
         name: Optional[str] = None,
-        script_args: List[str] = None,
         working_dir: Optional[str] = None,
         env_vars: Dict[str, str] = None,
         dependencies: List[str] = None,
@@ -130,10 +198,9 @@ class JobManager:
         Submit a new job.
 
         Args:
-            script: Path to script
+            command: Command to execute as a list (e.g., ["python", "train.py", "--epochs", "10"])
             requirements: Requirement string
             name: Job name
-            script_args: Script arguments
             working_dir: Working directory
             env_vars: Environment variables
             dependencies: Job dependencies
@@ -159,15 +226,13 @@ class JobManager:
         else:
             logger.debug(f"Using client-provided job_id: {job_id}")
 
-        job_name = name or os.path.basename(script)
+        # Use command string as job name if not specified
+        job_name = name or ' '.join(command)
 
         # working_dir should be set by the client, not the server
-        # If not provided, we can't infer it correctly on the server side
+        # If not provided, use current directory as fallback
         if working_dir is None:
-            # Fallback to script directory if working_dir not provided
-            # If script is just a filename, use current directory
-            script_dir = os.path.dirname(os.path.abspath(script)) if script else None
-            working_dir = script_dir if script_dir else os.getcwd()
+            working_dir = os.getcwd()
 
         # Resolve ^ syntax in dependencies
         resolved_dependencies = []
@@ -182,9 +247,8 @@ class JobManager:
         job = Job(
             job_id=job_id,
             name=job_name,
-            script=script,
+            command=command,
             requirements=job_requirements,
-            script_args=script_args,
             working_dir=working_dir,
             env_vars=env_vars,
             dependencies=resolved_dependencies if resolved_dependencies else None,
@@ -376,13 +440,14 @@ class JobManager:
         self.persistence.save_job(job)
         logger.info(f"Job {job_id} completed with exit code {exit_code}")
 
-    def fail_job(self, job_id: str, error_message: str, after_commit_ref: Optional[str] = None):
+    def fail_job(self, job_id: str, error_message: str, exit_code: Optional[int] = None, after_commit_ref: Optional[str] = None):
         """
         Mark job as failed.
 
         Args:
             job_id: Job ID
             error_message: Error message
+            exit_code: Optional exit code
             after_commit_ref: Optional commit SHA of the "after" commit
 
         Raises:
@@ -395,6 +460,8 @@ class JobManager:
         job.status = JobStatus.FAILED
         job.completed_at = datetime.now()
         job.error_message = error_message
+        if exit_code is not None:
+            job.exit_code = exit_code
         if after_commit_ref:
             job.after_commit_ref = after_commit_ref
 
@@ -485,7 +552,7 @@ class JobManager:
         # - snapshot_ref (before commit - unchanged)
         # - snapshot_working_dir (unchanged)
         # - dependencies (already resolved - unchanged)
-        # - name, script, requirements, script_args, env_vars, working_dir, priority, submitted_at
+        # - name, command, requirements, env_vars, working_dir, priority, submitted_at
 
         self.persistence.save_job(job)
         logger.info(f"Job {job_id} retried in-place (reset to PENDING)")

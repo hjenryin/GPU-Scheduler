@@ -146,10 +146,9 @@ async def submit_job_route(request: JobSubmitRequest) -> JobResponse:
     """POST /api/v1/jobs - Submit a job"""
     try:
         job = _job_manager.submit_job(
-            script=request.script,
+            command=request.command,
             requirements=request.requirements,
             name=request.name,
-            script_args=request.script_args,
             working_dir=request.working_dir,
             env_vars=request.env_vars,
             dependencies=request.dependencies,
@@ -455,7 +454,7 @@ async def complete_job_route(job_id: str, exit_code: int, after_commit_ref: Opti
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-async def fail_job_route(job_id: str, error_message: str, after_commit_ref: Optional[str] = None):
+async def fail_job_route(job_id: str, error_message: str, exit_code: Optional[int] = None, after_commit_ref: Optional[str] = None):
     """POST /api/v1/workers/jobs/{job_id}/fail - Mark job failed"""
     try:
         job = _job_manager.get_job(job_id)
@@ -471,7 +470,7 @@ async def fail_job_route(job_id: str, error_message: str, after_commit_ref: Opti
                 node.grace_period_until = None
 
         # Mark job failed
-        _job_manager.fail_job(job_id, error_message, after_commit_ref)
+        _job_manager.fail_job(job_id, error_message, exit_code, after_commit_ref)
 
         return {"status": "failed", "job_id": job_id}
     except JobNotFoundException as e:

@@ -112,9 +112,7 @@ def submit_batch_command(
         client = SchedulerClient(config=config)
 
         for i, (script, script_args) in enumerate(scripts_with_args):
-            # Align behavior with `submit` CLI: don't validate script existence here.
-            # Treat the first token as the script/command and remaining tokens as args.
-            # Let the server/worker handle command resolution and errors.
+            # Build full command from script and args
             command_elements = [script] + (script_args if script_args else [])
             command_str = ' '.join(command_elements)
             click.echo(f"\n[{i+1}/{len(scripts_with_args)}] Submitting job: {command_str}")
@@ -122,7 +120,8 @@ def submit_batch_command(
             # If the script looks like a filesystem path (contains a directory component),
             # convert it to an absolute path so the server receives the correct path. If it's
             # a bare command name, leave it as-is for resolution on the worker.
-            abs_script = os.path.abspath(script) if os.path.dirname(script) else script
+            if os.path.dirname(script):
+                command_elements[0] = os.path.abspath(script)
 
             # Determine dependencies
             job_depends_on = depends_on.copy() if depends_on else []
@@ -135,10 +134,9 @@ def submit_batch_command(
             try:
                 # Submit job
                 job = client.submit_job(
-                    script=abs_script,
+                    command=command_elements,
                     requirements=req,
                     name=name,
-                    script_args=script_args if script_args else None,
                     working_dir=working_dir,
                     env_vars=env_vars,
                     dependencies=job_depends_on if job_depends_on else None,

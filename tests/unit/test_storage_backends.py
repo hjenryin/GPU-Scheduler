@@ -36,7 +36,7 @@ class TestFileBackend:
         job = Job(
             job_id="test-job-001",
             name="test-job",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=JobRequirement("1")
         )
         
@@ -58,7 +58,7 @@ class TestFileBackend:
         job = Job(
             job_id="test-job-001",
             name="test-job",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=JobRequirement("1")
         )
         
@@ -67,7 +67,7 @@ class TestFileBackend:
         
         assert loaded_job.job_id == job.job_id
         assert loaded_job.name == job.name
-        assert loaded_job.script == job.script
+        assert loaded_job.command == job.command
 
     def test_load_job_not_found(self, file_backend):
         """Test loading non-existent job"""
@@ -79,7 +79,7 @@ class TestFileBackend:
         job = Job(
             job_id="test-job-001",
             name="test-job",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=JobRequirement("1")
         )
         
@@ -259,7 +259,7 @@ class TestSQLiteBackend:
         job = Job(
             job_id="test-job-001",
             name="test-job",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=JobRequirement("1")
         )
         
@@ -281,7 +281,7 @@ class TestSQLiteBackend:
         job1 = Job(
             job_id="test-job-001",
             name="original-name",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=JobRequirement("1")
         )
         sqlite_backend.save_job(job1)
@@ -290,7 +290,7 @@ class TestSQLiteBackend:
         job2 = Job(
             job_id="test-job-001",
             name="updated-name",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=JobRequirement("2")
         )
         sqlite_backend.save_job(job2)
@@ -311,7 +311,7 @@ class TestSQLiteBackend:
         job = Job(
             job_id="test-job-001",
             name="test-job",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=JobRequirement("1")
         )
         
@@ -321,7 +321,7 @@ class TestSQLiteBackend:
         assert loaded_job is not None
         assert loaded_job.job_id == job.job_id
         assert loaded_job.name == job.name
-        assert loaded_job.script == job.script
+        assert loaded_job.command == job.command
 
     def test_load_job_not_found(self, sqlite_backend):
         """Test loading non-existent job"""
@@ -336,7 +336,7 @@ class TestSQLiteBackend:
             job = Job(
                 job_id=f"test-job-{i:03d}",
                 name=f"test-job-{i}",
-                script=f"/path/to/script{i}.py",
+                command=[f"/path/to/script{i}.py"],
                 requirements=JobRequirement("1")
             )
             jobs.append(job)
@@ -360,7 +360,7 @@ class TestSQLiteBackend:
         job = Job(
             job_id="test-job-001",
             name="test-job",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=JobRequirement("1")
         )
         
@@ -503,7 +503,7 @@ class TestSQLiteBackend:
         job = Job(
             job_id="test-job-001",
             name="test-job",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=JobRequirement("1")
         )
         

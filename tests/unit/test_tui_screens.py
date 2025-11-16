@@ -513,8 +513,7 @@ class TestJobDetailScreen:
         mock_job_running.started_at = datetime.now()
         mock_job_running.completed_at = None
         mock_job_running.exit_code = None
-        mock_job_running.script = "test_script.py"
-        mock_job_running.script_args = ["arg1", "arg2"]
+        mock_job_running.command = ["test_script.py", "arg1", "arg2"]
         mock_job_running.working_dir = "/tmp"
         mock_job_running.env_vars = {"VAR1": "value1"}
         mock_job_running.dependencies = []

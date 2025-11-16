@@ -77,6 +77,12 @@ def _print_job_details(job):
     click.echo(f"\nJob: {job.job_id}")
     click.echo(f"Name: {job.name}")
     click.echo(f"Status: {job.status.value}")
+    click.echo(f"Command: {' '.join(job.command)}")
+
+    if job.conda_env:
+        click.echo(f"Conda env: {job.conda_env}")
+    if job.working_dir:
+        click.echo(f"Working dir: {job.working_dir}")
     if job.assigned_node:
         click.echo(f"Node: {job.assigned_node}, GPUs: {job.assigned_gpus}")
     if job.exit_code is not None:

@@ -46,9 +46,18 @@ class TestJobExecutor:
         mock_popen.assert_called_once()
         call_args = mock_popen.call_args
 
-        # Check command - Command is executed as-is without modification
-        expected_cmd = [sample_job.script] + sample_job.script_args
-        assert call_args[0][0] == expected_cmd
+        # Check command - Now uses bash -c with redirection
+        cmd = call_args[0][0]
+        assert cmd[0] == 'bash'
+        assert cmd[1] == '-c'
+        # The bash command should contain the script and its args
+        bash_cmd_str = cmd[2]
+        # Check that all command parts are in the bash command
+        for cmd_part in sample_job.command:
+            assert cmd_part in bash_cmd_str
+        # Should contain output redirection
+        assert '>' in bash_cmd_str
+        assert '2>' in bash_cmd_str
 
         # Check environment variables
         env = call_args[1]['env']
@@ -71,7 +80,7 @@ class TestJobExecutor:
         job = Job(
             job_id="test-job",
             name="test",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING,
             working_dir="/tmp/test"
@@ -79,10 +88,15 @@ class TestJobExecutor:
 
         pid = executor.execute_job(job, [0])
 
-        # Check command is script only, no args
+        # Check command - should be bash -c with script only
         call_args = mock_popen.call_args
-        expected_cmd = [job.script]
-        assert call_args[0][0] == expected_cmd
+        cmd = call_args[0][0]
+        assert cmd[0] == 'bash'
+        assert cmd[1] == '-c'
+        # Bash command should contain the script
+        assert job.command[0] in cmd[2]
+        # Should have redirection
+        assert '>' in cmd[2]
 
     @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
@@ -97,7 +111,7 @@ class TestJobExecutor:
         job = Job(
             job_id="test-job",
             name="test",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING,
             working_dir="/tmp/test"
@@ -141,7 +155,7 @@ class TestJobExecutor:
         job = Job(
             job_id="test-job",
             name="test",
-            script="/path/to/script.py",
+            command=["/path/to/script.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING,
             working_dir=None  # None working_dir should trigger assertion -> RuntimeError
@@ -256,7 +270,8 @@ class TestJobExecutor:
 
     @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
-    def test_terminate_job_tracked(self, mock_file, mock_popen, test_config, sample_job):
+    @patch('os.killpg', autospec=True)
+    def test_terminate_job_tracked(self, mock_killpg, mock_file, mock_popen, test_config, sample_job):
         """Test terminating tracked job"""
         mock_process = mock_popen.return_value
         mock_process.pid = 12345
@@ -268,23 +283,24 @@ class TestJobExecutor:
         # Terminate job
         executor.terminate_job(pid)
 
-        mock_process.terminate.assert_called_once()
+        # Should use killpg to kill entire process group
+        mock_killpg.assert_called_once()
         assert pid not in executor.processes
 
-    @patch('os.kill', autospec=True)
-    def test_terminate_job_untracked(self, mock_kill, test_config):
+    @patch('os.killpg', autospec=True)
+    def test_terminate_job_untracked(self, mock_killpg, test_config):
         """Test terminating untracked job"""
         import signal
         executor = JobExecutor(test_config)
 
         executor.terminate_job(99999)
 
-        mock_kill.assert_called_once_with(99999, signal.SIGTERM)
+        mock_killpg.assert_called_once_with(99999, signal.SIGTERM)
 
-    @patch('os.kill', autospec=True)
-    def test_terminate_job_error(self, mock_kill, test_config):
+    @patch('os.killpg', autospec=True)
+    def test_terminate_job_error(self, mock_killpg, test_config):
         """Test job termination error handling"""
-        mock_kill.side_effect = OSError("Permission denied")
+        mock_killpg.side_effect = OSError("Permission denied")
 
         executor = JobExecutor(test_config)
 
@@ -357,7 +373,7 @@ class TestJobExecutor:
     @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
     def test_log_files_created(self, mock_file, mock_popen, test_config, sample_job):
-        """Test that stdout and stderr log files are created"""
+        """Test that log file paths are included in the command"""
         mock_process = mock_popen.return_value
         mock_process.pid = 12345
 
@@ -365,18 +381,16 @@ class TestJobExecutor:
         executor = JobExecutor(test_config)
         executor.execute_job(sample_job, [0])
 
-        # Verify open was called for both stdout and stderr
-        assert mock_file.call_count == 2
+        # With bash -c redirection, files aren't opened by Python
+        # Instead, check that log paths are in the bash command
+        call_args = mock_popen.call_args
+        bash_cmd = call_args[0][0][2]  # The bash -c command string
 
-        # Check that files were opened with correct paths
-        calls = mock_file.call_args_list
-        stdout_path = calls[0][0][0]
-        stderr_path = calls[1][0][0]
-
-        assert sample_job.job_id in stdout_path
-        assert sample_job.job_id in stderr_path
-        assert 'stdout' in stdout_path
-        assert 'stderr' in stderr_path
+        # Verify stdout and stderr redirects are in the command
+        assert f"{sample_job.job_id}.stdout.log" in bash_cmd
+        assert f"{sample_job.job_id}.stderr.log" in bash_cmd
+        assert '>' in bash_cmd
+        assert '2>' in bash_cmd
 
     @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
     @patch('builtins.open', new_callable=mock_open)
@@ -409,7 +423,7 @@ class TestJobExecutor:
         job = Job(
             job_id="test-job",
             name="test",
-            script="/workspace/train.py",
+            command=["/workspace/train.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING,
             snapshot_ref="abc123",
@@ -447,7 +461,7 @@ class TestJobExecutor:
         job = Job(
             job_id="test-job",
             name="test",
-            script="/workspace/scripts/train.py",
+            command=["/workspace/scripts/train.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING,
             snapshot_ref="abc123",
@@ -455,13 +469,14 @@ class TestJobExecutor:
         )
         
         pid = executor.execute_job(job, [0])
-        
+
         # Verify command uses relative path
         call_args = mock_popen.call_args
         cmd = call_args[0][0]
-        # Script path should preserve subdirectory structure (it's cmd[0] now)
-        assert "scripts/train.py" in cmd[0] or "scripts\\train.py" in cmd[0]
-        
+        # With bash -c, the script path is in cmd[2] (the bash command string)
+        bash_cmd = cmd[2]
+        assert "scripts/train.py" in bash_cmd or "scripts\\train.py" in bash_cmd
+
         assert pid == 12345
 
     @patch('scheduler.worker.job_executor.subprocess.Popen', autospec=True)
@@ -480,7 +495,7 @@ class TestJobExecutor:
         job = Job(
             job_id="test-job",
             name="test",
-            script="/workspace/train.py",
+            command=["/workspace/train.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING,
             working_dir="/workspace",
@@ -510,7 +525,7 @@ class TestJobExecutor:
         job = Job(
             job_id="test-job",
             name="test",
-            script="/workspace/train.py",
+            command=["/workspace/train.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING,
             snapshot_ref="abc123",
@@ -550,7 +565,7 @@ class TestJobExecutor:
         job = Job(
             job_id="test-job",
             name="test",
-            script="/workspace/train.py",
+            command=["/workspace/train.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING
         )
@@ -574,7 +589,7 @@ class TestJobExecutor:
         job = Job(
             job_id="test-job",
             name="test",
-            script="/workspace/train.py",
+            command=["/workspace/train.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING,
             snapshot_ref="abc123",
@@ -611,7 +626,7 @@ class TestJobExecutor:
         job = Job(
             job_id="test-job",
             name="test",
-            script="/workspace/train.py",
+            command=["/workspace/train.py"],
             requirements=JobRequirement("1"),
             status=JobStatus.PENDING,
             snapshot_ref="abc123",
