@@ -38,6 +38,7 @@ class JobResponse(BaseModel):
     priority: int = 0
     snapshot_ref: Optional[str] = None
     snapshot_working_dir: Optional[str] = None
+    after_commit_ref: Optional[str] = None
     conda_env: Optional[str] = None
     eta: Optional[str] = None
 
@@ -63,6 +64,7 @@ class JobResponse(BaseModel):
             priority=job.priority,
             snapshot_ref=job.snapshot_ref,
             snapshot_working_dir=job.snapshot_working_dir,
+            after_commit_ref=job.after_commit_ref,
             conda_env=job.conda_env,
             eta=job.eta
         )

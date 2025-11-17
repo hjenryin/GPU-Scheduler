@@ -124,8 +124,8 @@ def create_app(
         return await complete_job_route(job_id, exit_code, after_commit_ref)
 
     @app.post(f"{constants.API_BASE_PATH}/workers/jobs/{{job_id}}/fail")
-    async def fail_job(job_id: str, error_message: str, after_commit_ref: Optional[str] = None):
-        return await fail_job_route(job_id, error_message, after_commit_ref)
+    async def fail_job(job_id: str, error_message: str, exit_code: Optional[int] = None, after_commit_ref: Optional[str] = None):
+        return await fail_job_route(job_id, error_message, exit_code, after_commit_ref)
 
     # Cluster management routes
     @app.post(f"{constants.API_BASE_PATH}/shutdown/cluster")
