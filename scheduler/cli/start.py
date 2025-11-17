@@ -6,9 +6,9 @@ import subprocess
 from typing import Optional
 import click
 
-from scheduler.core import Config, load_config, ValidationException, ConnectionException, PermissionDeniedException, constants
+from scheduler.core import Config, load_config, ValidationException, ConnectionException, PermissionDeniedException, constants, SingletonDaemon
 from scheduler.head import Orchestrator
-from scheduler.worker import WorkerDaemon, SingletonDaemon
+from scheduler.worker import WorkerDaemon
 
 logger = logging.getLogger(__name__)
 

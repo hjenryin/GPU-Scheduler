@@ -4,7 +4,7 @@ import os
 import sys
 from unittest.mock import Mock, patch, MagicMock
 import click
-from scheduler.worker.singleton import SingletonDaemon
+from scheduler.core.singleton import SingletonDaemon
 from scheduler.worker.daemon import WorkerDaemon
 from scheduler.head.orchestrator import Orchestrator
 
@@ -236,7 +236,7 @@ class TestStartWorkerNodeImplementation:
         mock_daemon.run.assert_called_once()
 
     @patch('scheduler.cli.start._daemonize_worker', autospec=True)
-    @patch('scheduler.worker.singleton.is_daemon_running', autospec=True)
+    @patch('scheduler.core.singleton.is_daemon_running', autospec=True)
     @patch('scheduler.cli.start.click.echo', autospec=True)
     def test_start_worker_success_background(self, mock_echo, mock_is_running, mock_daemonize):
         """Test starting worker in background mode"""

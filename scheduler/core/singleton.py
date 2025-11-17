@@ -2,9 +2,58 @@ import os
 import logging
 import signal
 import time
+import subprocess
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+
+def _cleanup_rsync_daemon(rsync_pid: int) -> None:
+    """
+    Kill an rsync daemon process if it's actually an rsync daemon.
+    
+    Args:
+        rsync_pid: Process ID to check and potentially kill
+    """
+    try:
+        # Verify it's actually an rsync process before killing
+        result = subprocess.run(
+            ['ps', '-p', str(rsync_pid), '-o', 'comm='],
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        
+        if result.returncode == 0 and 'rsync' in result.stdout.lower():
+            logger.info(f"Killing orphaned rsync daemon (PID {rsync_pid})")
+            try:
+                os.kill(rsync_pid, signal.SIGTERM)
+                # Wait for graceful termination with multiple checks
+                for _ in range(10):  # Check up to 1 second (10 * 0.1s)
+                    time.sleep(0.1)
+                    try:
+                        os.kill(rsync_pid, 0)
+                    except OSError:
+                        # Process is dead
+                        return
+                
+                # Still alive after 1 second, force kill
+                logger.warning(f"rsync daemon {rsync_pid} didn't respond to SIGTERM, using SIGKILL")
+                os.kill(rsync_pid, signal.SIGKILL)
+                # Wait for SIGKILL to take effect
+                for _ in range(5):  # Check up to 0.5 seconds
+                    time.sleep(0.1)
+                    try:
+                        os.kill(rsync_pid, 0)
+                    except OSError:
+                        # Process is finally dead
+                        return
+            except ProcessLookupError:
+                pass  # Already dead
+        else:
+            logger.debug(f"PID {rsync_pid} is not an rsync process, skipping cleanup")
+    except Exception as e:
+        logger.warning(f"Failed to cleanup rsync daemon {rsync_pid}: {e}")
 
 
 class SingletonDaemon:
@@ -51,6 +100,7 @@ class SingletonDaemon:
                     import json
                     self.lockfile = os.open(self.lockfile_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
                     # Write PID to lockfile in JSON format
+                    # rsync_pid will be added later by orchestrator if applicable
                     data = {"pid": os.getpid()}
                     os.write(self.lockfile, json.dumps(data).encode())
                     logger.info(f"Acquired singleton lock: {self.lockfile_path}")
@@ -78,6 +128,12 @@ class SingletonDaemon:
                             except OSError:
                                 # Process not running, stale lock file
                                 logger.info(f"Removing stale lock file (PID {pid} not running)")
+                                
+                                # Check if there's an rsync_pid and kill it too
+                                rsync_pid = data.get('rsync_pid')
+                                if rsync_pid:
+                                    _cleanup_rsync_daemon(rsync_pid)
+                                
                                 os.remove(self.lockfile_path)
                                 retry_count += 1
                                 continue  # Try again without recursion
@@ -100,6 +156,38 @@ class SingletonDaemon:
         logger.error(f"Failed to acquire lock after {max_retries} attempts")
         return False
 
+    def update_lockfile_data(self, **kwargs):
+        """
+        Update the lockfile with additional data.
+        
+        This allows adding extra fields like rsync_pid after the lock is acquired.
+        
+        Args:
+            **kwargs: Key-value pairs to add to the lockfile
+        """
+        if not os.path.exists(self.lockfile_path):
+            logger.warning(f"Cannot update lockfile - file doesn't exist: {self.lockfile_path}")
+            return
+        
+        try:
+            import json
+            # Read current data
+            with open(self.lockfile_path, 'r') as f:
+                data = json.load(f)
+            
+            # Update with new data
+            data.update(kwargs)
+            
+            # Write back atomically
+            temp_path = self.lockfile_path + '.tmp'
+            with open(temp_path, 'w') as f:
+                json.dump(data, f)
+            os.replace(temp_path, self.lockfile_path)
+            
+            logger.debug(f"Updated lockfile with: {kwargs}")
+        except Exception as e:
+            logger.error(f"Failed to update lockfile: {e}")
+
     def _setup_signal_handlers(self):
         """Setup signal handlers for cleanup on termination."""
         def cleanup_handler(signum, frame):
@@ -117,6 +205,17 @@ class SingletonDaemon:
         """
         Release singleton lock.
         """
+        # Before removing lock file, check if there's an rsync daemon to clean up
+        rsync_pid = None
+        if os.path.exists(self.lockfile_path):
+            try:
+                import json
+                with open(self.lockfile_path, 'r') as f:
+                    data = json.load(f)
+                rsync_pid = data.get('rsync_pid')
+            except Exception as e:
+                logger.debug(f"Could not read rsync_pid from lockfile: {e}")
+        
         if self.lockfile is not None:
             try:
                 os.close(self.lockfile)
@@ -130,6 +229,10 @@ class SingletonDaemon:
                 logger.info(f"Released singleton lock: {self.lockfile_path}")
             except Exception as e:
                 logger.warning(f"Failed to remove lock file: {e}")
+        
+        # Clean up rsync daemon if it exists
+        if rsync_pid:
+            _cleanup_rsync_daemon(rsync_pid)
         
         # Restore original signal handlers
         self._restore_signal_handlers()

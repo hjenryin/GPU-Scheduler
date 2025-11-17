@@ -68,6 +68,8 @@ from scheduler.core.constants import (
     RSYNC_PORT,
 )
 
+from scheduler.core.singleton import SingletonDaemon, is_daemon_running
+
 __all__ = [
     # Models
     "Job",
@@ -136,4 +138,7 @@ __all__ = [
     "TEMP_DIR_PATH",
     "LOG_DIR_PATH",
     "RSYNC_PORT",
+    # Singleton
+    "SingletonDaemon",
+    "is_daemon_running",
 ]

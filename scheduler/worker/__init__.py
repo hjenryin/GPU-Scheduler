@@ -1,5 +1,5 @@
 from scheduler.worker.daemon import WorkerDaemon
-from scheduler.worker.singleton import SingletonDaemon, is_daemon_running
+from scheduler.core.singleton import SingletonDaemon, is_daemon_running
 from scheduler.worker.gpu_monitor import GPUMonitor
 from scheduler.worker.job_executor import JobExecutor
 from scheduler.worker.heartbeat import HeartbeatSender

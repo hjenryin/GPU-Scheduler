@@ -410,6 +410,14 @@ class Orchestrator:
             )
             self.rsync_port = available_port
             logger.info(f"rsync daemon started on port {available_port} for log syncing")
+            
+            # Store rsync PID in the lockfile for cleanup on crash/stale lock removal
+            if self.singleton:
+                try:
+                    self.singleton.update_lockfile_data(rsync_pid=self.rsync_daemon_process.pid)
+                    logger.debug(f"Stored rsync daemon PID {self.rsync_daemon_process.pid} in lockfile")
+                except Exception as e:
+                    logger.warning(f"Failed to store rsync PID in lockfile: {e}")
         except FileNotFoundError:
             logger.error("rsync command not found - log syncing will be disabled")
             os.remove(config_path)

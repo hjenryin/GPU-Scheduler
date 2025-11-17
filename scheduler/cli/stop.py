@@ -3,8 +3,7 @@ import signal
 import logging
 import click
 
-from scheduler.worker import is_daemon_running
-from scheduler.core import load_config
+from scheduler.core import is_daemon_running, load_config
 from scheduler.api import SchedulerClient
 from scheduler.core import ConnectionException
 

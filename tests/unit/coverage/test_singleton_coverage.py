@@ -7,7 +7,7 @@ import tempfile
 import threading
 from unittest.mock import Mock, patch, MagicMock, call
 
-from scheduler.worker.singleton import SingletonDaemon
+from scheduler.core.singleton import SingletonDaemon
 
 
 class TestSingletonCoverageImprovements:
@@ -46,11 +46,11 @@ class TestSingletonCoverageImprovements:
         
         daemon = SingletonDaemon(temp_lockfile)
         
-        with patch('scheduler.worker.singleton.os.kill', autospec=True) as mock_kill:
+        with patch('scheduler.core.singleton.os.kill', autospec=True) as mock_kill:
             # Simulate process not found (stale lock)
             mock_kill.side_effect = OSError()
             
-            with patch('scheduler.worker.singleton.os.remove', autospec=True) as mock_remove:
+            with patch('scheduler.core.singleton.os.remove', autospec=True) as mock_remove:
                 # First call during JSON decode error handling
                 # Second call during stale PID removal - both should succeed
                 # Third call would be for retry, but we'll make that one fail
@@ -69,10 +69,10 @@ class TestSingletonCoverageImprovements:
         daemon = SingletonDaemon(temp_lockfile)
         
         # Mock os.open to always raise an exception
-        with patch('scheduler.worker.singleton.os.open', autospec=True) as mock_open:
+        with patch('scheduler.core.singleton.os.open', autospec=True) as mock_open:
             mock_open.side_effect = Exception("Unexpected error")
             
-            with patch('scheduler.worker.singleton.time.sleep', autospec=True):
+            with patch('scheduler.core.singleton.time.sleep', autospec=True):
                 result = daemon.acquire_lock()
                 assert result is False  # Should fail after max retries
                 # Verify it tried max_retries times
@@ -83,10 +83,10 @@ class TestSingletonCoverageImprovements:
         daemon = SingletonDaemon(temp_lockfile)
         
         # Test that sleep is called between retries when exceptions occur
-        with patch('scheduler.worker.singleton.os.open', autospec=True) as mock_open:
+        with patch('scheduler.core.singleton.os.open', autospec=True) as mock_open:
             mock_open.side_effect = Exception("Temporary error")
             
-            with patch('scheduler.worker.singleton.time.sleep', autospec=True) as mock_sleep:
+            with patch('scheduler.core.singleton.time.sleep', autospec=True) as mock_sleep:
                 result = daemon.acquire_lock()
                 assert result is False  # Should fail after retries
                 # Should have slept between retries (max_retries - 1 times)
@@ -99,9 +99,9 @@ class TestSingletonCoverageImprovements:
         
         # Get the cleanup handler that was registered
         # The handler is defined in _setup_signal_handlers
-        with patch('scheduler.worker.singleton.signal.signal', autospec=True) as mock_signal:
-            with patch('scheduler.worker.singleton.os.kill', autospec=True) as mock_kill:
-                with patch('scheduler.worker.singleton.logger', autospec=True) as mock_logger:
+        with patch('scheduler.core.singleton.signal.signal', autospec=True) as mock_signal:
+            with patch('scheduler.core.singleton.os.kill', autospec=True) as mock_kill:
+                with patch('scheduler.core.singleton.logger', autospec=True) as mock_logger:
                     # Re-setup handlers to capture them
                     daemon._setup_signal_handlers()
                     
@@ -133,7 +133,7 @@ class TestSingletonCoverageImprovements:
         daemon = SingletonDaemon(temp_lockfile)
         daemon.acquire_lock()
         
-        with patch('scheduler.worker.singleton.os.remove', autospec=True) as mock_remove:
+        with patch('scheduler.core.singleton.os.remove', autospec=True) as mock_remove:
             mock_remove.side_effect = Exception("Permission denied")
             
             # Should not raise exception
@@ -150,7 +150,7 @@ class TestSingletonCoverageImprovements:
         daemon._original_signal_handlers[signal.SIGTERM] = signal.SIG_DFL
         daemon._original_signal_handlers[signal.SIGINT] = signal.SIG_DFL
         
-        with patch('scheduler.worker.singleton.signal.signal', autospec=True) as mock_signal:
+        with patch('scheduler.core.singleton.signal.signal', autospec=True) as mock_signal:
             mock_signal.side_effect = Exception("Cannot set signal handler")
             
             # Should not raise exception
@@ -164,11 +164,11 @@ class TestSingletonCoverageImprovements:
         daemon = SingletonDaemon(temp_lockfile)
         
         # Create a scenario where file exists check passes but open fails with FileNotFoundError
-        with patch('scheduler.worker.singleton.os.open', autospec=True) as mock_open:
+        with patch('scheduler.core.singleton.os.open', autospec=True) as mock_open:
             # First call raises FileExistsError to trigger stale check path
             mock_open.side_effect = [FileExistsError(), FileNotFoundError()]
             
-            with patch('scheduler.worker.singleton.os.path.exists', return_value=True):
+            with patch('scheduler.core.singleton.os.path.exists', return_value=True):
                 with patch('builtins.open', side_effect=FileNotFoundError()):
                     result = daemon.acquire_lock()
                     # Should retry and potentially succeed or fail gracefully
