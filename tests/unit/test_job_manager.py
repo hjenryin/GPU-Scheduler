@@ -6,6 +6,7 @@ from scheduler.core.models import Job, JobStatus, JobRequirement
 from scheduler.core.exceptions import JobNotFoundException
 from scheduler.manager import JobManager
 from scheduler.manager import PersistenceManager
+from scheduler.manager.job_manager import _extract_job_name_from_command
 
 
 @pytest.fixture
@@ -22,6 +23,53 @@ def job_manager(persistence_manager, test_config):
     return JobManager(persistence=persistence_manager, config=test_config)
 
 
+class TestJobNameExtraction:
+    """Tests for _extract_job_name_from_command function"""
+
+    def test_extract_script_with_extension(self):
+        """Test extracting script name with extension"""
+        assert _extract_job_name_from_command(["python", "train.py", "--epochs", "10"]) == "train.py"
+        assert _extract_job_name_from_command(["bash", "run.sh"]) == "run.sh"
+        assert _extract_job_name_from_command(["node", "server.js", "--port", "3000"]) == "server.js"
+
+    def test_extract_script_with_path(self):
+        """Test extracting script name from path (should strip path)"""
+        assert _extract_job_name_from_command(["./scripts/train.py", "--lr", "0.001"]) == "train.py"
+        assert _extract_job_name_from_command(["/usr/local/bin/script.sh"]) == "script.sh"
+        assert _extract_job_name_from_command(["python", "/home/user/project/main.py"]) == "main.py"
+
+    def test_extract_module_name(self):
+        """Test extracting Python module name"""
+        assert _extract_job_name_from_command(["python", "-m", "module.name", "--arg"]) == "module.name"
+        assert _extract_job_name_from_command(["python", "-m", "torch.distributed.launch"]) == "torch.distributed.launch"
+
+    def test_extract_docker_image(self):
+        """Test extracting docker image name (with version)"""
+        assert _extract_job_name_from_command(["docker", "run", "nvidia/cuda:11.0-base"]) == "cuda:11.0-base"
+        assert _extract_job_name_from_command(["docker", "run", "python:3.9"]) == "python:3.9"
+
+    def test_fallback_to_first_word(self):
+        """Test fallback to first word when no xxx.xxx pattern found"""
+        assert _extract_job_name_from_command(["ls", "-la"]) == "ls"
+        assert _extract_job_name_from_command(["echo", "hello"]) == "echo"
+        assert _extract_job_name_from_command(["git", "status"]) == "git"
+
+    def test_executable_with_version(self):
+        """Test extracting executable with version number"""
+        assert _extract_job_name_from_command(["/usr/bin/python3.9", "script.py"]) == "python3.9"
+        assert _extract_job_name_from_command(["python3.10", "-c", "print('hello')"]) == "python3.10"
+
+    def test_complex_filename_patterns(self):
+        """Test various filename patterns"""
+        assert _extract_job_name_from_command(["python", "model_v2.train.py"]) == "model_v2.train.py"
+        assert _extract_job_name_from_command(["./run.test.sh"]) == "run.test.sh"
+
+    def test_empty_command(self):
+        """Test edge case with empty command"""
+        # Edge case - should return empty string
+        assert _extract_job_name_from_command([]) == ""
+
+
 class TestJobManager:
     """Tests for JobManager class"""
 
@@ -33,8 +81,8 @@ class TestJobManager:
         )
 
         assert job.job_id is not None
-        # When no name is provided, uses full command string as name
-        assert job.name == "/path/to/script.py"
+        # When no name is provided, extracts name from command (script.py from path)
+        assert job.name == "script.py"
         assert job.command == ["/path/to/script.py"]
         assert job.status == JobStatus.PENDING
         assert job.submitted_at is not None

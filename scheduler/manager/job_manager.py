@@ -4,6 +4,7 @@ from datetime import datetime
 import os
 import asyncio
 import json
+import re
 
 from scheduler.core import InvalidRequirementException, JobNotFoundException
 from scheduler.core import Job, JobStatus, JobRequirement
@@ -13,6 +14,40 @@ from scheduler.core import parse_tqdm_eta
 from scheduler.manager.persistence import PersistenceManager
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_job_name_from_command(command: List[str]) -> str:
+    """
+    Extract a concise job name from command.
+
+    First tries to find xxx.xxx pattern (e.g., train.py, model.sh).
+    If not found, uses first word in command.
+
+    Args:
+        command: Command as list of strings
+
+    Returns:
+        Extracted job name
+    """
+    # Join command to search for pattern
+    command_str = ' '.join(command)
+
+    # Try to find xxx.xxx pattern (e.g., train.py, model.sh, module.name)
+    match = re.search(r'\S+\.\S+', command_str)
+    if match:
+        # Extract the matched pattern
+        matched = match.group(0)
+        # If it contains a path separator, get just the basename
+        if '/' in matched:
+            matched = matched.split('/')[-1]
+        return matched
+
+    # Fallback to first word in command
+    if command:
+        return command[0]
+
+    # Ultimate fallback (shouldn't happen with valid commands)
+    return command_str
 
 
 class JobManager:
@@ -226,8 +261,8 @@ class JobManager:
         else:
             logger.debug(f"Using client-provided job_id: {job_id}")
 
-        # Use command string as job name if not specified
-        job_name = name or ' '.join(command)
+        # Extract job name: use provided name, or extract from command
+        job_name = name or _extract_job_name_from_command(command)
 
         # working_dir should be set by the client, not the server
         # If not provided, use current directory as fallback
