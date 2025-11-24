@@ -169,7 +169,18 @@ async def get_job_route(job_id: str) -> JobResponse:
     job = _job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {job_id} not found")
-    return JobResponse.from_job(job)
+    
+    try:
+        return JobResponse.from_job(job)
+    except Exception as e:
+        # Handle corrupted job data gracefully
+        logger.error(f"Failed to serialize job {job_id}: {e}. Job data may be corrupted.")
+        logger.error(f"  Job details - exit_code: {job.exit_code} (type: {type(job.exit_code).__name__}), "
+                    f"after_commit_ref: {job.after_commit_ref}, status: {job.status}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Job {job_id} has corrupted data and cannot be serialized. Please contact administrator."
+        )
 
 
 async def list_jobs_route(
@@ -187,7 +198,20 @@ async def list_jobs_route(
                 detail=f"Invalid status value: {status}. Valid values are: {', '.join([s.value for s in JobStatus])}"
             )
     jobs = _job_manager.list_jobs(status_filter=status_filter, limit=limit)
-    job_responses = [JobResponse.from_job(j) for j in jobs]
+    
+    # Convert jobs to responses with error handling for corrupted data
+    job_responses = []
+    for j in jobs:
+        try:
+            job_responses.append(JobResponse.from_job(j))
+        except Exception as e:
+            # Log the error but skip corrupted jobs instead of crashing
+            logger.error(f"Failed to serialize job {j.job_id}: {e}. Job data may be corrupted.")
+            logger.error(f"  Job details - exit_code: {j.exit_code} (type: {type(j.exit_code).__name__}), "
+                        f"after_commit_ref: {j.after_commit_ref}, status: {j.status}")
+            # Skip this job and continue with others
+            continue
+    
     return JobListResponse(jobs=job_responses, total=len(job_responses))
 
 
