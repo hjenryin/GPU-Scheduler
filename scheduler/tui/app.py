@@ -63,6 +63,14 @@ class SchedulerTUI(App):
         align: center middle;
     }
 
+    #action-buttons Button {
+        margin: 0 1;
+        height: 4;
+        min-width: 12;
+        max-width: 16;
+        padding: 0 1;
+    }
+
     Button {
         margin: 0 1;
     }

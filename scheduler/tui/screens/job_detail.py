@@ -81,15 +81,11 @@ class JobDetailScreen(Screen):
                     Button("View Full Logs (l)", id="logs-button", variant="primary"),
                     Button("Cancel Job (c)", id="cancel-button", variant="error"),
                     Button("Back (esc)", id="back-button"),
+                    Button("Retry\nIn-Place", id="retry-inplace-button", variant="success"),
+                    Button("Retry\n--then", id="retry-then-button", variant="success"),
+                    Button("Retry\n--now", id="retry-now-button", variant="success"),
+                    Button("Retry\n--no-deps", id="retry-nodeps-button", variant="success"),
                     id="action-buttons",
-                ),
-                Static("Retry Options", id="retry-header"),
-                Horizontal(
-                    Button("Retry In-Place", id="retry-inplace-button", variant="success"),
-                    Button("Retry --then", id="retry-then-button", variant="success"),
-                    Button("Retry --now", id="retry-now-button", variant="success"),
-                    Button("Retry --no-deps", id="retry-nodeps-button", variant="success"),
-                    id="retry-buttons",
                 ),
                 id="job-scroll"
             ),
@@ -142,10 +138,14 @@ class JobDetailScreen(Screen):
         # Show/hide retry buttons based on job status
         can_retry = job.status.value in ["failed", "cancelled", "completed"]
         try:
-            retry_header = self.query_one("#retry-header", Static)
-            retry_buttons = self.query_one("#retry-buttons", Horizontal)
-            retry_header.display = can_retry
-            retry_buttons.display = can_retry
+            retry_inplace = self.query_one("#retry-inplace-button", Button)
+            retry_then = self.query_one("#retry-then-button", Button)
+            retry_now = self.query_one("#retry-now-button", Button)
+            retry_nodeps = self.query_one("#retry-nodeps-button", Button)
+            retry_inplace.display = can_retry
+            retry_then.display = can_retry
+            retry_now.display = can_retry
+            retry_nodeps.display = can_retry
         except Exception:
             pass  # Widgets may not be mounted yet
 
