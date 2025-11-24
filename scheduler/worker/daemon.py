@@ -288,7 +288,8 @@ class WorkerDaemon:
                     'job': job,
                     'pid': pid,
                     'start_time': datetime.now(),
-                    'monitor_thread': monitor_thread
+                    'monitor_thread': monitor_thread,
+                    'reported_status': None  # Will be set to 'completed' or 'failed' when reported
                 }
 
             # Store job metadata for later cleanup
@@ -320,9 +321,17 @@ class WorkerDaemon:
                     if exit_code == 0:
                         logger.info(f"Job {job.job_id} completed successfully")
                         self.client.report_job_complete(job.job_id, exit_code, after_commit_ref)
+                        # Mark as reported to prevent cleanup from terminating
+                        with self.active_jobs_lock:
+                            if job.job_id in self.active_jobs and self.active_jobs[job.job_id] is not None:
+                                self.active_jobs[job.job_id]['reported_status'] = 'completed'
                     else:
                         logger.error(f"Job {job.job_id} failed with exit code {exit_code}")
                         self.client.report_job_failed(job.job_id, f"Job exited with code {exit_code}", exit_code, after_commit_ref)
+                        # Mark as reported to prevent cleanup from re-reporting failure
+                        with self.active_jobs_lock:
+                            if job.job_id in self.active_jobs and self.active_jobs[job.job_id] is not None:
+                                self.active_jobs[job.job_id]['reported_status'] = 'failed'
 
                     # NOTE: Do NOT remove from active_jobs here!
                     # Jobs are removed from active_jobs only when they're no longer in the poll response.
@@ -338,6 +347,10 @@ class WorkerDaemon:
             self.job_executor.cleanup_job(job)
             try:
                 self.client.report_job_failed(job.job_id, str(e))
+                # Mark as reported
+                with self.active_jobs_lock:
+                    if job.job_id in self.active_jobs and self.active_jobs[job.job_id] is not None:
+                        self.active_jobs[job.job_id]['reported_status'] = 'failed'
             except Exception as report_error:
                 logger.error(f"Failed to report job failure for {job.job_id}: {report_error}")
 
@@ -398,6 +411,17 @@ class WorkerDaemon:
                     job_info = self.active_jobs.get(job_id)
 
                 if job_info:
+                    # Skip if we've already reported terminal status
+                    # This prevents race condition where job completes, gets reported,
+                    # but hasn't been removed from active_jobs yet
+                    reported_status = job_info.get('reported_status')
+                    if reported_status in ['completed', 'failed']:
+                        logger.debug(
+                            f"Job {job_id} already reported as {reported_status}, "
+                            f"skipping cleanup (will be removed by poll response)"
+                        )
+                        continue
+
                     # Check if job is within 30-second grace period
                     job_age = (datetime.now() - job_info['start_time']).total_seconds()
 
@@ -414,6 +438,11 @@ class WorkerDaemon:
 
                         # Report as cancelled
                         self.client.report_job_failed(job_id, "Job cancelled by head node")
+
+                        # Mark as reported
+                        with self.active_jobs_lock:
+                            if job_id in self.active_jobs and self.active_jobs[job_id] is not None:
+                                self.active_jobs[job_id]['reported_status'] = 'failed'
 
                         # Cleanup resources
                         self.job_executor.cleanup_job(job_info['job'])

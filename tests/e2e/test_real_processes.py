@@ -711,3 +711,56 @@ class TestRealProcessesExtended:
         jobs = [client.get_job(jid) for jid in job_ids]
         completed = sum(1 for j in jobs if j.status == JobStatus.COMPLETED)
         assert completed == num_jobs, f"Expected {num_jobs} completed, got {completed}"
+
+    def test_fast_completion_does_not_trigger_cancellation(self, running_cluster):
+        """Test that jobs completing quickly don't get marked as cancelled
+
+        This is a regression test for a race condition where:
+        1. Job completes with exit_code=0
+        2. Worker reports completion to head
+        3. Job stays in active_jobs (waiting for poll response cleanup)
+        4. Cleanup mechanism sees job not in running_job_ids (because status is COMPLETED)
+        5. After 30s grace period, cleanup terminates the job and reports failure
+        6. Job status gets overwritten from COMPLETED to FAILED
+
+        The fix adds a reported_status field to track whether completion/failure
+        has already been reported, preventing the cleanup mechanism from
+        re-reporting or overwriting the status.
+        """
+        config = Config(address=running_cluster['head_address'])
+        client = SchedulerClient(config=config)
+
+        # Submit a job that completes in ~2 seconds
+        job = client.submit_job(
+            command=['python', '-c', 'import time; time.sleep(2); print("Done")'],
+            requirements="1",
+            name="fast-completion-test"
+        )
+
+        # Wait for completion
+        max_wait = 10
+        for i in range(max_wait):
+            job = client.get_job(job.job_id)
+            if job.status == JobStatus.COMPLETED:
+                break
+            time.sleep(1)
+
+        # Verify status is COMPLETED
+        assert job.status == JobStatus.COMPLETED, f"Expected COMPLETED, got {job.status}"
+        assert job.exit_code == 0, f"Expected exit_code 0, got {job.exit_code}"
+        initial_error = job.error_message
+
+        # Wait past the 30-second grace period plus some buffer
+        # This ensures the cleanup mechanism has had a chance to run
+        time.sleep(35)
+
+        # Verify status hasn't changed to FAILED
+        job = client.get_job(job.job_id)
+        assert job.status == JobStatus.COMPLETED, \
+            f"Job status should remain COMPLETED, but changed to {job.status}"
+        assert job.exit_code == 0, \
+            f"Exit code should remain 0, but changed to {job.exit_code}"
+        assert job.error_message == initial_error, \
+            f"Error message should remain unchanged (was: {initial_error}, now: {job.error_message})"
+        assert job.error_message != "Job cancelled by head node", \
+            "Job should not be cancelled after successful completion"
