@@ -325,16 +325,10 @@ async def heartbeat_route(
             shutdown_acknowledged=request.shutdown_acknowledged
         )
 
-        # Helper to get current job lists (must be computed at response time, not request time,
+        # Helper to get current job IDs (must be computed at response time, not request time,
         # to include jobs submitted during long-poll)
-        def get_job_lists():
-            recorded = [job.job_id for job in _job_manager.jobs.values()]
-            running = [
-                job.job_id
-                for job in _job_manager.jobs.values()
-                if job.status == JobStatus.RUNNING and job.assigned_node == node_name
-            ]
-            return recorded, running
+        def get_job_ids():
+            return [job.job_id for job in _job_manager.jobs.values()]
 
         # Long-poll if timeout provided
         if timeout and timeout > 0:
@@ -344,24 +338,24 @@ async def heartbeat_route(
                 # Check if shutdown was requested
                 node = _node_manager.get_node(node_name)
                 if node and node.shutdown_state != ShutdownState.NONE:
-                    recorded_job_ids, running_job_ids = get_job_lists()
+                    recorded_job_ids = get_job_ids()
                     return HeartbeatResponse(
                         status="ok",
                         shutdown_requested=True,
                         recorded_job_ids=recorded_job_ids,
-                        running_job_ids=running_job_ids
+                        running_job_ids=[]  # DEPRECATED: No longer used
                     )
 
                 # Sleep briefly before checking again
                 await asyncio.sleep(0.1)
 
         # Normal response (no shutdown, timeout reached or no timeout provided)
-        recorded_job_ids, running_job_ids = get_job_lists()
+        recorded_job_ids = get_job_ids()
         return HeartbeatResponse(
             status="ok",
             shutdown_requested=False,
             recorded_job_ids=recorded_job_ids,
-            running_job_ids=running_job_ids
+            running_job_ids=[]  # DEPRECATED: No longer used
         )
     except NodeNotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

@@ -121,9 +121,6 @@ class WorkerDaemon:
         # Start GPU monitoring
         self.gpu_monitor.start_monitoring()
 
-        # Set cleanup callback for heartbeat sender
-        self.heartbeat_sender.set_cleanup_callback(self._handle_cleanup_request)
-
         # Set running flag before starting threads to avoid race condition
         self.running = True
 
@@ -198,14 +195,38 @@ class WorkerDaemon:
                     # Get set of job IDs from poll response
                     poll_job_ids = {job.job_id for job in jobs}
 
-                    # Clean up active_jobs: remove jobs not in poll response
+                    # Clean up active_jobs: terminate and remove jobs not in poll response
                     with self.active_jobs_lock:
                         current_job_ids = set(self.active_jobs.keys())
                         jobs_to_remove = current_job_ids - poll_job_ids
 
-                        if jobs_to_remove:
-                            logger.info(f"Removing {len(jobs_to_remove)} job(s) from active_jobs (not in poll response): {jobs_to_remove}")
-                            for job_id in jobs_to_remove:
+                    if jobs_to_remove:
+                        logger.info(f"Terminating {len(jobs_to_remove)} job(s) not in poll response: {jobs_to_remove}")
+
+                        for job_id in jobs_to_remove:
+                            with self.active_jobs_lock:
+                                job_info = self.active_jobs.get(job_id)
+
+                            if job_info:
+                                pid = job_info['pid']
+                                job = job_info['job']
+
+                                # Attempt to terminate the process
+                                # This is idempotent - if job already completed/failed, terminate is a no-op
+                                try:
+                                    logger.info(f"Terminating job {job_id} (PID {pid}) - not in poll response")
+                                    self.job_executor.terminate_job(pid)
+                                except Exception as e:
+                                    logger.warning(f"Failed to terminate job {job_id} (PID {pid}): {e}")
+
+                                # Clean up job resources
+                                try:
+                                    self.job_executor.cleanup_job(job)
+                                except Exception as e:
+                                    logger.warning(f"Failed to cleanup job {job_id}: {e}")
+
+                            # Remove from active_jobs
+                            with self.active_jobs_lock:
                                 self.active_jobs.pop(job_id, None)
 
                     # Execute all jobs from poll response (deduplication check inside _execute_job)
@@ -288,8 +309,7 @@ class WorkerDaemon:
                     'job': job,
                     'pid': pid,
                     'start_time': datetime.now(),
-                    'monitor_thread': monitor_thread,
-                    'reported_status': None  # Will be set to 'completed' or 'failed' when reported
+                    'monitor_thread': monitor_thread
                 }
 
             # Store job metadata for later cleanup
@@ -321,17 +341,9 @@ class WorkerDaemon:
                     if exit_code == 0:
                         logger.info(f"Job {job.job_id} completed successfully")
                         self.client.report_job_complete(job.job_id, exit_code, after_commit_ref)
-                        # Mark as reported to prevent cleanup from terminating
-                        with self.active_jobs_lock:
-                            if job.job_id in self.active_jobs and self.active_jobs[job.job_id] is not None:
-                                self.active_jobs[job.job_id]['reported_status'] = 'completed'
                     else:
                         logger.error(f"Job {job.job_id} failed with exit code {exit_code}")
                         self.client.report_job_failed(job.job_id, f"Job exited with code {exit_code}", exit_code, after_commit_ref)
-                        # Mark as reported to prevent cleanup from re-reporting failure
-                        with self.active_jobs_lock:
-                            if job.job_id in self.active_jobs and self.active_jobs[job.job_id] is not None:
-                                self.active_jobs[job.job_id]['reported_status'] = 'failed'
 
                     # NOTE: Do NOT remove from active_jobs here!
                     # Jobs are removed from active_jobs only when they're no longer in the poll response.
@@ -347,10 +359,6 @@ class WorkerDaemon:
             self.job_executor.cleanup_job(job)
             try:
                 self.client.report_job_failed(job.job_id, str(e))
-                # Mark as reported
-                with self.active_jobs_lock:
-                    if job.job_id in self.active_jobs and self.active_jobs[job.job_id] is not None:
-                        self.active_jobs[job.job_id]['reported_status'] = 'failed'
             except Exception as report_error:
                 logger.error(f"Failed to report job failure for {job.job_id}: {report_error}")
 
@@ -365,97 +373,6 @@ class WorkerDaemon:
         if signum == signal.SIGINT:
             raise KeyboardInterrupt()
 
-    def _handle_cleanup_request(self, recorded_job_ids: List[str], running_job_ids: List[str]):
-        """
-        Handle cleanup request from head node.
-        - Purges log files for jobs not in recorded_job_ids
-        - Terminates processes for jobs not in running_job_ids (after 30-second grace period)
-
-        Args:
-            recorded_job_ids: All job IDs to keep log files for
-            running_job_ids: Job IDs that should be actively running on this worker
-        """
-        try:
-            logger.debug(f"Processing cleanup request. Recorded: {recorded_job_ids}, Running: {running_job_ids}")
-
-            # Part 1: Cleanup log files for jobs not in recorded list
-            log_dir = os.path.expanduser(self.config.worker.log_dir)
-            if os.path.exists(log_dir):
-                # Find all job IDs with log files
-                log_job_ids = set()
-                for filename in os.listdir(log_dir):
-                    if filename.endswith('.log'):
-                        # Extract job_id from filename (format: job_id.stdout.log or job_id.stderr.log)
-                        parts = filename.rsplit('.', 2)
-                        if len(parts) == 3:
-                            log_job_ids.add(parts[0])
-
-                # Determine which jobs to purge (present locally but not in recorded list)
-                jobs_to_purge = log_job_ids - set(recorded_job_ids)
-
-                if jobs_to_purge:
-                    logger.info(f"Purging {len(jobs_to_purge)} inactive job logs: {jobs_to_purge}")
-
-                # Purge each job not in recorded list
-                for job_id in jobs_to_purge:
-                    self._purge_job_files(job_id)
-
-            # Part 2: Terminate processes for jobs not in running list (with grace period)
-            with self.active_jobs_lock:
-                current_job_ids = set(self.active_jobs.keys())
-
-            jobs_to_terminate = current_job_ids - set(running_job_ids)
-
-            for job_id in jobs_to_terminate:
-                with self.active_jobs_lock:
-                    job_info = self.active_jobs.get(job_id)
-
-                if job_info:
-                    # Skip if we've already reported terminal status
-                    # This prevents race condition where job completes, gets reported,
-                    # but hasn't been removed from active_jobs yet
-                    reported_status = job_info.get('reported_status')
-                    if reported_status in ['completed', 'failed']:
-                        logger.debug(
-                            f"Job {job_id} already reported as {reported_status}, "
-                            f"skipping cleanup (will be removed by poll response)"
-                        )
-                        continue
-
-                    # Check if job is within 30-second grace period
-                    job_age = (datetime.now() - job_info['start_time']).total_seconds()
-
-                    if job_age < 30:
-                        logger.debug(f"Job {job_id} not in running list but within grace period ({job_age:.1f}s)")
-                        continue
-
-                    # Grace period expired, terminate the job
-                    pid = job_info['pid']
-                    logger.warning(f"Terminating job {job_id} (PID {pid}) - not in running list after {job_age:.1f}s")
-
-                    try:
-                        self.job_executor.terminate_job(pid)
-
-                        # Report as cancelled
-                        self.client.report_job_failed(job_id, "Job cancelled by head node")
-
-                        # Mark as reported
-                        with self.active_jobs_lock:
-                            if job_id in self.active_jobs and self.active_jobs[job_id] is not None:
-                                self.active_jobs[job_id]['reported_status'] = 'failed'
-
-                        # Cleanup resources
-                        self.job_executor.cleanup_job(job_info['job'])
-
-                    except Exception as term_error:
-                        logger.error(f"Error terminating job {job_id}: {term_error}")
-
-                    # Remove from active jobs
-                    with self.active_jobs_lock:
-                        self.active_jobs.pop(job_id, None)
-
-        except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
 
     def _purge_job_files(self, job_id: str):
         """

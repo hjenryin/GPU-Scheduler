@@ -44,9 +44,6 @@ class HeartbeatSender:
         self.running = False
         self.heartbeat_thread: Optional[threading.Thread] = None
 
-        # Callback for cleanup notifications (gets active job IDs to keep)
-        self.cleanup_callback = None
-
         logger.info(f"HeartbeatSender initialized for node {node_name} -> {head_address}")
 
     def start(self):
@@ -94,17 +91,6 @@ class HeartbeatSender:
                 shutdown_acknowledged=False,
                 timeout=self.heartbeat_interval
             )
-
-            # Handle cleanup - tell worker which jobs to keep and which to run
-            if self.cleanup_callback:
-                recorded_job_ids = getattr(response, 'recorded_job_ids', [])
-                running_job_ids = getattr(response, 'running_job_ids', [])
-
-                # If response still uses old active_job_ids field, use it for backward compatibility
-                if not recorded_job_ids and hasattr(response, 'active_job_ids'):
-                    recorded_job_ids = response.active_job_ids
-
-                self.cleanup_callback(recorded_job_ids, running_job_ids)
 
             if response.shutdown_requested:
                 logger.info(f"Shutdown requested by head node for {self.node_name}")
@@ -158,24 +144,6 @@ class HeartbeatSender:
             # NO sleep! send_heartbeat() already waited via long-polling
 
         logger.info("Heartbeat loop stopped")
-
-    def set_cleanup_callback(self, callback):
-        """
-        Set the callback function to be called for job cleanup.
-
-        Args:
-            callback: Function that takes (recorded_job_ids, running_job_ids).
-                     recorded_job_ids: All job IDs to keep log files for
-                     running_job_ids: Job IDs that should be actively running (terminate others)
-        """
-        self.cleanup_callback = callback
-
-    def set_purge_callback(self, callback):
-        """
-        Deprecated: Use set_cleanup_callback instead.
-        Maintained for backward compatibility.
-        """
-        self.set_cleanup_callback(callback)
 
     def is_shutdown_requested(self) -> bool:
         """

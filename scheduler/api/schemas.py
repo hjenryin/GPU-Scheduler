@@ -101,7 +101,7 @@ class HeartbeatResponse(BaseModel):
     status: str
     shutdown_requested: bool
     recorded_job_ids: List[str] = []  # All job IDs for log file management (purge all others)
-    running_job_ids: List[str] = []  # Job IDs that should be running on this worker
+    running_job_ids: List[str] = []  # DEPRECATED: No longer used, kept for backward compatibility
 
 
 class GPUFreezeRequest(BaseModel):
