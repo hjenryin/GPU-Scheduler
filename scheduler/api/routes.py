@@ -330,6 +330,12 @@ async def heartbeat_route(
         def get_job_ids():
             return [job.job_id for job in _job_manager.jobs.values()]
 
+        # Helper to get current rsync port
+        def get_rsync_port():
+            from scheduler.head import Orchestrator
+            orchestrator = Orchestrator.get_instance()
+            return orchestrator.rsync_port if orchestrator else None
+
         # Long-poll if timeout provided
         if timeout and timeout > 0:
             import time
@@ -339,11 +345,13 @@ async def heartbeat_route(
                 node = _node_manager.get_node(node_name)
                 if node and node.shutdown_state != ShutdownState.NONE:
                     recorded_job_ids = get_job_ids()
+                    rsync_port = get_rsync_port()
                     return HeartbeatResponse(
                         status="ok",
                         shutdown_requested=True,
                         recorded_job_ids=recorded_job_ids,
-                        running_job_ids=[]  # DEPRECATED: No longer used
+                        running_job_ids=[],  # DEPRECATED: No longer used
+                        rsync_port=rsync_port
                     )
 
                 # Sleep briefly before checking again
@@ -351,11 +359,13 @@ async def heartbeat_route(
 
         # Normal response (no shutdown, timeout reached or no timeout provided)
         recorded_job_ids = get_job_ids()
+        rsync_port = get_rsync_port()
         return HeartbeatResponse(
             status="ok",
             shutdown_requested=False,
             recorded_job_ids=recorded_job_ids,
-            running_job_ids=[]  # DEPRECATED: No longer used
+            running_job_ids=[],  # DEPRECATED: No longer used
+            rsync_port=rsync_port
         )
     except NodeNotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

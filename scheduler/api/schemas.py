@@ -102,6 +102,7 @@ class HeartbeatResponse(BaseModel):
     shutdown_requested: bool
     recorded_job_ids: List[str] = []  # All job IDs for log file management (purge all others)
     running_job_ids: List[str] = []  # DEPRECATED: No longer used, kept for backward compatibility
+    rsync_port: Optional[int] = None  # Current rsync port, workers should update if changed
 
 
 class GPUFreezeRequest(BaseModel):

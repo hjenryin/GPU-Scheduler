@@ -181,12 +181,22 @@ class WorkerDaemon:
         # Main loop: poll for jobs and execute them
         logger.info("Entering main worker loop...")
 
+        # Track rsync port checks (check periodically, not every iteration)
+        rsync_port_check_counter = 0
+        rsync_port_check_interval = 10  # Check every 10 iterations (~300 seconds with 30s poll timeout)
+
         try:
             while self.running:
                 # Check if shutdown was requested via heartbeat
                 if self.heartbeat_sender.is_shutdown_requested():
                     logger.info("Shutdown requested by head node - stopping worker")
                     break
+
+                # Periodically check if rsync port has changed
+                rsync_port_check_counter += 1
+                if rsync_port_check_counter >= rsync_port_check_interval:
+                    rsync_port_check_counter = 0
+                    self._check_and_update_rsync_port()
 
                 # Poll for job assignments (returns list of all jobs for this node)
                 try:
@@ -503,3 +513,38 @@ class WorkerDaemon:
         self.log_sync_thread = threading.Thread(target=sync_loop, daemon=True, name="LogSync")
         self.log_sync_thread.start()
         logger.info(f"Log syncing started (rsync to head:{port})")
+
+    def _check_and_update_rsync_port(self):
+        """
+        Check if rsync port has changed on head node and restart log sync if needed.
+        Called periodically from main worker loop.
+        """
+        try:
+            # Get current rsync port from head node
+            current_port = self.heartbeat_sender.get_rsync_port_from_heartbeat()
+            
+            # Check if port has changed
+            if current_port is not None and current_port != self.rsync_port:
+                logger.info(f"Rsync port changed from {self.rsync_port} to {current_port}, restarting log sync")
+                
+                # Update stored port
+                old_port = self.rsync_port
+                self.rsync_port = current_port
+                
+                # Stop old log sync thread (it will detect self.running change and exit naturally)
+                # The daemon thread will exit when we restart with new port
+                
+                # Start new log sync with updated port
+                if self.rsync_port is not None:
+                    self._start_log_sync(self.rsync_port)
+                    logger.info(f"Log sync restarted on new port {self.rsync_port}")
+                else:
+                    logger.warning("Rsync port became unavailable")
+                    
+            elif current_port is None and self.rsync_port is not None:
+                logger.warning(f"Rsync port is no longer available (was {self.rsync_port})")
+                self.rsync_port = None
+                
+        except Exception as e:
+            logger.debug(f"Error checking rsync port: {e}")
+

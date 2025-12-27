@@ -110,10 +110,33 @@ class HeartbeatSender:
                 return True
 
             logger.debug(f"Sent heartbeat for node {self.node_name}")
+            
+            # Return rsync port from response (if available)
             return False
         except Exception as e:
             logger.error(f"Failed to send heartbeat: {e}")
             return False
+
+    def get_rsync_port_from_heartbeat(self) -> Optional[int]:
+        """
+        Get current rsync port from most recent heartbeat response.
+        This allows detecting when rsync daemon restarts on a different port.
+        
+        Returns:
+            Current rsync port from head node, or None if unavailable
+        """
+        try:
+            gpu_stats = self.gpu_monitor.get_latest_stats()
+            response = self.client.send_heartbeat(
+                self.node_name,
+                gpu_stats,
+                shutdown_acknowledged=False,
+                timeout=5  # Short timeout for immediate check
+            )
+            return response.rsync_port if hasattr(response, 'rsync_port') else None
+        except Exception as e:
+            logger.debug(f"Failed to get rsync port from heartbeat: {e}")
+            return None
 
     def _heartbeat_loop(self):
         """Internal heartbeat loop thread."""

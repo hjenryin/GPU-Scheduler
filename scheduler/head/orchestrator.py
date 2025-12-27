@@ -257,6 +257,9 @@ class Orchestrator:
         # Check for node timeouts
         self.node_manager.check_timeouts()
 
+        # Check and restart rsync daemon if it died
+        self._check_rsync_daemon()
+
     def _scheduler_loop(self):
         """Internal scheduler loop thread."""
         logger.info("Scheduler loop started")
@@ -440,6 +443,31 @@ class Orchestrator:
             self.rsync_config_file = None
             self.rsync_port = None
             # Don't raise - allow orchestrator to continue without rsync
+
+    def _check_rsync_daemon(self):
+        """Check if rsync daemon is still running and restart if needed."""
+        if not self.rsync_daemon_process:
+            # Rsync was never started or is disabled
+            return
+
+        # Check if process is still alive
+        returncode = self.rsync_daemon_process.poll()
+        if returncode is not None:
+            # Process has died
+            logger.error(f"Rsync daemon has died with return code {returncode}. Attempting to restart...")
+            
+            # Clean up old process state
+            self.rsync_daemon_process = None
+            
+            # Try to restart
+            try:
+                self._start_rsync_daemon()
+                if self.rsync_daemon_process:
+                    logger.info(f"Successfully restarted rsync daemon on port {self.rsync_port}")
+                else:
+                    logger.error("Failed to restart rsync daemon - log syncing will be unavailable")
+            except Exception as e:
+                logger.error(f"Error restarting rsync daemon: {e}")
 
     def _stop_rsync_daemon(self):
         """Stop rsync daemon subprocess."""
