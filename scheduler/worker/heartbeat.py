@@ -115,22 +115,6 @@ class HeartbeatSender:
             logger.error(f"Failed to send heartbeat: {e}")
             return False
 
-    def poll_for_job(self) -> List[Job]:
-        """
-        Long-poll head node for job assignment.
-
-        Returns:
-            List of jobs assigned to this node (empty list if no jobs available)
-        """
-        try:
-            jobs = self.client.poll_for_job(self.node_name, timeout=self.config.worker.job_poll_timeout)
-            if jobs:
-                logger.info(f"Received {len(jobs)} job assignment(s): {[job.job_id for job in jobs]}")
-            return jobs
-        except Exception as e:
-            logger.error(f"Failed to poll for job: {e}")
-            return []
-
     def _heartbeat_loop(self):
         """Internal heartbeat loop thread."""
         logger.info("Heartbeat loop started")

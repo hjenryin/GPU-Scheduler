@@ -523,6 +523,11 @@ class JobManager:
         self.persistence.save_job(job)
         logger.info(f"Job {job_id} cancelled")
 
+        # Trigger job assignment event for the node so it immediately discovers the cancellation
+        if job.assigned_node:
+            event = self.get_job_assignment_event(job.assigned_node)
+            event.set()
+
     def untrack_job(self, job_id: str):
         """
         Mark a job as untracked (scheduler stopped while job was running).

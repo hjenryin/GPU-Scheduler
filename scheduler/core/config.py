@@ -128,7 +128,7 @@ class Config:
 
         Example:
             >>> config = Config.from_dict({
-            ...     'address': 'localhost:8265',
+            ...     'address': 'localhost:8266',
             ...     'head': {'port': 9000},
             ...     'worker': {'gpu_poll_interval': 5}
             ... })
@@ -175,8 +175,8 @@ class Config:
         Example:
             >>> config.to_dict()
             {
-                'address': 'localhost:8265',
-                'head': {'port': 8265, 'heartbeat_timeout': 60, ...},
+                'address': 'localhost:8266',
+                'head': {'port': 8266, 'heartbeat_timeout': 60, ...},
                 'worker': {...},
                 'storage': {...},
                 'client': {...},

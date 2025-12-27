@@ -189,59 +189,58 @@ class WorkerDaemon:
                     break
 
                 # Poll for job assignments (returns list of all jobs for this node)
-                jobs = self.heartbeat_sender.poll_for_job()
+                try:
+                    jobs = self.client.poll_for_job(
+                        self.node_name,
+                        timeout=self.config.worker.job_poll_timeout
+                    )
+                    if jobs:
+                        logger.info(f"Received {len(jobs)} job assignment(s): {[job.job_id for job in jobs]}")
+                except Exception as e:
+                    logger.error(f"Failed to poll for job: {e}")
+                    jobs = []
 
-                if jobs:
-                    # Get set of job IDs from poll response
-                    poll_job_ids = {job.job_id for job in jobs}
+                # Get set of job IDs from poll response (empty set if jobs=[])
+                poll_job_ids = {job.job_id for job in jobs}
 
-                    # Clean up active_jobs: terminate and remove jobs not in poll response
-                    with self.active_jobs_lock:
-                        current_job_ids = set(self.active_jobs.keys())
-                        jobs_to_remove = current_job_ids - poll_job_ids
+                # Detect jobs NOT in poll response
+                with self.active_jobs_lock:
+                    current_job_ids = set(self.active_jobs.keys())
+                    jobs_to_remove = current_job_ids - poll_job_ids
 
-                    if jobs_to_remove:
-                        logger.info(f"Terminating {len(jobs_to_remove)} job(s) not in poll response: {jobs_to_remove}")
+                # Terminate and cleanup jobs not in poll response
+                if jobs_to_remove:
+                    logger.info(f"Terminating {len(jobs_to_remove)} job(s) not in poll response: {jobs_to_remove}")
 
-                        for job_id in jobs_to_remove:
-                            with self.active_jobs_lock:
-                                job_info = self.active_jobs.get(job_id)
+                    for job_id in jobs_to_remove:
+                        with self.active_jobs_lock:
+                            job_info = self.active_jobs.get(job_id)
 
-                            if job_info:
-                                pid = job_info['pid']
-                                job = job_info['job']
+                        if job_info:
+                            pid = job_info['pid']
+                            job = job_info['job']
 
-                                # Attempt to terminate the process
-                                # This is idempotent - if job already completed/failed, terminate is a no-op
-                                try:
-                                    logger.info(f"Terminating job {job_id} (PID {pid}) - not in poll response")
-                                    self.job_executor.terminate_job(pid)
-                                except Exception as e:
-                                    logger.warning(f"Failed to terminate job {job_id} (PID {pid}): {e}")
+                            # Attempt to terminate the process
+                            # This is idempotent - if job already completed/failed, terminate is a no-op
+                            try:
+                                logger.info(f"Terminating job {job_id} (PID {pid}) - not in poll response")
+                                self.job_executor.terminate_job(pid)
+                            except Exception as e:
+                                logger.warning(f"Failed to terminate job {job_id} (PID {pid}): {e}")
 
-                                # Clean up job resources
-                                try:
-                                    self.job_executor.cleanup_job(job)
-                                except Exception as e:
-                                    logger.warning(f"Failed to cleanup job {job_id}: {e}")
+                            # Clean up job resources
+                            try:
+                                self.job_executor.cleanup_job(job)
+                            except Exception as e:
+                                logger.warning(f"Failed to cleanup job {job_id}: {e}")
 
-                            # Remove from active_jobs
-                            with self.active_jobs_lock:
-                                self.active_jobs.pop(job_id, None)
+                        # Remove from active_jobs
+                        with self.active_jobs_lock:
+                            self.active_jobs.pop(job_id, None)
 
-                    # Execute all jobs from poll response (deduplication check inside _execute_job)
-                    for job in jobs:
-                        self._execute_job(job)
-                else:
-                    # Empty poll response means no jobs assigned to this node
-                    # Clear active_jobs
-                    with self.active_jobs_lock:
-                        if self.active_jobs:
-                            logger.info(f"No jobs in poll response, clearing {len(self.active_jobs)} job(s) from active_jobs")
-                            self.active_jobs.clear()
-
-                    # No job available, sleep briefly
-                    time.sleep(5)
+                # Execute all jobs from poll response (no-op if empty)
+                for job in jobs:
+                    self._execute_job(job)
         except KeyboardInterrupt:
             logger.info("Received keyboard interrupt")
             # Re-raise to propagate to parent context

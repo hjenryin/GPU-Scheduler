@@ -2,12 +2,12 @@
 # None of the values here should be exported. They should only be imported by core.config
 
 # Head node defaults
-DEFAULT_PORT = 8265
+DEFAULT_PORT = 8266  # Changed from 8265 to avoid conflict with Ray Dashboard
 DEFAULT_HEARTBEAT_TIMEOUT = 60
 DEFAULT_SCHEDULE_INTERVAL = 5  # Note: renamed from SCHEDULING_INTERVAL for consistency
 
 # Worker node defaults
-DEFAULT_WORKER_PORT = 8266
+DEFAULT_WORKER_PORT = 8267  # Changed from 8266 to avoid conflict with head port
 DEFAULT_WORKER_DIR = "~/.scheduler/work"
 DEFAULT_HEARTBEAT_INTERVAL = 5
 DEFAULT_GPU_POLL_INTERVAL = 10

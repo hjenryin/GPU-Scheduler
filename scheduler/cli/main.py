@@ -28,7 +28,7 @@ def cli():
 @cli.command()
 @click.option('--head', is_flag=True, help='Start as head node')
 @click.option('--address', help='Head node address (for workers)')
-@click.option('--port', type=int, default=8265, help='Port number')
+@click.option('--port', type=int, default=8266, help='Port number')
 @click.option('--node-name', help='Node name')
 @click.option('--num-gpus', type=int, help='Number of GPUs')
 @click.option('--block', is_flag=True, default=False, help='Block until stopped')
