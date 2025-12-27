@@ -494,12 +494,16 @@ class TestJobDetailScreen:
         assert screen.job_id == "job_123"
 
     def test_job_detail_screen_bindings(self):
-        """Test JobDetailScreen has correct key bindings."""
+        """Test JobDetailScreen has correct initial key bindings (base bindings only)."""
         screen = JobDetailScreen("job_123")
         binding_keys = [binding[0] for binding in screen.BINDINGS]
-        expected_keys = ["l", "c", "escape"]
-        for key in expected_keys:
-            assert key in binding_keys
+        # Initial bindings should only have base keys (no 'c' or 'r' until update_data is called)
+        expected_keys = ["escape", "l", "q"]
+        assert binding_keys == expected_keys
+        
+        # Verify that cancel and retry bindings exist as instance variables
+        assert screen._cancel_binding == ("c", "cancel_job", "Cancel")
+        assert screen._retry_binding == ("r", "show_retry_menu", "Retry")
 
     @patch('scheduler.tui.screens.job_detail.JobDetailScreen.query_one', autospec=True)
     def test_update_job_data(self, mock_query_one, mock_job_running):
@@ -520,12 +524,10 @@ class TestJobDetailScreen:
         
         mock_metadata = create_autospec(Static, instance=True, spec_set=True)
         mock_config = create_autospec(Static, instance=True, spec_set=True)
-        mock_logs = create_autospec(Static, instance=True, spec_set=True)
         
         mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#job-metadata": mock_metadata,
             "#job-config": mock_config,
-            "#logs-preview": mock_logs
         }.get(selector, Mock(spec=[]))  # Fallback mock
 
         screen.update_data(mock_job_running)
@@ -571,17 +573,180 @@ class TestJobDetailScreen:
         with patch.object(screen.__class__, 'app', new_callable=PropertyMock) as mock_app_property:
             mock_app_property.return_value = mock_app_instance
             with patch.object(screen, 'query_one') as mock_query:
-                mock_logs = create_autospec(TextArea, instance=True, spec_set=True)  # Textual widget
-                mock_header = create_autospec(Static, instance=True, spec_set=True)  # Textual widget
+                mock_stdout = create_autospec(TextArea, instance=True, spec_set=True)  # Textual widget
+                mock_stderr = create_autospec(TextArea, instance=True, spec_set=True)  # Textual widget
+                mock_stdout_header = create_autospec(Static, instance=True, spec_set=True)  # Textual widget
+                mock_stderr_header = create_autospec(Static, instance=True, spec_set=True)  # Textual widget
                 mock_query.side_effect = lambda selector, widget_type: {
-                    "#logs-preview": mock_logs,
-                    "#logs-header": mock_header
+                    "#stdout-preview": mock_stdout,
+                    "#stderr-preview": mock_stderr,
+                    "#stdout-header": mock_stdout_header,
+                    "#stderr-header": mock_stderr_header
                 }.get(selector, Mock(spec=[]))  # Fallback mock
                 
                 screen.action_view_logs()
                 
-                # Should call get_job_logs method on app.client
-                mock_app_instance.client.get_job_logs.assert_called()
+                # Should call get_job_logs method on app.client twice (stdout and stderr)
+                assert mock_app_instance.client.get_job_logs.call_count == 2
                 # Actual code calls load_text, not update
-                mock_logs.load_text.assert_called_once()
-                mock_header.update.assert_called_once_with("Full Logs")
+                mock_stdout.load_text.assert_called_once()
+                mock_stderr.load_text.assert_called_once()
+                mock_stdout_header.update.assert_called_once()
+                mock_stderr_header.update.assert_called_once()
+
+    @patch('scheduler.tui.screens.job_detail.JobDetailScreen.query_one', autospec=True)
+    def test_button_visibility_for_running_job(self, mock_query_one, mock_job_running):
+        """Test that cancel button is shown and retry buttons are hidden for running job."""
+        screen = JobDetailScreen("job_123")
+        
+        # Add missing attributes to mock job
+        mock_job_running.priority = 1
+        mock_job_running.assigned_gpus = [0, 1]
+        mock_job_running.submitted_at = datetime.now()
+        mock_job_running.started_at = datetime.now()
+        mock_job_running.completed_at = None
+        mock_job_running.exit_code = None
+        mock_job_running.command = ["test_script.py"]
+        mock_job_running.working_dir = "/tmp"
+        mock_job_running.env_vars = {}
+        mock_job_running.dependencies = []
+        
+        # Create mock buttons
+        from textual.widgets import Button
+        mock_cancel_btn = create_autospec(Button, instance=True, spec_set=True)
+        mock_retry_inplace_btn = create_autospec(Button, instance=True, spec_set=True)
+        mock_retry_then_btn = create_autospec(Button, instance=True, spec_set=True)
+        mock_retry_now_btn = create_autospec(Button, instance=True, spec_set=True)
+        mock_retry_nodeps_btn = create_autospec(Button, instance=True, spec_set=True)
+        mock_metadata = create_autospec(Static, instance=True, spec_set=True)
+        mock_config = create_autospec(Static, instance=True, spec_set=True)
+        
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
+            "#cancel-button": mock_cancel_btn,
+            "#retry-inplace-button": mock_retry_inplace_btn,
+            "#retry-then-button": mock_retry_then_btn,
+            "#retry-now-button": mock_retry_now_btn,
+            "#retry-nodeps-button": mock_retry_nodeps_btn,
+            "#job-metadata": mock_metadata,
+            "#job-config": mock_config,
+        }.get(selector, Mock(spec=[]))
+        
+        screen.update_data(mock_job_running)
+        
+        # Cancel button should be visible for running job
+        assert mock_cancel_btn.display == True
+        # Retry buttons should be hidden for running job
+        assert mock_retry_inplace_btn.display == False
+        assert mock_retry_then_btn.display == False
+        assert mock_retry_now_btn.display == False
+        assert mock_retry_nodeps_btn.display == False
+        
+        # Verify footer bindings are updated (has 'c' for cancel, no 'r' for retry)
+        binding_keys = [b[0] for b in screen.BINDINGS]
+        assert 'c' in binding_keys  # Cancel should be in bindings
+        assert 'r' not in binding_keys  # Retry should not be in bindings
+
+    @patch('scheduler.tui.screens.job_detail.JobDetailScreen.query_one', autospec=True)
+    def test_button_visibility_for_completed_job(self, mock_query_one, mock_job_completed):
+        """Test that cancel button is hidden and retry buttons are shown for completed job."""
+        screen = JobDetailScreen("job_123")
+        
+        # Add missing attributes to mock job
+        mock_job_completed.priority = 1
+        mock_job_completed.assigned_gpus = [0, 1]
+        mock_job_completed.submitted_at = datetime.now()
+        mock_job_completed.started_at = datetime.now()
+        mock_job_completed.completed_at = datetime.now()
+        mock_job_completed.exit_code = 0
+        mock_job_completed.command = ["test_script.py"]
+        mock_job_completed.working_dir = "/tmp"
+        mock_job_completed.env_vars = {}
+        mock_job_completed.dependencies = []
+        
+        # Create mock buttons
+        from textual.widgets import Button
+        mock_cancel_btn = create_autospec(Button, instance=True, spec_set=True)
+        mock_retry_inplace_btn = create_autospec(Button, instance=True, spec_set=True)
+        mock_retry_then_btn = create_autospec(Button, instance=True, spec_set=True)
+        mock_retry_now_btn = create_autospec(Button, instance=True, spec_set=True)
+        mock_retry_nodeps_btn = create_autospec(Button, instance=True, spec_set=True)
+        mock_metadata = create_autospec(Static, instance=True, spec_set=True)
+        mock_config = create_autospec(Static, instance=True, spec_set=True)
+        
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
+            "#cancel-button": mock_cancel_btn,
+            "#retry-inplace-button": mock_retry_inplace_btn,
+            "#retry-then-button": mock_retry_then_btn,
+            "#retry-now-button": mock_retry_now_btn,
+            "#retry-nodeps-button": mock_retry_nodeps_btn,
+            "#job-metadata": mock_metadata,
+            "#job-config": mock_config,
+        }.get(selector, Mock(spec=[]))
+        
+        screen.update_data(mock_job_completed)
+        
+        # Cancel button should be hidden for completed job
+        assert mock_cancel_btn.display == False
+        # Retry buttons should be visible for completed job
+        assert mock_retry_inplace_btn.display == True
+        assert mock_retry_then_btn.display == True
+        assert mock_retry_now_btn.display == True
+        assert mock_retry_nodeps_btn.display == True
+        
+        # Verify footer bindings are updated (no 'c' for cancel, has 'r' for retry)
+        binding_keys = [b[0] for b in screen.BINDINGS]
+        assert 'c' not in binding_keys  # Cancel should not be in bindings
+        assert 'r' in binding_keys  # Retry should be in bindings
+        assert mock_retry_nodeps_btn.display == True
+
+    @patch('scheduler.tui.screens.job_detail.JobDetailScreen.query_one', autospec=True)
+    def test_button_visibility_for_failed_job(self, mock_query_one, mock_job_failed):
+        """Test that cancel button is hidden and retry buttons are shown for failed job."""
+        screen = JobDetailScreen("job_123")
+        
+        # Add missing attributes to mock job
+        mock_job_failed.priority = 1
+        mock_job_failed.assigned_gpus = [0, 1]
+        mock_job_failed.submitted_at = datetime.now()
+        mock_job_failed.started_at = datetime.now()
+        mock_job_failed.completed_at = datetime.now()
+        mock_job_failed.exit_code = 1
+        mock_job_failed.command = ["test_script.py"]
+        mock_job_failed.working_dir = "/tmp"
+        mock_job_failed.env_vars = {}
+        mock_job_failed.dependencies = []
+        
+        # Create mock buttons
+        from textual.widgets import Button
+        mock_cancel_btn = create_autospec(Button, instance=True, spec_set=True)
+        mock_retry_inplace_btn = create_autospec(Button, instance=True, spec_set=True)
+        mock_retry_then_btn = create_autospec(Button, instance=True, spec_set=True)
+        mock_retry_now_btn = create_autospec(Button, instance=True, spec_set=True)
+        mock_retry_nodeps_btn = create_autospec(Button, instance=True, spec_set=True)
+        mock_metadata = create_autospec(Static, instance=True, spec_set=True)
+        mock_config = create_autospec(Static, instance=True, spec_set=True)
+        
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
+            "#cancel-button": mock_cancel_btn,
+            "#retry-inplace-button": mock_retry_inplace_btn,
+            "#retry-then-button": mock_retry_then_btn,
+            "#retry-now-button": mock_retry_now_btn,
+            "#retry-nodeps-button": mock_retry_nodeps_btn,
+            "#job-metadata": mock_metadata,
+            "#job-config": mock_config,
+        }.get(selector, Mock(spec=[]))
+        
+        screen.update_data(mock_job_failed)
+        
+        # Cancel button should be hidden for failed job
+        assert mock_cancel_btn.display == False
+        # Retry buttons should be visible for failed job
+        assert mock_retry_inplace_btn.display == True
+        assert mock_retry_then_btn.display == True
+        assert mock_retry_now_btn.display == True
+        assert mock_retry_nodeps_btn.display == True
+        
+        # Verify footer bindings are updated (no 'c' for cancel, has 'r' for retry)
+        binding_keys = [b[0] for b in screen.BINDINGS]
+        assert 'c' not in binding_keys  # Cancel should not be in bindings
+        assert 'r' in binding_keys  # Retry should be in bindings

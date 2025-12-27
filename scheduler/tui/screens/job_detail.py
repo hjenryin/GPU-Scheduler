@@ -34,11 +34,10 @@ def process_log_escape_sequences(logs: str) -> str:
 class JobDetailScreen(Screen):
     """Single job detail screen"""
 
+    # Base bindings that are always available
     BINDINGS = [
         ("escape", "pop_screen", "Back"),
         ("l", "view_logs", "Logs"),
-        ("c", "cancel_job", "Cancel"),
-        ("r", "show_retry_menu", "Retry"),
         ("q", "quit", "Quit"),
     ]
 
@@ -52,6 +51,8 @@ class JobDetailScreen(Screen):
         super().__init__()
         self.job_id = job_id
         self.job_data = None
+        self._cancel_binding = ("c", "cancel_job", "Cancel")
+        self._retry_binding = ("r", "show_retry_menu", "Retry")
 
     def compose(self) -> ComposeResult:
         """
@@ -67,15 +68,25 @@ class JobDetailScreen(Screen):
                 Static("", id="job-metadata"),
                 Static("Job Configuration", id="job-config-header"),
                 Static("", id="job-config"),
-                Static("Logs Preview (last 20 lines)", id="logs-header"),
+                Static("STDOUT Preview (last 20 lines)", id="stdout-header"),
                 Container(
                     TextArea(
                         "",
-                        id="logs-preview",
+                        id="stdout-preview",
                         read_only=True,
                         show_line_numbers=False,
                     ),
-                    id="logs-container",
+                    id="stdout-container",
+                ),
+                Static("STDERR Preview (last 20 lines)", id="stderr-header"),
+                Container(
+                    TextArea(
+                        "",
+                        id="stderr-preview",
+                        read_only=True,
+                        show_line_numbers=False,
+                    ),
+                    id="stderr-container",
                 ),
                 Horizontal(
                     Button("View Full Logs (l)", id="logs-button", variant="primary"),
@@ -95,10 +106,14 @@ class JobDetailScreen(Screen):
 
     def on_mount(self):
         """Fetch job data when screen is mounted."""
-        # Set height for the logs container programmatically
-        logs_container = self.query_one("#logs-container", Container)
-        logs_container.styles.height = 13  # 13 lines height
-        logs_container.styles.border = ("solid", "cyan")
+        # Set height for the logs containers programmatically
+        stdout_container = self.query_one("#stdout-container", Container)
+        stdout_container.styles.height = 13  # 13 lines height
+        stdout_container.styles.border = ("solid", "cyan")
+        
+        stderr_container = self.query_one("#stderr-container", Container)
+        stderr_container.styles.height = 13  # 13 lines height
+        stderr_container.styles.border = ("solid", "red")
 
         # Get the client from the app
         if hasattr(self.app, "client"):
@@ -106,21 +121,37 @@ class JobDetailScreen(Screen):
                 job = self.app.client.get_job(self.job_id)
                 self.update_data(job)
 
-                # Try to fetch logs
+                # Try to fetch stdout logs
                 try:
-                    logs = self.app.client.get_job_logs(
+                    stdout_logs = self.app.client.get_job_logs(
                         self.job_id, lines=20, stderr=False
                     )
                     # Process logs to handle escape sequences properly
-                    log_widget = self.query_one("#logs-preview", TextArea)
-                    if logs:
-                        processed_logs = process_log_escape_sequences(logs)
-                        log_widget.load_text(processed_logs)
+                    stdout_widget = self.query_one("#stdout-preview", TextArea)
+                    if stdout_logs:
+                        processed_logs = process_log_escape_sequences(stdout_logs)
+                        stdout_widget.load_text(processed_logs)
                     else:
-                        log_widget.load_text("No logs available yet.")
+                        stdout_widget.load_text("No stdout logs available yet.")
                 except Exception as e:
-                    log_widget = self.query_one("#logs-preview", TextArea)
-                    log_widget.load_text(f"Could not fetch logs: {e}")
+                    stdout_widget = self.query_one("#stdout-preview", TextArea)
+                    stdout_widget.load_text(f"Could not fetch stdout logs: {e}")
+                
+                # Try to fetch stderr logs
+                try:
+                    stderr_logs = self.app.client.get_job_logs(
+                        self.job_id, lines=20, stderr=True
+                    )
+                    # Process logs to handle escape sequences properly
+                    stderr_widget = self.query_one("#stderr-preview", TextArea)
+                    if stderr_logs:
+                        processed_logs = process_log_escape_sequences(stderr_logs)
+                        stderr_widget.load_text(processed_logs)
+                    else:
+                        stderr_widget.load_text("No stderr logs available yet.")
+                except Exception as e:
+                    stderr_widget = self.query_one("#stderr-preview", TextArea)
+                    stderr_widget.load_text(f"Could not fetch stderr logs: {e}")
             except Exception as e:
                 self.query_one("#job-metadata", Static).update(
                     f"Error loading job: {e}"
@@ -135,9 +166,19 @@ class JobDetailScreen(Screen):
         """
         self.job_data = job
 
-        # Show/hide retry buttons based on job status
+        # Show/hide buttons based on job status
         can_retry = job.status.value in ["failed", "cancelled", "completed"]
+        can_cancel = job.status.value in ["pending", "running"]
+        
+        # Update footer bindings dynamically
+        self._update_bindings(can_cancel, can_retry)
+        
         try:
+            # Hide/show cancel button
+            cancel_button = self.query_one("#cancel-button", Button)
+            cancel_button.display = can_cancel
+            
+            # Hide/show retry buttons
             retry_inplace = self.query_one("#retry-inplace-button", Button)
             retry_then = self.query_one("#retry-then-button", Button)
             retry_now = self.query_one("#retry-now-button", Button)
@@ -234,6 +275,32 @@ class JobDetailScreen(Screen):
 
         self.query_one("#job-config", Static).update(config)
 
+    def _update_bindings(self, can_cancel: bool, can_retry: bool):
+        """
+        Update footer bindings based on job status.
+
+        Args:
+            can_cancel: Whether cancel action is available
+            can_retry: Whether retry action is available
+        """
+        # Start with base bindings
+        new_bindings = [
+            ("escape", "pop_screen", "Back"),
+            ("l", "view_logs", "Logs"),
+        ]
+        
+        # Add conditional bindings
+        if can_cancel:
+            new_bindings.append(self._cancel_binding)
+        if can_retry:
+            new_bindings.append(self._retry_binding)
+        
+        # Always add quit at the end
+        new_bindings.append(("q", "quit", "Quit"))
+        
+        # Update the bindings
+        self.BINDINGS = new_bindings
+
     def action_view_logs(self):
         """
         View full job logs (limited to prevent UI freeze).
@@ -244,15 +311,19 @@ class JobDetailScreen(Screen):
             try:
                 # Fetch logs with a reasonable limit to prevent UI freeze
                 MAX_LINES = 5000
-                logs = self.app.client.get_job_logs(
+                
+                # Fetch stdout logs
+                stdout_logs = self.app.client.get_job_logs(
                     self.job_id, lines=MAX_LINES, stderr=False
                 )
+                
+                # Fetch stderr logs
                 stderr_logs = self.app.client.get_job_logs(
                     self.job_id, lines=MAX_LINES, stderr=True
                 )
 
                 # Process logs to handle escape sequences
-                stdout = logs if logs else "No stdout logs"
+                stdout = stdout_logs if stdout_logs else "No stdout logs"
                 stderr = stderr_logs if stderr_logs else "No stderr logs"
 
                 # Apply escape sequence processing
@@ -263,26 +334,30 @@ class JobDetailScreen(Screen):
                 stdout_lines = len(stdout.split('\n')) if stdout != "No stdout logs" else 0
                 stderr_lines = len(stderr.split('\n')) if stderr != "No stderr logs" else 0
 
-                # Clear and update the TextArea widget
-                log_widget = self.query_one("#logs-preview", TextArea)
+                # Update the STDOUT TextArea widget
+                stdout_widget = self.query_one("#stdout-preview", TextArea)
+                stdout_widget.load_text(stdout)
 
-                # Show line limit hint only if we hit the limit
-                stdout_header = "=== STDOUT ==="
+                # Update the STDERR TextArea widget
+                stderr_widget = self.query_one("#stderr-preview", TextArea)
+                stderr_widget.load_text(stderr)
+
+                # Update headers with line limit info
+                stdout_header = "Full STDOUT"
                 if stdout_lines >= MAX_LINES:
-                    stdout_header = f"=== STDOUT (showing last {MAX_LINES} lines) ==="
+                    stdout_header = f"Full STDOUT (showing last {MAX_LINES} lines)"
+                self.query_one("#stdout-header", Static).update(stdout_header)
 
-                stderr_header = "\n=== STDERR ==="
+                stderr_header = "Full STDERR"
                 if stderr_lines >= MAX_LINES:
-                    stderr_header = f"\n=== STDERR (showing last {MAX_LINES} lines) ==="
-
-                # Combine all logs into a single text
-                full_logs = f"{stdout_header}\n{stdout}{stderr_header}\n{stderr}"
-                log_widget.load_text(full_logs)
-
-                self.query_one("#logs-header", Static).update("Full Logs")
+                    stderr_header = f"Full STDERR (showing last {MAX_LINES} lines)"
+                self.query_one("#stderr-header", Static).update(stderr_header)
+                
             except Exception as e:
-                log_widget = self.query_one("#logs-preview", TextArea)
-                log_widget.load_text(f"Error fetching logs: {e}")
+                stdout_widget = self.query_one("#stdout-preview", TextArea)
+                stdout_widget.load_text(f"Error fetching stdout logs: {e}")
+                stderr_widget = self.query_one("#stderr-preview", TextArea)
+                stderr_widget.load_text(f"Error fetching stderr logs: {e}")
 
     def action_cancel_job(self):
         """
@@ -305,6 +380,14 @@ class JobDetailScreen(Screen):
             self.app.notify(
                 "Job cannot be cancelled (not pending or running)", severity="warning"
             )
+
+    def action_pop_screen(self):
+        """
+        Go back to previous screen.
+
+        Bound to 'escape' key.
+        """
+        self.app.pop_screen()
 
     def action_show_retry_menu(self):
         """
@@ -404,7 +487,7 @@ class JobDetailScreen(Screen):
         elif event.button.id == "cancel-button":
             self.action_cancel_job()
         elif event.button.id == "back-button":
-            self.app.pop_screen()
+            self.action_pop_screen()
         elif event.button.id == "retry-inplace-button":
             self.action_retry_inplace()
         elif event.button.id == "retry-then-button":
