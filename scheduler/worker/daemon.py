@@ -248,41 +248,12 @@ class WorkerDaemon:
                         with self.active_jobs_lock:
                             self.active_jobs.pop(job_id, None)
 
-                    # Execute all jobs from poll response (deduplication check inside _execute_job)
-                    for job in jobs:
-                        self._execute_job(job)
-                else:
-                    # Empty poll response means no jobs assigned to this node
-                    # Terminate and clean up all active jobs
-                    with self.active_jobs_lock:
-                        if self.active_jobs:
-                            logger.info(f"No jobs in poll response, terminating and clearing {len(self.active_jobs)} job(s)")
-                            jobs_to_terminate = list(self.active_jobs.items())
-                    
-                    # Terminate jobs outside the lock
-                    for job_id, job_info in jobs_to_terminate:
-                        if job_info:
-                            pid = job_info['pid']
-                            job = job_info['job']
-                            
-                            # Terminate the process
-                            try:
-                                logger.info(f"Terminating job {job_id} (PID {pid}) - not in poll response")
-                                self.job_executor.terminate_job(pid)
-                            except Exception as e:
-                                logger.warning(f"Failed to terminate job {job_id} (PID {pid}): {e}")
-                            
-                            # Clean up job resources
-                            try:
-                                self.job_executor.cleanup_job(job)
-                            except Exception as e:
-                                logger.warning(f"Failed to cleanup job {job_id}: {e}")
-                    
-                    # Clear active_jobs
-                    with self.active_jobs_lock:
-                        self.active_jobs.clear()
+                # Execute all jobs from poll response (deduplication check inside _execute_job)
+                for job in jobs:
+                    self._execute_job(job)
 
-                    # No job available, sleep briefly
+                # If poll response is empty, sleep briefly
+                if not jobs:
                     time.sleep(5)
         except KeyboardInterrupt:
             logger.info("Received keyboard interrupt")
