@@ -1044,3 +1044,35 @@ class SchedulerClient:
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to unfreeze all GPUs: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")
+
+    def get_head_logs(self, level: Optional[str] = None, limit: Optional[int] = None) -> dict:
+        """
+        Get head node logs (warnings and errors).
+
+        Args:
+            level: Filter by log level (WARNING or ERROR), None for all
+            limit: Maximum number of entries to return, None for all
+
+        Returns:
+            Dictionary with log entries and statistics
+
+        Raises:
+            ConnectionException: If cannot connect
+        """
+        try:
+            params = {}
+            if level:
+                params["level"] = level
+            if limit:
+                params["limit"] = limit
+
+            response = self.session.get(
+                f"{self.base_url}/logs/head",
+                params=params,
+                timeout=30
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to get head logs: {e}")
+            raise ConnectionException(f"Failed to connect to head node: {e}")

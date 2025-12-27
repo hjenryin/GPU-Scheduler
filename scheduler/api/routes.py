@@ -132,6 +132,11 @@ def create_app(
     async def shutdown_cluster(background_tasks: BackgroundTasks):
         return await shutdown_cluster_route(background_tasks)
 
+    # Log routes
+    @app.get(f"{constants.API_BASE_PATH}/logs/head")
+    async def get_head_logs(level: Optional[str] = None, limit: Optional[int] = None):
+        return await get_head_logs_route(level, limit)
+
     return app
 
 
@@ -731,4 +736,60 @@ async def unfreeze_all_gpus_route() -> dict:
         }
     except Exception as e:
         logger.error(f"Error unfreezing all GPUs: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+async def get_head_logs_route(level: Optional[str] = None, limit: Optional[int] = None) -> dict:
+    """
+    GET /api/v1/logs/head - Get head node logs (warnings and errors)
+
+    Args:
+        level: Filter by log level (WARNING or ERROR), None for all
+        limit: Maximum number of entries to return, None for all
+
+    Returns:
+        Dictionary with log entries and statistics
+    """
+    from scheduler.core import parse_log_file, get_head_log_path, load_config
+    
+    try:
+        # Get head log path
+        config = load_config()
+        head_log_path = get_head_log_path(config)
+        
+        if not head_log_path:
+            return {
+                "logs": [],
+                "stats": {"WARNING": 0, "ERROR": 0},
+                "message": "Head log file not found"
+            }
+
+        # Validate level parameter
+        if level and level not in ["WARNING", "ERROR"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid level value: {level}. Valid values are: WARNING, ERROR"
+            )
+
+        # Parse the log file
+        all_logs, stats = parse_log_file(head_log_path, limit=None)
+        
+        # Filter by level if specified
+        if level:
+            filtered_logs = [log for log in all_logs if log.get('level') == level]
+        else:
+            filtered_logs = all_logs
+        
+        # Apply limit
+        if limit:
+            filtered_logs = filtered_logs[:limit]
+
+        return {
+            "logs": filtered_logs,
+            "stats": stats
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting head logs: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

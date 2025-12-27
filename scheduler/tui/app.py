@@ -6,7 +6,7 @@ from typing import Optional
 
 from scheduler.api import SchedulerClient
 from scheduler.core import Config
-from scheduler.tui.screens import ClusterScreen, NodesScreen, JobsScreen, GPUsScreen
+from scheduler.tui.screens import ClusterScreen, NodesScreen, JobsScreen, GPUsScreen, StatusScreen
 
 logger = logging.getLogger(__name__)
 
@@ -39,12 +39,20 @@ class SchedulerTUI(App):
 
     #node-header, #gpu-header, #job-header, #nodes-list-header, #gpu-detail-header,
     #jobs-detail-header, #jobs-header, #gpu-overview-header, #all-gpus-header,
-    #job-detail-title, #job-config-header, #logs-header {
+    #job-detail-title, #job-config-header, #logs-header, #status-summary-header,
+    #head-logs-header, #worker-logs-header {
         text-style: bold;
         background: $primary;
         color: $text;
         padding: 1;
         margin-bottom: 1;
+    }
+
+    #status-summary {
+        margin: 1;
+        padding: 1;
+        background: $panel;
+        border: solid $primary;
     }
 
     #filter-bar {
@@ -84,6 +92,7 @@ class SchedulerTUI(App):
         Binding("n", "switch_to_nodes", "Nodes"),
         Binding("j", "switch_to_jobs", "Jobs"),
         Binding("g", "switch_to_gpus", "GPUs"),
+        Binding("s", "switch_to_status", "Status"),
     ]
 
     SCREENS = {
@@ -91,6 +100,7 @@ class SchedulerTUI(App):
         "nodes": NodesScreen,
         "jobs": JobsScreen,
         "gpus": GPUsScreen,
+        "status": StatusScreen,
     }
 
     def __init__(self, client: SchedulerClient):
@@ -174,6 +184,9 @@ class SchedulerTUI(App):
                     logger.info("Updating GPUsScreen data")
                     current_screen.update_data(self.nodes_data,
                                               self.util_threshold, self.mem_threshold, self.stable_time)
+                elif isinstance(current_screen, StatusScreen):
+                    logger.info("Updating StatusScreen data")
+                    current_screen.update_data(self.client)
             except Exception as screen_error:
                 # Screen not available (e.g., during testing or before app is mounted)
                 logger.debug(f"Could not update screen: {screen_error}", exc_info=True)
@@ -216,6 +229,13 @@ class SchedulerTUI(App):
         self.switch_screen("gpus")
         self.refresh_data()
 
+    def action_switch_to_status(self):
+        """
+        Switch to Status view (bound to 's').
+        """
+        self.switch_screen("status")
+        self.refresh_data()
+
     def action_refresh(self):
         """
         Manually refresh data (bound to 'r').
@@ -234,9 +254,11 @@ class SchedulerTUI(App):
 - **q**: Quit application
 - **h**: Show this help
 - **r**: Manually refresh data
+- **c**: Switch to Cluster view
 - **n**: Switch to Nodes view
 - **j**: Switch to Jobs view
 - **g**: Switch to GPUs view
+- **s**: Switch to Status view
 - **Esc**: Go back to cluster overview
 
 ## Cluster Overview:
@@ -264,6 +286,12 @@ class SchedulerTUI(App):
 - View all GPUs across all nodes
 - See utilization, memory, temperature, power
 - Identify which job is using each GPU
+
+## Status View:
+- View warnings and errors from head node
+- View warnings and errors from local worker (if running)
+- Collapsed duplicate messages with counts
+- Most recent logs first
 
 Data auto-refreshes every 2 seconds.
         """

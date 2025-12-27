@@ -5,6 +5,7 @@ from scheduler.tui.screens.nodes import NodesScreen
 from scheduler.tui.screens.jobs import JobsScreen
 from scheduler.tui.screens.gpus import GPUsScreen
 from scheduler.tui.screens.job_detail import JobDetailScreen
+from scheduler.tui.screens.status import StatusScreen
 
 __all__ = [
     "ClusterScreen",
@@ -12,4 +13,5 @@ __all__ = [
     "JobsScreen",
     "GPUsScreen",
     "JobDetailScreen",
+    "StatusScreen",
 ]
