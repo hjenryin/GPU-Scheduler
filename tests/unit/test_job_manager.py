@@ -230,7 +230,7 @@ class TestJobManager:
         job_manager.cancel_job(job.job_id)
 
         updated = job_manager.get_job(job.job_id)
-        assert updated.status == JobStatus.CANCELLED
+        assert updated.status == JobStatus.INTERRUPTED
 
     def test_list_jobs_by_status(self, job_manager):
         """Test filtering jobs by status using list_jobs"""
@@ -378,6 +378,18 @@ class TestJobManager:
         job2 = job_manager.submit_job(["/script2.py"], "1")
 
         # ^ should resolve to job2, not job1 (which is CANCELLED)
+        resolved = job_manager.resolve_dependency_shorthand("^")
+        assert resolved == job2.job_id
+
+    def test_resolve_dependency_shorthand_excludes_interrupted(self, job_manager):
+        """Test that INTERRUPTED jobs are excluded from ^ resolution"""
+        job1 = job_manager.submit_job(["/script1.py"], "1")
+        job_manager.start_job(job1.job_id, "node1", [0])
+        job_manager.cancel_job(job1.job_id)  # Will be INTERRUPTED since it's started
+
+        job2 = job_manager.submit_job(["/script2.py"], "1")
+
+        # ^ should resolve to job2, not job1 (which is INTERRUPTED)
         resolved = job_manager.resolve_dependency_shorthand("^")
         assert resolved == job2.job_id
 
@@ -569,3 +581,77 @@ class TestJobManager:
         assert retried_job.assigned_node is None
         assert retried_job.assigned_gpus == []
         assert retried_job.after_commit_ref is None
+
+    def test_complete_job_preserves_interrupted_status(self, job_manager):
+        """Test that complete_job() doesn't overwrite INTERRUPTED status"""
+        # Submit and start a job
+        job = job_manager.submit_job(["/script.py"], "2")
+        job_manager.start_job(job.job_id, "node1", [0, 1])
+
+        # Cancel the job (becomes INTERRUPTED since it was started)
+        job_manager.cancel_job(job.job_id)
+        assert job_manager.get_job(job.job_id).status == JobStatus.INTERRUPTED
+
+        # Worker reports job completion (race condition scenario)
+        job_manager.complete_job(job.job_id, exit_code=0)
+
+        # Status should still be INTERRUPTED
+        updated = job_manager.get_job(job.job_id)
+        assert updated.status == JobStatus.INTERRUPTED
+        assert updated.exit_code == 0  # Exit code should be recorded
+        assert updated.completed_at is not None  # Timestamp should be recorded
+
+    def test_fail_job_preserves_interrupted_status(self, job_manager):
+        """Test that fail_job() doesn't overwrite INTERRUPTED status"""
+        # Submit and start a job
+        job = job_manager.submit_job(["/script.py"], "2")
+        job_manager.start_job(job.job_id, "node1", [0, 1])
+
+        # Cancel the job (becomes INTERRUPTED since it was started)
+        job_manager.cancel_job(job.job_id)
+        assert job_manager.get_job(job.job_id).status == JobStatus.INTERRUPTED
+
+        # Worker reports job failure (race condition scenario)
+        job_manager.fail_job(job.job_id, error_message="Process terminated", exit_code=143)
+
+        # Status should still be INTERRUPTED
+        updated = job_manager.get_job(job.job_id)
+        assert updated.status == JobStatus.INTERRUPTED
+        assert updated.exit_code == 143  # Exit code should be recorded
+        assert updated.error_message == "Process terminated"  # Error message should be recorded
+        assert updated.completed_at is not None  # Timestamp should be recorded
+
+    def test_complete_job_preserves_cancelled_status(self, job_manager):
+        """Test that complete_job() doesn't overwrite CANCELLED status"""
+        # Submit a job (don't start it)
+        job = job_manager.submit_job(["/script.py"], "2")
+
+        # Cancel the job (becomes CANCELLED since it wasn't started)
+        job_manager.cancel_job(job.job_id)
+        assert job_manager.get_job(job.job_id).status == JobStatus.CANCELLED
+
+        # Worker reports job completion (unlikely but possible race condition)
+        job_manager.complete_job(job.job_id, exit_code=0)
+
+        # Status should still be CANCELLED
+        updated = job_manager.get_job(job.job_id)
+        assert updated.status == JobStatus.CANCELLED
+        assert updated.exit_code == 0  # Exit code should be recorded
+
+    def test_fail_job_preserves_cancelled_status(self, job_manager):
+        """Test that fail_job() doesn't overwrite CANCELLED status"""
+        # Submit a job (don't start it)
+        job = job_manager.submit_job(["/script.py"], "2")
+
+        # Cancel the job (becomes CANCELLED since it wasn't started)
+        job_manager.cancel_job(job.job_id)
+        assert job_manager.get_job(job.job_id).status == JobStatus.CANCELLED
+
+        # Worker reports job failure (unlikely but possible race condition)
+        job_manager.fail_job(job.job_id, error_message="Error", exit_code=1)
+
+        # Status should still be CANCELLED
+        updated = job_manager.get_job(job.job_id)
+        assert updated.status == JobStatus.CANCELLED
+        assert updated.exit_code == 1  # Exit code should be recorded
+        assert updated.error_message == "Error"  # Error message should be recorded

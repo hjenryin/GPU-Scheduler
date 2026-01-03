@@ -819,7 +819,8 @@ Jobs in the scheduler progress through several states during their lifecycle:
 | `RUNNING` | Job is currently executing on a worker node | From `PENDING` when resources are allocated |
 | `COMPLETED` | Job finished successfully (exit code 0) | From `RUNNING` when job completes successfully |
 | `FAILED` | Job finished with an error (non-zero exit code) | From `RUNNING` when job exits with error |
-| `CANCELLED` | Job was cancelled by user or system | From `PENDING` or `RUNNING` when cancelled |
+| `CANCELLED` | Job was cancelled before being dispatched to a worker | From `PENDING` when cancelled |
+| `INTERRUPTED` | Job was cancelled after being dispatched to a worker | From `RUNNING` when cancelled |
 | `UNTRACKED` | Job was running when scheduler stopped; continues running but is no longer tracked | From `RUNNING` during scheduler shutdown |
 
 **Key Points:**
@@ -827,7 +828,8 @@ Jobs in the scheduler progress through several states during their lifecycle:
 - **PENDING**: Jobs wait in queue until a node with sufficient resources becomes available
 - **RUNNING**: Jobs execute with `CUDA_VISIBLE_DEVICES` set to assigned GPUs
 - **COMPLETED/FAILED**: Terminal states - jobs remain in history for review
-- **CANCELLED**: Can be triggered manually via `scheduler cancel` or automatically (e.g., pending jobs during shutdown)
+- **CANCELLED**: Job was cancelled before being dispatched to a worker node - can be triggered manually via `scheduler cancel` or automatically (e.g., pending jobs during shutdown)
+- **INTERRUPTED**: Job was cancelled after being dispatched to a worker node - triggered when a running job is cancelled via `scheduler cancel`
 - **UNTRACKED**: Special state for jobs that continue running after scheduler stops - the job process is not terminated, but the scheduler no longer monitors it
 
 **Scheduler Shutdown Behavior:**

@@ -295,7 +295,7 @@ class TestRealProcesses:
         max_wait = 60  # Increased timeout for real hardware execution
         for i in range(max_wait):
             job = client.get_job(job.job_id)
-            if job.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
+            if job.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.INTERRUPTED]:
                 break
             time.sleep(1)
 
@@ -428,15 +428,15 @@ class TestRealProcesses:
 
         assert job.status == JobStatus.RUNNING, "Job should be running"
 
-        # Cancel the job
+        # Cancel the job (should be marked as INTERRUPTED since it's running)
         client.cancel_job(job.job_id)
 
         # Wait for cancellation to take effect
         time.sleep(2)  # Reduced from 3 for faster e2e tests
 
-        # Check that job was cancelled
+        # Check that job was interrupted (not cancelled, since it was running)
         job = client.get_job(job.job_id)
-        assert job.status == JobStatus.CANCELLED, f"Job should be cancelled, got {job.status}"
+        assert job.status == JobStatus.INTERRUPTED, f"Job should be interrupted, got {job.status}"
 
     def test_job_with_dependencies(self, running_cluster, temp_cluster_dir):
         """Test job dependencies"""
