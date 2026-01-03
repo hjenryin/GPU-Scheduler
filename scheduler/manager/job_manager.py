@@ -466,6 +466,18 @@ class JobManager:
         if not job:
             raise JobNotFoundException(f"Job {job_id} not found")
 
+        # Don't overwrite CANCELLED or INTERRUPTED status
+        # (job was cancelled while worker was processing it)
+        if job.status in [JobStatus.CANCELLED, JobStatus.INTERRUPTED]:
+            logger.info(f"Job {job_id} already {job.status.value}, skipping completion update")
+            # Still update completed_at and exit_code for record keeping
+            job.completed_at = datetime.now()
+            job.exit_code = exit_code
+            if after_commit_ref:
+                job.after_commit_ref = after_commit_ref
+            self.persistence.save_job(job)
+            return
+
         job.status = JobStatus.COMPLETED
         job.completed_at = datetime.now()
         job.exit_code = exit_code
@@ -491,6 +503,20 @@ class JobManager:
         job = self.jobs.get(job_id)
         if not job:
             raise JobNotFoundException(f"Job {job_id} not found")
+
+        # Don't overwrite CANCELLED or INTERRUPTED status
+        # (job was cancelled while worker was processing it)
+        if job.status in [JobStatus.CANCELLED, JobStatus.INTERRUPTED]:
+            logger.info(f"Job {job_id} already {job.status.value}, skipping failure update")
+            # Still update completed_at, error_message, and exit_code for record keeping
+            job.completed_at = datetime.now()
+            job.error_message = error_message
+            if exit_code is not None:
+                job.exit_code = exit_code
+            if after_commit_ref:
+                job.after_commit_ref = after_commit_ref
+            self.persistence.save_job(job)
+            return
 
         job.status = JobStatus.FAILED
         job.completed_at = datetime.now()
