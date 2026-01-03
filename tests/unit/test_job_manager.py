@@ -230,7 +230,7 @@ class TestJobManager:
         job_manager.cancel_job(job.job_id)
 
         updated = job_manager.get_job(job.job_id)
-        assert updated.status == JobStatus.CANCELLED
+        assert updated.status == JobStatus.INTERRUPTED
 
     def test_list_jobs_by_status(self, job_manager):
         """Test filtering jobs by status using list_jobs"""
@@ -378,6 +378,18 @@ class TestJobManager:
         job2 = job_manager.submit_job(["/script2.py"], "1")
 
         # ^ should resolve to job2, not job1 (which is CANCELLED)
+        resolved = job_manager.resolve_dependency_shorthand("^")
+        assert resolved == job2.job_id
+
+    def test_resolve_dependency_shorthand_excludes_interrupted(self, job_manager):
+        """Test that INTERRUPTED jobs are excluded from ^ resolution"""
+        job1 = job_manager.submit_job(["/script1.py"], "1")
+        job_manager.start_job(job1.job_id, "node1", [0])
+        job_manager.cancel_job(job1.job_id)  # Will be INTERRUPTED since it's started
+
+        job2 = job_manager.submit_job(["/script2.py"], "1")
+
+        # ^ should resolve to job2, not job1 (which is INTERRUPTED)
         resolved = job_manager.resolve_dependency_shorthand("^")
         assert resolved == job2.job_id
 

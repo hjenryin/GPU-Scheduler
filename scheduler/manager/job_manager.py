@@ -189,8 +189,8 @@ class JobManager:
             # Invalid syntax like "^a" or "a^"
             raise ValueError(f"Invalid dependency syntax: '{dependency}'. Use only ^ characters (e.g., ^, ^^, ^^^)")
 
-        # Get recent jobs, excluding FAILED and CANCELLED
-        exclude_states = {JobStatus.FAILED, JobStatus.CANCELLED}
+        # Get recent jobs, excluding FAILED, CANCELLED, and INTERRUPTED
+        exclude_states = {JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.INTERRUPTED}
         recent_jobs = [
             job for job in self.jobs.values()
             if job.status not in exclude_states
@@ -517,11 +517,18 @@ class JobManager:
         if not job:
             raise JobNotFoundException(f"Job {job_id} not found")
 
-        job.status = JobStatus.CANCELLED
+        # If job has been dispatched to a worker, mark as INTERRUPTED
+        # Otherwise, mark as CANCELLED
+        if job.assigned_node:
+            job.status = JobStatus.INTERRUPTED
+            logger.info(f"Job {job_id} interrupted")
+        else:
+            job.status = JobStatus.CANCELLED
+            logger.info(f"Job {job_id} cancelled")
+
         job.completed_at = datetime.now()
 
         self.persistence.save_job(job)
-        logger.info(f"Job {job_id} cancelled")
 
         # Trigger job assignment event for the node so it immediately discovers the cancellation
         if job.assigned_node:
@@ -564,16 +571,16 @@ class JobManager:
 
         Raises:
             JobNotFoundException: If job not found
-            ValueError: If job is not in a terminal state (FAILED, CANCELLED, COMPLETED)
+            ValueError: If job is not in a terminal state (FAILED, CANCELLED, INTERRUPTED, COMPLETED)
         """
         job = self.jobs.get(job_id)
         if not job:
             raise JobNotFoundException(f"Job {job_id} not found")
 
         # Validate job is in terminal state
-        if job.status not in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.COMPLETED]:
+        if job.status not in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.INTERRUPTED, JobStatus.COMPLETED]:
             raise ValueError(f"Job {job_id} is in {job.status.value} state. "
-                           f"Can only retry FAILED, CANCELLED, or COMPLETED jobs.")
+                           f"Can only retry FAILED, CANCELLED, INTERRUPTED, or COMPLETED jobs.")
 
         # Reset to PENDING state
         job.status = JobStatus.PENDING
@@ -630,14 +637,14 @@ class JobManager:
         local files on their next heartbeat based on the active jobs list.
 
         Args:
-            before_time: Purge jobs completed/failed/cancelled before this time
-            status_filter: List of status values to purge (e.g., ['failed', 'completed', 'cancelled'])
+            before_time: Purge jobs completed/failed/cancelled/interrupted before this time
+            status_filter: List of status values to purge (e.g., ['failed', 'completed', 'cancelled', 'interrupted'])
 
         Returns:
             Number of jobs purged
         """
         if not status_filter:
-            status_filter = ['failed', 'completed', 'cancelled']
+            status_filter = ['failed', 'completed', 'cancelled', 'interrupted']
 
         # Convert string status to JobStatus
         status_enums = []

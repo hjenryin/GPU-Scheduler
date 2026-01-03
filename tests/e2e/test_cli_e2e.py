@@ -589,13 +589,13 @@ class TestCLICancel:
         # Wait a moment
         time.sleep(2)
         
-        # Verify job is cancelled
+        # Verify job is cancelled or interrupted
         result = run_scheduler_cmd(
             ['jobs', job_id],
             env_override={'SCHEDULER_ADDRESS': running_cluster['head_address']}
         )
         assert result.returncode == 0
-        assert 'cancel' in result.stdout.lower() or 'CANCELLED' in result.stdout
+        assert 'cancel' in result.stdout.lower() or 'interrupt' in result.stdout.lower() or 'CANCELLED' in result.stdout or 'INTERRUPTED' in result.stdout
 
 
 class TestCLIConfig:
@@ -782,14 +782,14 @@ class TestCLIIntegration:
         )
         assert result.returncode == 0
         
-        # 6. Verify cancellation
+        # 6. Verify cancellation or interruption
         time.sleep(2)
         result = run_scheduler_cmd(
             ['jobs', job_id],
             env_override={'SCHEDULER_ADDRESS': running_cluster['head_address']}
         )
         assert result.returncode == 0
-        assert 'cancel' in result.stdout.lower() or 'CANCELLED' in result.stdout
+        assert 'cancel' in result.stdout.lower() or 'interrupt' in result.stdout.lower() or 'CANCELLED' in result.stdout or 'INTERRUPTED' in result.stdout
     
     def test_job_dependencies(self, running_cluster, temp_test_dir):
         """Test submitting jobs with dependencies"""

@@ -385,7 +385,7 @@ core/
     - `Node`: name, address, gpus, status, etc.
     - `GPU`: id, utilization, memory, temperature, etc.
     - `JobRequirement`: parsed from --req string
-    - `JobStatus`: enum (pending, running, completed, failed, cancelled)
+    - `JobStatus`: enum (pending, running, completed, failed, cancelled, interrupted, untracked)
 
 - **`config.py`**:
   - Loads configuration from YAML file

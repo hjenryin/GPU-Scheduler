@@ -177,11 +177,11 @@ class TestFullWorkflow:
 
         assert job_manager.get_job(job.job_id).status == JobStatus.RUNNING
 
-        # Cancel the job
+        # Cancel the job (should be INTERRUPTED since it's already running/dispatched)
         job_manager.cancel_job(job.job_id)
 
         job = job_manager.get_job(job.job_id)
-        assert job.status == JobStatus.CANCELLED
+        assert job.status == JobStatus.INTERRUPTED
 
         # Simulate GPU usage dropping after job is cancelled (detected by monitoring)
         from scheduler.core.models import GPUStats
