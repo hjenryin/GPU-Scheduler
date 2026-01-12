@@ -3,6 +3,7 @@ from scheduler.api import SchedulerClient
 from scheduler.tui import run_tui
 import logging
 import click
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,11 @@ def status_command() -> int:
     Raises:
         ConnectionException: If cannot connect to head node
     """
+    if not sys.stdout.isatty():
+        # Print warning to stderr
+        print("Error: This program requires an interactive terminal.", file=sys.stderr)
+        sys.exit(1)
+
     try:
         # Load configuration
         config = load_config()

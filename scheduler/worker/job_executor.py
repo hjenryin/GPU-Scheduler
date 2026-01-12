@@ -2,6 +2,7 @@ import os
 import signal
 import subprocess
 import logging
+import shlex
 from typing import List, Optional, Tuple, Dict
 
 from scheduler.core import Config
@@ -121,7 +122,7 @@ class JobExecutor:
 
             # Build the complete command string with output redirection
             # This ensures output is written immediately without buffering issues
-            cmd_str = ' '.join(cmd_parts)
+            cmd_str = shlex.join(cmd_parts)
             bash_cmd = f"{cmd_str} > {stdout_log} 2> {stderr_log}"
 
             # Wrap with conda run if conda environment is specified

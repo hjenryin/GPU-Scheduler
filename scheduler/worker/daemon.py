@@ -446,10 +446,10 @@ class WorkerDaemon:
                             '-avz',                      # Archive, verbose, compress
                             '--append',                  # Append to growing files (perfect for logs)
                             '--timeout=30',              # Network timeout
-                            '--include=*.log',           # Include .log files
                             '--exclude=worker*.log',     # Exclude worker system logs (worker.log, worker-*-stdout.log, etc.)
                             '--exclude=head*.log',       # Exclude head system logs (head-stdout.log, head-stderr.log)
                             '--exclude=*.offset',        # Exclude pygtail offset files (if any)
+                            '--include=*.log',           # Include .log files
                             '--exclude=*',               # Exclude everything else
                             f'{self.log_dir}/',          # Source (trailing slash = contents)
                             f'rsync://{head_host}:{port}/scheduler-logs/'  # Destination

@@ -130,7 +130,8 @@ def start_command(
     # Setup logging
     logging.basicConfig(
         level=getattr(logging, log_level.upper()),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format='[%(asctime)s] %(name)s.%(funcName)s:%(lineno)d: %(levelname)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
     )
 
     # Validate arguments

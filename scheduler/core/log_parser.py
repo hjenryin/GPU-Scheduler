@@ -32,8 +32,7 @@ def parse_log_file(log_path: str, limit: int = 100) -> tuple[List[Dict], Dict[st
     # Format: [2025-12-26 12:34:56] module.function:123: WARNING: message
     log_pattern = re.compile(
         r'^\[(?P<timestamp>[^\]]+)\]\s+'
-        r'(?P<logger_name>\S+):'
-        r'(?P<line>\d+):\s+'
+        r'(?P<logger_name>\S+):(?P<line>\d+):\s+'
         r'(?P<level>\w+):\s+'
         r'(?P<message>.+)$'
     )
