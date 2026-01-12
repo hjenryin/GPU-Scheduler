@@ -123,49 +123,57 @@ def parse_log_file(log_path: str, limit: int = 100) -> tuple[List[Dict], Dict[st
         return [], {}
 
 
-def get_worker_log_path(config) -> Optional[str]:
+def get_head_log_paths(config) -> List[str]:
     """
-    Get the path to the worker log file.
+    Get paths to both head log files (stdout and stderr).
     
     Args:
         config: Config instance
     
     Returns:
-        Path to worker-{hostname}-stdout.log or None if not accessible
+        List of paths to head log files that exist
+    """
+    try:
+        log_dir = os.path.expanduser(config.worker.log_dir)
+        head_stdout_path = os.path.join(log_dir, "head-stdout.log")
+        head_stderr_path = os.path.join(log_dir, "head-stderr.log")
+        
+        existing_paths = []
+        if os.path.exists(head_stdout_path):
+            existing_paths.append(head_stdout_path)
+        if os.path.exists(head_stderr_path):
+            existing_paths.append(head_stderr_path)
+        
+        return existing_paths
+    except Exception as e:
+        logger.debug(f"Error getting head log paths: {e}")
+        return []
+
+
+def get_worker_log_paths(config) -> List[str]:
+    """
+    Get paths to both worker log files (stdout and stderr).
+    
+    Args:
+        config: Config instance
+    
+    Returns:
+        List of paths to worker log files that exist
     """
     try:
         import socket
         log_dir = os.path.expanduser(config.worker.log_dir)
         node_name = socket.gethostname()
-        worker_log = os.path.join(log_dir, f"worker-{node_name}-stdout.log")
+        worker_stdout_path = os.path.join(log_dir, f"worker-{node_name}-stdout.log")
+        worker_stderr_path = os.path.join(log_dir, f"worker-{node_name}-stderr.log")
         
-        if os.path.exists(worker_log):
-            return worker_log
+        existing_paths = []
+        if os.path.exists(worker_stdout_path):
+            existing_paths.append(worker_stdout_path)
+        if os.path.exists(worker_stderr_path):
+            existing_paths.append(worker_stderr_path)
         
-        return None
+        return existing_paths
     except Exception as e:
-        logger.debug(f"Error getting worker log path: {e}")
-        return None
-
-
-def get_head_log_path(config) -> Optional[str]:
-    """
-    Get the path to the head log file.
-    
-    Args:
-        config: Config instance
-    
-    Returns:
-        Path to head-stdout.log or None if not accessible
-    """
-    try:
-        log_dir = os.path.expanduser(config.worker.log_dir)
-        head_log = os.path.join(log_dir, "head-stdout.log")
-        
-        if os.path.exists(head_log):
-            return head_log
-        
-        return None
-    except Exception as e:
-        logger.debug(f"Error getting head log path: {e}")
-        return None
+        logger.debug(f"Error getting worker log paths: {e}")
+        return []

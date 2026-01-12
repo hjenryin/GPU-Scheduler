@@ -72,8 +72,8 @@ from scheduler.core.singleton import SingletonDaemon, is_daemon_running
 
 from scheduler.core.log_parser import (
     parse_log_file,
-    get_worker_log_path,
-    get_head_log_path,
+    get_head_log_paths,
+    get_worker_log_paths,
 )
 
 __all__ = [
@@ -149,6 +149,6 @@ __all__ = [
     "is_daemon_running",
     # Log Parser
     "parse_log_file",
-    "get_worker_log_path",
-    "get_head_log_path",
+    "get_head_log_paths",
+    "get_worker_log_paths",
 ]

@@ -444,7 +444,7 @@ async def poll_job_route(node_name: str, timeout: int = 30) -> List[JobResponse]
         if node_jobs:
             logger.info(f"Returning {len(node_jobs)} job(s) to node {node_name}: {[j.job_id for j in node_jobs]}")
         else:
-            # Event was set but no job found (race condition: job completed quickly)
+            # Event was triggered but no job found (race condition: job completed quickly)
             logger.debug(f"Event triggered but no job found for node {node_name}")
 
         return node_jobs
@@ -750,36 +750,45 @@ async def get_head_logs_route(level: Optional[str] = None, limit: Optional[int] 
     Returns:
         Dictionary with log entries and statistics
     """
-    from scheduler.core import parse_log_file, get_head_log_path, load_config
+    from scheduler.core import parse_log_file, get_head_log_paths, load_config
     
     try:
-        # Get head log path
+        # Get head log paths
         config = load_config()
-        head_log_path = get_head_log_path(config)
+        head_log_paths = get_head_log_paths(config)
         
-        if not head_log_path:
-            return {
-                "logs": [],
-                "stats": {"WARNING": 0, "ERROR": 0},
-                "message": "Head log file not found"
-            }
+        all_logs = []
+        stats = {"WARNING": 0, "ERROR": 0}
 
-        # Validate level parameter
-        if level and level not in ["WARNING", "ERROR"]:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid level value: {level}. Valid values are: WARNING, ERROR"
-            )
+        # Process all available log files
+        for log_path in head_log_paths:
+            if os.path.exists(log_path):
+                log_entries, log_stats = parse_log_file(log_path, limit=None)
+                all_logs.extend(log_entries)
+                
+                # Update stats with log stats
+                for level_key, count in log_stats.items():
+                    if level_key in stats:
+                        stats[level_key] += count
 
-        # Parse the log file
-        all_logs, stats = parse_log_file(head_log_path, limit=None)
+        # Sort all logs by timestamp (most recent first)
+        all_logs = sorted(
+            all_logs,
+            key=lambda x: x['timestamp'],
+            reverse=True
+        )
         
         # Filter by level if specified
         if level:
+            if level not in ["WARNING", "ERROR"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid level value: {level}. Valid values are: WARNING, ERROR"
+                )
             filtered_logs = [log for log in all_logs if log.get('level') == level]
         else:
             filtered_logs = all_logs
-        
+
         # Apply limit
         if limit:
             filtered_logs = filtered_logs[:limit]

@@ -82,7 +82,7 @@ class StatusScreen(Screen):
             worker_running = False
             
             try:
-                from scheduler.core import is_daemon_running, parse_log_file, get_worker_log_path, load_config
+                from scheduler.core import is_daemon_running, parse_log_file, get_worker_log_paths, load_config
                 import socket
                 
                 # Check if worker is running locally
@@ -92,19 +92,46 @@ class StatusScreen(Screen):
                 
                 if is_daemon_running(lockfile_path):
                     worker_running = True
-                    # Get worker log path
-                    worker_log_path = get_worker_log_path(config)
+                    # Get worker log paths
+                    worker_log_paths = get_worker_log_paths(config)
                     
-                    if worker_log_path:
-                        # Parse the log file
-                        worker_logs, worker_stats = parse_log_file(worker_log_path, limit=50)
+                    if worker_log_paths:
+                        # Process all available log files
+                        all_worker_logs = []
+                        worker_stats = {"WARNING": 0, "ERROR": 0}
+                        
+                        for log_path in worker_log_paths:
+                            if os.path.exists(log_path):
+                                log_entries, log_stats = parse_log_file(log_path, limit=None)
+                                all_worker_logs.extend(log_entries)
+                                
+                                # Update stats with log stats
+                                for level_key, count in log_stats.items():
+                                    if level_key in worker_stats:
+                                        worker_stats[level_key] += count
+                        
+                        # Sort all logs by timestamp (most recent first)
+                        all_worker_logs = sorted(
+                            all_worker_logs,
+                            key=lambda x: x['timestamp'],
+                            reverse=True
+                        )
+                        
+                        # Apply limit
+                        worker_logs = all_worker_logs[:50]
                     else:
-                        logger.debug("Worker log file not found")
+                        logger.debug("Worker log files not found")
+                        worker_logs = []
+                        worker_stats = {"WARNING": 0, "ERROR": 0}
                 else:
                     logger.debug("Worker daemon not running locally")
+                    worker_logs = []
+                    worker_stats = {"WARNING": 0, "ERROR": 0}
                     
             except Exception as e:
                 logger.debug(f"Could not get worker logs: {e}")
+                worker_logs = []
+                worker_stats = {"WARNING": 0, "ERROR": 0}
 
             # Update summary
             summary_text = self._format_summary(head_stats, worker_stats, worker_running)
