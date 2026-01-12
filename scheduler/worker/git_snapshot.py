@@ -653,10 +653,13 @@ class GitSnapshotManager:
 
             # Calculate total size and log progress information
             total_size = 0
+            file_sizes = []  # Store file paths with their sizes
             for rel_path in files_to_snapshot:
                 try:
                     file_path = os.path.join(workspace_root, rel_path)
-                    total_size += os.path.getsize(file_path)
+                    file_size = os.path.getsize(file_path)
+                    total_size += file_size
+                    file_sizes.append((rel_path, file_size))
                 except OSError:
                     pass
 
@@ -670,7 +673,13 @@ class GitSnapshotManager:
                              f"Consider creating a .scheduler_snapshot_ignore file to exclude unnecessary files.")
 
             if total_size_mb > 100:
+                # Sort files by size to identify the largest contributors
+                sorted_files = sorted(file_sizes, key=lambda x: x[1], reverse=True)
+                largest_files = [f"{filepath} ({size/(1024*1024):.2f} MB)" 
+                                for filepath, size in sorted_files[:5]]  # Top 5 largest files
+                
                 logger.warning(f"Large snapshot detected: {total_size_mb:.2f} MB. "
+                             f"Largest files: {', '.join(largest_files)}. "
                              f"Consider creating a .scheduler_snapshot_ignore file to exclude large data files.")
 
             # Add selected files in batches to avoid argument length limits
