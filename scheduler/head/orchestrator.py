@@ -140,12 +140,9 @@ class Orchestrator:
 
         logger.info("Orchestrator started successfully")
 
-    def stop(self, graceful: bool = True):
+    def stop(self):
         """
-        Stop the orchestrator and all components.
-
-        Args:
-            graceful: If True, wait for jobs to complete
+        Stop the orchestrator and all components immediately.
         """
         if not self.running:
             logger.warning("Orchestrator is not running")
@@ -155,21 +152,6 @@ class Orchestrator:
 
         # Signal scheduler to stop
         self.running = False
-
-        if graceful:
-            # Wait for running jobs to complete (with timeout)
-            logger.info("Waiting for running jobs to complete...")
-            timeout = self.config.head.graceful_shutdown_timeout
-            start_time = time.time()
-
-            while time.time() - start_time < timeout:
-                running_jobs = self.job_manager.get_running_jobs()
-                if not running_jobs:
-                    break
-                time.sleep(1)
-
-            if running_jobs:
-                logger.warning(f"{len(running_jobs)} jobs still running after graceful shutdown timeout")
 
         # Stop scheduler thread
         if self.scheduler_thread and self.scheduler_thread.is_alive():
@@ -199,7 +181,7 @@ class Orchestrator:
                 time.sleep(1)
         except KeyboardInterrupt:
             logger.info("Received keyboard interrupt")
-            self.stop(graceful=True)
+            self.stop()
             # Re-raise to propagate to parent context
             raise
 
@@ -287,8 +269,13 @@ class Orchestrator:
     def _signal_handler(self, signum, frame):
         """Handle termination signals."""
         logger.info(f"Received signal {signum}")
+        
+        # This handler is triggered by direct signals (e.g. CLI 'scheduler stop', kill command)
+        # It performs a "Head-Only Stop" where workers are NOT signalled to shutdown.
         if self.running:
-            self.stop(graceful=True)
+            logger.info("Stopping head node only (workers will remain running and enter retry loop)")
+            self.stop()
+            
         # Re-raise KeyboardInterrupt to allow proper cleanup in parent contexts
         if signum == signal.SIGINT:
             raise KeyboardInterrupt()

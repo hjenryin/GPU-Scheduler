@@ -33,11 +33,9 @@ from scheduler.core.constants import (
 
 @dataclass(frozen=True)
 class HeadConfig:
-    """Head node configuration"""
-    port: int = DEFAULT_PORT
-    heartbeat_timeout: int = DEFAULT_HEARTBEAT_TIMEOUT
-    scheduling_interval: int = DEFAULT_SCHEDULE_INTERVAL
-    graceful_shutdown_timeout: int = 60  # seconds
+    port: int = 8266
+    heartbeat_timeout: int = 30  # seconds
+    scheduling_interval: int = 10  # seconds
 
 
 @dataclass(frozen=True)

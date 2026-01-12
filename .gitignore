@@ -1,6 +1,7 @@
 *.egg-info/
 __pycache__/
 .claude/
+.gemini/
 /*.md
 .coverage
 *.log

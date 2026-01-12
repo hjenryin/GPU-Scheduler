@@ -159,7 +159,7 @@ def start_command(
     if head:
         config_dict.setdefault('head', {})['port'] = port
         for key, value in kwargs.items():
-            if key.startswith('heartbeat_') or key.startswith('scheduling_') or key.startswith('graceful_shutdown_'):
+            if key.startswith('heartbeat_') or key.startswith('scheduling_'):
                 if value is not None:  # Only set if value is not None
                     config_dict.setdefault('head', {})[key] = value
     else:
@@ -226,8 +226,7 @@ def _start_head_node(config: Config, block: bool) -> int:
             new_head_config = HeadConfig(
                 port=available_port,
                 heartbeat_timeout=config.head.heartbeat_timeout,
-                scheduling_interval=config.head.scheduling_interval,
-                graceful_shutdown_timeout=config.head.graceful_shutdown_timeout
+                scheduling_interval=config.head.scheduling_interval
             )
             config = Config(
                 address=f"localhost:{available_port}",

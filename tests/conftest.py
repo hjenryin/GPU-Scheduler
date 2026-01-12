@@ -73,12 +73,10 @@ def test_config(temp_dir):
     test_port = find_available_port(start_port=8000, max_attempts=100)
     
     return Config(
-        address=f"localhost:{test_port}",
         head=HeadConfig(
             port=test_port,
             heartbeat_timeout=10,
             scheduling_interval=1,  # Faster for testing
-            graceful_shutdown_timeout=10  # Faster for testing
         ),
         worker=WorkerConfig(
             temp_dir=temp_dir,

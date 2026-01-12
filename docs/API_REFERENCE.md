@@ -110,9 +110,8 @@ scheduler start [OPTIONS]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--heartbeat-timeout` | int | `60` | Seconds before marking node as disconnected |
-| `--scheduling-interval` | int | `5` | Seconds between scheduling cycles |
-| `--graceful-shutdown-timeout` | int | `60` | Seconds to wait for jobs to complete during shutdown |
+| `--heartbeat-timeout` | int | `30` | Seconds before a worker is considered disconnected if no heartbeat is received |
+| `--scheduling-interval` | int | `10` | Seconds between scheduler cycles |
 
 **Worker Node Specific Options:**
 
@@ -838,6 +837,7 @@ When `scheduler stop --all` is called:
 - All `RUNNING` jobs → `UNTRACKED` (continue running in background)
 - All `PENDING` jobs → `CANCELLED`
 - Workers exit immediately without waiting for job completion
+**Note:** The Head Node shuts down immediately and relies on workers to detect the shutdown command via heartbeat response.
 
 ---
 
@@ -1122,10 +1122,9 @@ node:
 
 # Head node settings (only used if running as head)
 head:
-  port: 8265
-  heartbeat_timeout: 60
-  scheduling_interval: 5
-  graceful_shutdown_timeout: 60
+  port: 8266
+  heartbeat_timeout: 30
+  scheduling_interval: 10
 
 # Client defaults
 client:

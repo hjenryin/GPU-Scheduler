@@ -20,9 +20,9 @@ class TestConfig:
         assert config.address is None
 
         # Check head config defaults
-        assert config.head.port == 8265
-        assert config.head.heartbeat_timeout == 60
-        assert config.head.scheduling_interval == 5
+        assert config.head.port == 8266
+        assert config.head.heartbeat_timeout == 30
+        assert config.head.scheduling_interval == 10
 
         # Check worker config defaults
         assert config.worker.temp_dir == "~/.scheduler/tmp"
@@ -42,19 +42,18 @@ class TestConfig:
         """Test custom configuration values"""
         config = Config(
             address="192.168.1.100:9000",
-            head=HeadConfig(port=9000, heartbeat_timeout=120, graceful_shutdown_timeout=90),
+            head=HeadConfig(port=9000, heartbeat_timeout=120),
             worker=WorkerConfig(gpu_util_threshold=15.0, gpu_poll_interval=5)
         )
 
         assert config.address == "192.168.1.100:9000"
         assert config.head.port == 9000
         assert config.head.heartbeat_timeout == 120
-        assert config.head.graceful_shutdown_timeout == 90
         assert config.worker.gpu_util_threshold == 15.0
         assert config.worker.gpu_poll_interval == 5
 
         # Defaults should still be present
-        assert config.head.scheduling_interval == 5
+        assert config.head.scheduling_interval == 10
         assert config.worker.gpu_mem_threshold == 10.0
 
     def test_config_from_dict_flat(self):
@@ -78,7 +77,7 @@ class TestConfig:
         assert config.worker.gpu_util_threshold == 15.0
 
         # Defaults should be filled in
-        assert config.head.scheduling_interval == 5
+        assert config.head.scheduling_interval == 10
         assert config.worker.gpu_poll_interval == 10
 
     def test_config_from_dict_legacy_keys(self):
@@ -130,7 +129,7 @@ class TestConfig:
         assert isinstance(config_dict, dict)
         assert config_dict['address'] == 'localhost:9000'
         assert config_dict['head']['port'] == 9000
-        assert config_dict['head']['heartbeat_timeout'] == 60  # default
+        assert config_dict['head']['heartbeat_timeout'] == 30  # default
         assert 'worker' in config_dict
         assert 'storage' in config_dict
         assert 'client' in config_dict
@@ -157,7 +156,7 @@ class TestLoadConfig:
         config = load_config(config_path)
 
         assert isinstance(config, Config)
-        assert config.head.port == 8265  # Default value
+        assert config.head.port == 8266  # Default value
 
     def test_load_config_valid_yaml(self):
         """Test loading valid YAML config"""

@@ -35,14 +35,13 @@ def cli():
 @click.option('--log-level', default='INFO', help='Log level')
 @click.option('--heartbeat-timeout', type=int, help='Heartbeat timeout (head only)')
 @click.option('--scheduling-interval', type=int, help='Scheduling interval (head only)')
-@click.option('--graceful-shutdown-timeout', type=int, help='Graceful shutdown timeout in seconds (head only)')
 @click.option('--gpu-poll-interval', type=int, help='GPU poll interval (worker only)')
 @click.option('--gpu-util-threshold', type=int, help='GPU utilization threshold (worker only)')
 @click.option('--gpu-mem-threshold', type=int, help='GPU memory threshold (worker only)')
 @click.option('--gpu-stable-time', type=int, help='GPU stable time (worker only)')
 @click.option('--job-startup-grace', type=int, help='Job startup grace period (worker only)')
 def start(head, address, port, node_name, num_gpus, block, log_level,
-          heartbeat_timeout, scheduling_interval, graceful_shutdown_timeout,
+          heartbeat_timeout, scheduling_interval,
           gpu_poll_interval, gpu_util_threshold, gpu_mem_threshold, gpu_stable_time, job_startup_grace):
     """Start scheduler node"""
     try:
@@ -56,7 +55,6 @@ def start(head, address, port, node_name, num_gpus, block, log_level,
             log_level=log_level,
             heartbeat_timeout=heartbeat_timeout,
             scheduling_interval=scheduling_interval,
-            graceful_shutdown_timeout=graceful_shutdown_timeout,
             gpu_poll_interval=gpu_poll_interval,
             gpu_util_threshold=gpu_util_threshold,
             gpu_mem_threshold=gpu_mem_threshold,

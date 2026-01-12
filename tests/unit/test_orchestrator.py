@@ -29,7 +29,6 @@ class TestOrchestrator:
                 port=test_port,
                 heartbeat_timeout=10,
                 scheduling_interval=1,  # Faster for testing
-                graceful_shutdown_timeout=2  # Reduced from 60 for faster testing
             ),
             worker=WorkerConfig(
                 work_dir="/tmp/test",
@@ -220,8 +219,8 @@ class TestOrchestrator:
             # Should not call stop if not running
             mock_stop.assert_not_called()
 
-    def test_graceful_shutdown(self, orchestrator):
-        """Test graceful shutdown with job timeout"""
+    def test_stop_immediate(self, orchestrator):
+        """Test immediate stop (was graceful shutdown)"""
         orchestrator.running = True
         orchestrator.scheduler_thread = create_autospec(threading.Thread, instance=True, spec_set=True)
         orchestrator.scheduler_thread.is_alive.return_value = True
@@ -231,26 +230,12 @@ class TestOrchestrator:
         
         with patch('time.sleep', autospec=True) as mock_sleep:
             
-            orchestrator.stop(graceful=True)
+            orchestrator.stop()
             
-            # Should have waited for jobs to complete
-            assert mock_sleep.call_count > 0
+            # Should NOT wait for jobs to complete (immediate stop)
+            assert mock_sleep.call_count == 0
 
-    def test_graceful_shutdown_no_jobs(self, orchestrator):
-        """Test graceful shutdown with no running jobs"""
-        orchestrator.running = True
-        orchestrator.scheduler_thread = create_autospec(threading.Thread, instance=True, spec_set=True)
-        orchestrator.scheduler_thread.is_alive.return_value = True
-        
-        # Mock job manager to have no running jobs
-        orchestrator.job_manager.get_running_jobs.return_value = []
-        
-        with patch('time.sleep', autospec=True) as mock_sleep:
-            
-            orchestrator.stop(graceful=True)
-            
-            # Should not wait if no jobs running
-            mock_sleep.assert_not_called()
+
 
     def test_get_status(self, orchestrator):
         """Test get_status method"""
