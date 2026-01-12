@@ -26,7 +26,8 @@ class TestStatusCommand:
         mock_client.list_nodes.return_value = []
         mock_client_class.return_value = mock_client
 
-        with patch('scheduler.cli.status.click.echo', autospec=True):
+        with patch('scheduler.cli.status.sys.stdout.isatty', return_value=True), \
+             patch('scheduler.cli.status.click.echo', autospec=True):
             result = status_command()
             assert result == 0
             mock_run_tui.assert_called_once()
@@ -47,7 +48,8 @@ class TestStatusCommand:
         type(mock_client).head_address = property(lambda self: "localhost:8265")
         mock_client_class.return_value = mock_client
 
-        with patch('scheduler.cli.status.click.echo', autospec=True) as mock_echo:
+        with patch('scheduler.cli.status.sys.stdout.isatty', return_value=True), \
+             patch('scheduler.cli.status.click.echo', autospec=True) as mock_echo:
             result = status_command()
             assert result == 1
             # Verify all error message lines are called

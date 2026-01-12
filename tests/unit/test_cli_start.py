@@ -169,7 +169,8 @@ class TestStartHeadNodeImplementation:
         mock_singleton_class.return_value = mock_singleton
         
         mock_orch = MagicMock(spec_set=Orchestrator)
-        mock_orch.run.return_value = None
+        # Using start method instead of run since run doesn't exist
+        mock_orch.start.return_value = None
         mock_orch_class.return_value = mock_orch
         
         config = Config(
@@ -201,7 +202,8 @@ class TestStartHeadNodeImplementation:
             mock_singleton_class.return_value = mock_singleton
             
             mock_orch = MagicMock(spec_set=Orchestrator)
-            mock_orch.run.return_value = None
+            # Using start method instead of run since run doesn't exist
+            mock_orch.start.return_value = None
             mock_orch_class.return_value = mock_orch
             
             result = _start_head_node(config, block=True)

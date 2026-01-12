@@ -103,6 +103,10 @@ def expand_and_sort_requirements(req_str: str) -> str:
             result_parts.append(f"{node_name}:{num}")
         for opt in non_numeric_options:
             result_parts.append(f"{node_name}:{opt}")
+    
+    return ','.join(result_parts)
+
+
 def expand_wildcard_requirements(req_str: str, client: SchedulerClient) -> str:
     """
     Expand wildcard syntax in requirement string.
