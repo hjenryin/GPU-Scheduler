@@ -156,9 +156,26 @@ class JobsScreen(Screen):
     def on_data_table_row_selected(self, event):
         """Handle row selection in jobs table."""
         if event.data_table.id == "jobs-table":
-            row_data = event.data_table.get_row(event.row_key)
-            job_id = str(row_data[0])
-            self.on_job_selected(job_id)
+            # Check if the row key exists in the current table state
+            # This prevents errors when the table is refreshed and old row keys become invalid
+            if event.row_key in event.data_table._row_locations:
+                row_data = event.data_table.get_row(event.row_key)
+                job_id = str(row_data[0])
+                self.on_job_selected(job_id)
+            else:
+                # If the row key doesn't exist, use the cursor position instead
+                # This handles cases where the table was refreshed between click and selection
+                jobs_table = self.query_one("#jobs-table", DataTable)
+                if jobs_table.cursor_row is not None and jobs_table.row_count > 0:
+                    # Ensure cursor_row is within bounds
+                    row_idx = min(jobs_table.cursor_row, jobs_table.row_count - 1)
+                    # Get the actual row key from the current table data
+                    row_keys = list(jobs_table._row_locations.keys())
+                    if row_idx < len(row_keys):
+                        row_key = row_keys[row_idx]
+                        row_data = jobs_table.get_row(row_key)
+                        job_id = str(row_data[0])
+                        self.on_job_selected(job_id)
 
     def on_job_selected(self, job_id: str):
         """
