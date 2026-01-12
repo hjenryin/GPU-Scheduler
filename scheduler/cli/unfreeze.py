@@ -1,8 +1,9 @@
 import click
+import re
 
 from scheduler.api import SchedulerClient
 from scheduler.core import load_config, ConnectionException, NodeNotFoundException
-from scheduler.cli.freeze import parse_gpu_target
+from scheduler.cli.freeze import parse_gpu_target, validate_node_exists
 
 
 def unfreeze_command(target: str = None) -> int:
@@ -10,7 +11,7 @@ def unfreeze_command(target: str = None) -> int:
     Unfreeze GPU(s).
 
     Args:
-        target: GPU target (e.g., "node1:GPU0", "node1:0"). If None, unfreezes all GPUs.
+        target: GPU target (e.g., "node1:GPU0", "node1:0", "node1:0-3", "node1:*"). If None, unfreezes all GPUs.
 
     Returns:
         Exit code (0 for success)
@@ -35,10 +36,36 @@ def unfreeze_command(target: str = None) -> int:
             else:
                 click.echo(f"✓ Unfroze {unfrozen_count} GPUs")
         else:
-            # Unfreeze specific GPU
-            node_name, gpu_id = parse_gpu_target(target)
-            response = client.unfreeze_gpu(node_name, gpu_id)
-            click.echo(f"✓ GPU {gpu_id} on node {node_name} unfrozen")
+            # Unfreeze specific GPU(s)
+            node_name, gpu_id_or_range = parse_gpu_target(target)
+
+            # Validate that the node exists
+            if not validate_node_exists(node_name, client):
+                if node_name != '*':  # Don't validate '*' wildcard
+                    raise NodeNotFoundException(f"Node '{node_name}' does not exist in the cluster")
+
+            if gpu_id_or_range == '*':
+                # Unfreeze all GPUs on the node
+                try:
+                    node = client.get_node(node_name)
+                    gpu_ids = list(range(node.num_gpus))
+                except NodeNotFoundException:
+                    raise NodeNotFoundException(f"Node '{node_name}' does not exist in the cluster")
+                    
+                for gpu_id in gpu_ids:
+                    response = client.unfreeze_gpu(node_name, gpu_id)
+                    click.echo(f"✓ GPU {gpu_id} on node {node_name} unfrozen")
+            elif isinstance(gpu_id_or_range, str) and '-' in gpu_id_or_range:
+                # Handle range syntax (e.g., "0-3")
+                start_gpu, end_gpu = map(int, gpu_id_or_range.split('-'))
+                for gpu_id in range(start_gpu, end_gpu + 1):
+                    response = client.unfreeze_gpu(node_name, gpu_id)
+                    click.echo(f"✓ GPU {gpu_id} on node {node_name} unfrozen")
+            else:
+                # Handle single GPU
+                gpu_id = gpu_id_or_range
+                response = client.unfreeze_gpu(node_name, gpu_id)
+                click.echo(f"✓ GPU {gpu_id} on node {node_name} unfrozen")
 
         return 0
 

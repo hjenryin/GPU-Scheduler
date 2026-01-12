@@ -5,7 +5,7 @@ import click
 from collections import defaultdict
 
 from scheduler.api import SchedulerClient
-from scheduler.core import load_config, ValidationException, ConnectionException
+from scheduler.core import load_config, ValidationException, ConnectionException, NodeNotFoundException
 
 
 def expand_and_sort_requirements(req_str: str) -> str:
@@ -103,9 +103,64 @@ def expand_and_sort_requirements(req_str: str) -> str:
             result_parts.append(f"{node_name}:{num}")
         for opt in non_numeric_options:
             result_parts.append(f"{node_name}:{opt}")
+def expand_wildcard_requirements(req_str: str, client: SchedulerClient) -> str:
+    """
+    Expand wildcard syntax in requirement string.
+    
+    Expands "*:X" to all connected nodes with X GPUs and "node:*" to all GPUs on node.
+
+    Args:
+        req_str: Requirement string (may contain wildcards)
+        client: Scheduler client to get connected nodes
+
+    Returns:
+        Expanded requirement string with wildcards replaced
+    """
+    if not req_str or not req_str.strip():
+        return req_str
+
+    parts = req_str.split(',')
+    result_parts = []
+
+    for part in parts:
+        part = part.strip()
+
+        if ':' in part:
+            node_name, gpu_spec = part.split(':', 1)
+            node_name = node_name.strip()
+            gpu_spec = gpu_spec.strip()
+
+            # Handle wildcard for node name - expand to all connected nodes
+            if node_name == '*':
+                try:
+                    # Get all connected nodes
+                    nodes = client.list_nodes()
+                    connected_nodes = [node for node in nodes if node.status.value == 'connected']
+                    
+                    for node in connected_nodes:
+                        result_parts.append(f"{node.node_name}:{gpu_spec}")
+                except Exception:
+                    # If we can't connect, keep the wildcard as is
+                    result_parts.append(part)
+            # Handle wildcard for GPU count - expand to all GPUs on node
+            elif gpu_spec == '*':
+                try:
+                    # Get the node to determine number of GPUs
+                    node = client.get_node(node_name)
+                    result_parts.append(f"{node_name}:{node.num_gpus}")
+                except NodeNotFoundException:
+                    # If node doesn't exist, raise an error
+                    raise ValidationException(f"Node '{node_name}' does not exist")
+                except Exception:
+                    # If we can't connect, keep the wildcard as is
+                    result_parts.append(part)
+            else:
+                result_parts.append(part)
+        else:
+            # No colon - just add as-is
+            result_parts.append(part)
 
     return ','.join(result_parts)
-
 
 def submit_command(
     command: List[str],
@@ -165,14 +220,16 @@ def submit_command(
             req = config.client.req_shortcuts[req]
             click.echo(f"Using requirement shortcut '{original_req}' → {req}")
 
+        # Expand wildcards first (need client for this)
+        client = SchedulerClient(config=config)
+        req = expand_wildcard_requirements(req, client)
+
         # Expand ranges and sort for backward compatibility
         # This allows using new syntax (host:4-8, repeated hosts) without server changes
         expanded_req = expand_and_sort_requirements(req)
         if expanded_req != req:
             click.echo(f"Expanded requirement: {req} → {expanded_req}")
             req = expanded_req
-
-        client = SchedulerClient(config=config)
 
         # Store original dependencies for comparison
         original_depends_on = list(depends_on) if depends_on else []

@@ -2,6 +2,7 @@
 __pycache__/
 .claude/
 .gemini/
+.lingma/
 /*.md
 .coverage
 *.log
