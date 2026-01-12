@@ -288,8 +288,8 @@ def _start_head_node(config: Config, block: bool) -> int:
         click.echo("\nTo connect worker nodes from other machines, run:")
         click.echo(f"  scheduler start --address {socket.gethostname()}:{config.head.port}")
         click.echo("\nPress Ctrl+C to stop...")
-        orchestrator.run()
-        # Lock will be released by orchestrator.stop() when run() completes
+        orchestrator.keep_alive_loop()
+        # Lock will be released by orchestrator.stop() when keep_alive_loop completes
 
         return 0
     except KeyboardInterrupt:
@@ -399,7 +399,7 @@ def _daemonize_head(config: Config, singleton: SingletonDaemon) -> int:
         time.sleep(2)
 
         # Keep daemon alive
-        orchestrator.run()
+        orchestrator.keep_alive_loop()
         
         # Clean up lock file when orchestrator exits
         singleton.release_lock()

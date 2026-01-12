@@ -169,12 +169,10 @@ class Orchestrator:
         if self.singleton:
             self.singleton.release_lock()
 
-    def run(self):
+    def keep_alive_loop(self):
         """
-        Run the orchestrator main loop (blocking).
+        Keep the orchestrator main thread alive (blocking).
         """
-        self.start()
-
         # Keep main thread alive
         try:
             while self.running:

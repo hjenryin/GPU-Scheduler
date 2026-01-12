@@ -83,8 +83,9 @@ def _stop_all_nodes() -> int:
                 # Get list of all nodes to show what we're shutting down
                 try:
                     nodes = client.list_nodes()
+                    connected_nodes = [node for node in nodes if node.status.value == "connected"]
                     if nodes:
-                        click.echo(f"Found {len(nodes)} worker nodes in cluster")
+                        click.echo(f"Found {len(connected_nodes)}/{len(nodes)} connected worker nodes in cluster")
                 except:
                     pass  # Continue even if we can't list nodes
                 
@@ -133,7 +134,8 @@ def _stop_all_nodes() -> int:
             click.echo("No nodes found in cluster")
             return 1
             
-        click.echo(f"Found {len(nodes)} nodes in cluster:")
+        connected_nodes = [node for node in nodes if node.status.value == "connected"]
+        click.echo(f"Found {len(connected_nodes)}/{len(nodes)} connected nodes in cluster:")
         
         # Display all nodes
         for node in nodes:
