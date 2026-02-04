@@ -167,7 +167,7 @@ class JobDetailScreen(Screen):
         self.job_data = job
 
         # Show/hide buttons based on job status
-        can_retry = job.status.value in ["failed", "cancelled", "completed"]
+        can_retry = job.status.value in ["failed", "cancelled", "interrupted", "completed"]
         can_cancel = job.status.value in ["pending", "running"]
         
         # Update footer bindings dynamically
@@ -395,14 +395,14 @@ class JobDetailScreen(Screen):
 
         Bound to 'r' key.
         """
-        if self.job_data and self.job_data.status.value in ["failed", "cancelled", "completed"]:
+        if self.job_data and self.job_data.status.value in ["failed", "cancelled", "interrupted", "completed"]:
             self.app.notify(
                 "Click a retry button below or use the Jobs screen to retry",
                 title="Retry Options",
             )
         else:
             self.app.notify(
-                "Job cannot be retried (must be failed, cancelled, or completed)",
+                "Job cannot be retried (must be failed, cancelled, interrupted, or completed)",
                 severity="warning"
             )
 
@@ -472,9 +472,9 @@ class JobDetailScreen(Screen):
 
     def _can_retry(self) -> bool:
         """Check if job can be retried."""
-        if not self.job_data or self.job_data.status.value not in ["failed", "cancelled", "completed"]:
+        if not self.job_data or self.job_data.status.value not in ["failed", "cancelled", "interrupted", "completed"]:
             self.app.notify(
-                "Job cannot be retried (must be failed, cancelled, or completed)",
+                "Job cannot be retried (must be failed, cancelled, interrupted, or completed)",
                 severity="warning"
             )
             return False

@@ -275,10 +275,10 @@ class SchedulerClient:
         original_job = self.get_job(job_id)
 
         # 2. Validate state
-        if original_job.status not in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.COMPLETED]:
+        if original_job.status not in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.INTERRUPTED, JobStatus.COMPLETED]:
             raise ValidationException(
                 f"Job {job_id} is in {original_job.status.value} state. "
-                f"Can only retry FAILED, CANCELLED, or COMPLETED jobs."
+                f"Can only retry FAILED, CANCELLED, INTERRUPTED, or COMPLETED jobs."
             )
 
         if not original_job.snapshot_ref or not original_job.snapshot_working_dir:
@@ -353,10 +353,10 @@ class SchedulerClient:
         original_job = self.get_job(job_id)
 
         # 2. Validate state
-        if original_job.status not in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.COMPLETED]:
+        if original_job.status not in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.INTERRUPTED, JobStatus.COMPLETED]:
             raise ValidationException(
                 f"Job {job_id} is in {original_job.status.value} state. "
-                f"Can only retry FAILED, CANCELLED, or COMPLETED jobs."
+                f"Can only retry FAILED, CANCELLED, INTERRUPTED, or COMPLETED jobs."
             )
 
         # 3. Use regular submit_job with original parameters
@@ -394,10 +394,10 @@ class SchedulerClient:
         original_job = self.get_job(job_id)
 
         # 2. Validate state
-        if original_job.status not in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.COMPLETED]:
+        if original_job.status not in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.INTERRUPTED, JobStatus.COMPLETED]:
             raise ValidationException(
                 f"Job {job_id} is in {original_job.status.value} state. "
-                f"Can only retry FAILED, CANCELLED, or COMPLETED jobs."
+                f"Can only retry FAILED, CANCELLED, INTERRUPTED, or COMPLETED jobs."
             )
 
         # 3. Use regular submit_job with original parameters but no dependencies

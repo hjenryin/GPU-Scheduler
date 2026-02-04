@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 @click.option('--no-deps', 'no_deps', is_flag=True, help='Retry with fresh snapshot without dependencies (new job_id)')
 def retry(job_id: str, inplace: bool, then_mode: bool, now: bool, no_deps: bool):
     """
-    Retry a failed, cancelled, or completed job.
+    Retry a failed, cancelled, interrupted, or completed job.
 
     Exactly one of --inplace, --then, --now, or --no-deps must be specified:
 
