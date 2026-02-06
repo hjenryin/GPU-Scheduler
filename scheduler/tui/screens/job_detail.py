@@ -121,37 +121,39 @@ class JobDetailScreen(Screen):
                 job = self.app.client.get_job(self.job_id)
                 self.update_data(job)
 
-                # Try to fetch stdout logs
-                try:
-                    stdout_logs = self.app.client.get_job_logs(
-                        self.job_id, lines=20, stderr=False
-                    )
-                    # Process logs to handle escape sequences properly
-                    stdout_widget = self.query_one("#stdout-preview", TextArea)
-                    if stdout_logs:
-                        processed_logs = process_log_escape_sequences(stdout_logs)
-                        stdout_widget.load_text(processed_logs)
-                    else:
-                        stdout_widget.load_text("No stdout logs available yet.")
-                except Exception as e:
-                    stdout_widget = self.query_one("#stdout-preview", TextArea)
-                    stdout_widget.load_text(f"Could not fetch stdout logs: {e}")
-                
-                # Try to fetch stderr logs
-                try:
-                    stderr_logs = self.app.client.get_job_logs(
-                        self.job_id, lines=20, stderr=True
-                    )
-                    # Process logs to handle escape sequences properly
-                    stderr_widget = self.query_one("#stderr-preview", TextArea)
-                    if stderr_logs:
-                        processed_logs = process_log_escape_sequences(stderr_logs)
-                        stderr_widget.load_text(processed_logs)
-                    else:
-                        stderr_widget.load_text("No stderr logs available yet.")
-                except Exception as e:
-                    stderr_widget = self.query_one("#stderr-preview", TextArea)
-                    stderr_widget.load_text(f"Could not fetch stderr logs: {e}")
+                # Only fetch logs if job is not pending or cancelled
+                if job.status.value not in ["pending", "cancelled"]:
+                    # Try to fetch stdout logs
+                    try:
+                        stdout_logs = self.app.client.get_job_logs(
+                            self.job_id, lines=20, stderr=False
+                        )
+                        # Process logs to handle escape sequences properly
+                        stdout_widget = self.query_one("#stdout-preview", TextArea)
+                        if stdout_logs:
+                            processed_logs = process_log_escape_sequences(stdout_logs)
+                            stdout_widget.load_text(processed_logs)
+                        else:
+                            stdout_widget.load_text("No stdout logs available yet.")
+                    except Exception as e:
+                        stdout_widget = self.query_one("#stdout-preview", TextArea)
+                        stdout_widget.load_text(f"Could not fetch stdout logs: {e}")
+                    
+                    # Try to fetch stderr logs
+                    try:
+                        stderr_logs = self.app.client.get_job_logs(
+                            self.job_id, lines=20, stderr=True
+                        )
+                        # Process logs to handle escape sequences properly
+                        stderr_widget = self.query_one("#stderr-preview", TextArea)
+                        if stderr_logs:
+                            processed_logs = process_log_escape_sequences(stderr_logs)
+                            stderr_widget.load_text(processed_logs)
+                        else:
+                            stderr_widget.load_text("No stderr logs available yet.")
+                    except Exception as e:
+                        stderr_widget = self.query_one("#stderr-preview", TextArea)
+                        stderr_widget.load_text(f"Could not fetch stderr logs: {e}")
             except Exception as e:
                 self.query_one("#job-metadata", Static).update(
                     f"Error loading job: {e}"
@@ -170,6 +172,9 @@ class JobDetailScreen(Screen):
         can_retry = job.status.value in ["failed", "cancelled", "interrupted", "completed"]
         can_cancel = job.status.value in ["pending", "running"]
         
+        # Show logs only if job is not pending or cancelled
+        show_logs = job.status.value not in ["pending", "cancelled"]
+        
         # Update footer bindings dynamically
         self._update_bindings(can_cancel, can_retry)
         
@@ -187,6 +192,13 @@ class JobDetailScreen(Screen):
             retry_then.display = can_retry
             retry_now.display = can_retry
             retry_nodeps.display = can_retry
+            
+            # Hide/show log preview sections and full logs button
+            self.query_one("#stdout-header", Static).display = show_logs
+            self.query_one("#stdout-container", Container).display = show_logs
+            self.query_one("#stderr-header", Static).display = show_logs
+            self.query_one("#stderr-container", Container).display = show_logs
+            self.query_one("#logs-button", Button).display = show_logs
         except Exception:
             pass  # Widgets may not be mounted yet
 
