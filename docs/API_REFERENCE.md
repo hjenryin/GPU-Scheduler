@@ -98,7 +98,7 @@ scheduler start [OPTIONS]
 |--------|------|---------|-------------|
 | `--head` | flag | false | Start as head node (orchestrator) |
 | `--address` | url | - | Address of head node (for worker nodes). Format: `host:port` |
-| `--port` | int | `8265` | Port number for head node HTTP API (auto-fallback if occupied) |
+| `--port` | int | `8266` | Port number for head node HTTP API (auto-fallback if occupied) |
 | `--node-name` | string | hostname | Unique identifier for this node |
 | `--num-gpus` | int | auto-detect | Number of GPUs on this node (auto-detected from nvidia-smi) |
 | `--block` | flag | false | Block until scheduler is stopped (use --block to run in foreground) |
@@ -132,29 +132,26 @@ scheduler start --head
 # Start head node on custom port
 scheduler start --head --port 9000
 
-# Start head node with automatic port fallback (if 8265 is occupied by other processes)
-scheduler start --head --port 8265
-# Output: "Port 8265 is already in use by another process"
+# Start head node with automatic port fallback (if 8266 is occupied by other processes)
+scheduler start --head --port 8266
+# Output: "Port 8266 is already in use by another process"
 #         "Searching for an available port..."
-#         "Using available port: 8266"
+#         "Using available port: 8267"
 
 # Start worker node connecting to head
-scheduler start --address=192.168.1.100:8265
+scheduler start --address=192.168.1.100:8266
 
 # Start worker with custom node name
-scheduler start --address=head.local:8265 --node-name=gpu-server-01
+scheduler start --address=head.local:8266 --node-name=gpu-server-01
 
 # Start worker with manual GPU specification
-scheduler start --address=head.local:8265 --num-gpus=8
+scheduler start --address=head.local:8266 --num-gpus=8
 
 # Start worker with conservative GPU detection
-scheduler start --address=head.local:8265 \
+scheduler start --address=head.local:8266 \
                 --gpu-util-threshold=5 \
                 --gpu-stable-time=60 \
                 --job-startup-grace=180
-
-# Start head node with custom graceful shutdown timeout
-scheduler start --head --graceful-shutdown-timeout=120
 
 # Start in foreground (blocking)
 scheduler start --head --block
@@ -269,7 +266,7 @@ The TUI provides a real-time dashboard with multiple views:
 **Default View - Cluster Overview:**
 ```
 ╔════════════════════════════════════════════════════════════════════════════╗
-║ GPU Scheduler Cluster - head.local:8265                    [Q]uit [H]elp  ║
+║ GPU Scheduler Cluster - head.local:8266                    [Q]uit [H]elp  ║
 ╠════════════════════════════════════════════════════════════════════════════╣
 ║ Nodes: 3 connected, 0 disconnected | GPUs: 16 total, 10 free, 6 in use   ║
 ║ Jobs: 5 pending, 6 running, 124 completed, 2 failed                       ║
@@ -500,7 +497,6 @@ The `COMMAND` can be any executable command with its arguments. The scheduler wi
 | `--priority` | int | `0` | Job priority (higher = more important) |
 | `--env` | list | none | Environment variables (KEY=VALUE format, can be repeated) |
 | `--working-dir` | path | current dir | Working directory for job execution |
-| `--block` | flag | false | Wait for job completion and stream logs (stderr printed if job fails) |
 
 **Resource Requirement Format (`--req`):**
 
@@ -551,9 +547,6 @@ scheduler submit --req 4 \
                  --env DATASET_PATH=/data/bert \
                  python train.py --model bert-large
 
-# Submit and wait for completion (block mode) with log streaming
-scheduler submit --req 1 --block python train.py
-
 # Submit asynchronously (default - returns immediately)
 scheduler submit --req 2 python train.py
 
@@ -577,8 +570,6 @@ Requirements: 2 GPUs on any node
 View status: scheduler status (then press 'J' and search for job)
 View logs: scheduler logs job_abc123def456
 ```
-
-**Note**: By default, `scheduler submit` returns immediately after submitting the job (async mode). Use `--block` to wait for completion and stream logs.
 
 **Automatic Workspace Snapshots:**
 
@@ -673,13 +664,11 @@ Blank lines are ignored.
 | `--priority` | int | `0` | Job priority (applied to all jobs) |
 | `--env` | list | none | Environment variables (KEY=VALUE format, applied to all jobs) |
 | `--working-dir` | path | current dir | Working directory (applied to all jobs) |
-| `--block` | flag | false | Wait for last job completion and stream its logs (stderr printed if job fails) |
 | `--sequential` | flag | false | **Each job depends on the previous job** (creates job chain) |
 
 **Behavior:**
 
 - **Default Mode**: All jobs are submitted and returns immediately (async)
-- **Block Mode (`--block`)**: Waits for the last job to complete and streams its logs
 - **Non-Sequential Mode (default)**: All jobs are submitted independently and can run in parallel
 - **Sequential Mode (`--sequential`)**: Jobs are submitted as a dependency chain:
   - Job 2 depends on Job 1
@@ -912,7 +901,6 @@ scheduler logs [OPTIONS] JOB_ID
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--follow` / `-f` | flag | false | Follow log output (like tail -f) |
 | `--lines` / `-n` | int | `100` | Number of lines to show (from end) |
 | `--timestamps` | flag | false | Show timestamps for each line |
 | `--stderr` | flag | false | Show stderr instead of stdout |
@@ -922,9 +910,6 @@ scheduler logs [OPTIONS] JOB_ID
 ```bash
 # View last 100 lines of job logs
 scheduler logs job_abc123
-
-# Follow logs in real-time
-scheduler logs -f job_abc123
 
 # View last 500 lines with timestamps
 scheduler logs --lines 500 --timestamps job_abc123
@@ -962,6 +947,83 @@ scheduler cancel job_abc123
 
 # Cancel multiple jobs
 scheduler cancel job_abc123 job_def456 job_ghi789
+```
+
+---
+
+### `scheduler retry`
+
+Retry a failed, cancelled, interrupted, or completed job.
+
+**Usage:**
+```bash
+scheduler retry [OPTIONS] JOB_ID
+```
+
+**Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--inplace` | flag | false | Revert job to pending in-place (same job_id, same snapshot) |
+| `--then` | flag | false | Retry from original commit (new job_id, same snapshot) |
+| `--now` | flag | false | Retry with fresh snapshot (new job_id) |
+| `--no-deps` | flag | false | Retry with fresh snapshot without dependencies (new job_id) |
+
+**Note**: Exactly one of these flags must be specified.
+
+**Examples:**
+```bash
+# Revert job to pending (in-place)
+scheduler retry job_abc123 --inplace
+
+# Retry with same code snapshot but new job ID
+scheduler retry job_abc123 --then
+
+# Retry with current code (resubmit)
+scheduler retry job_abc123 --now
+
+# Retry with current code and remove dependencies
+scheduler retry job_abc123 --no-deps
+```
+
+---
+
+### `scheduler purge`
+
+Purge jobs by time duration or job ID. This removes them from the scheduler's history.
+
+**Usage:**
+```bash
+scheduler purge [OPTIONS] TARGET
+```
+
+**Positional Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `TARGET` | Either a job ID or a time duration (e.g., "7d", "24h") |
+
+**Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--failed` | flag | false | Only purge failed jobs |
+| `--completed` | flag | false | Only purge completed jobs |
+| `--cancelled` | flag | false | Only purge cancelled jobs |
+
+**Examples:**
+```bash
+# Purge all terminal jobs older than 7 days
+scheduler purge 7d
+
+# Purge failed jobs older than 3 weeks
+scheduler purge 3w --failed
+
+# Purge completed jobs older than 24 hours
+scheduler purge 24h --completed
+
+# Purge a specific job
+scheduler purge job_abc123
 ```
 
 ---
@@ -1090,7 +1152,7 @@ scheduler config init
 scheduler config show
 
 # Set head node address
-scheduler config set address 192.168.1.100:8265
+scheduler config set address 192.168.1.100:8266
 
 # Get a configuration value
 scheduler config get address
@@ -1103,12 +1165,51 @@ scheduler config conda-env list                    # List all mappings
 scheduler config conda-env unset                   # Remove mapping
 ```
 
+### `scheduler config req-config`
+
+Manage requirement shortcuts for job submissions. Shortcuts allow you to define named resource requirements (e.g., "train" = "node1:4,node2:8") and use them with `scheduler submit --req train`.
+
+**Usage:**
+```bash
+scheduler config req-config [COMMAND]
+```
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `set NAME REQ` | Set a requirement shortcut |
+| `unset NAME` | Remove a requirement shortcut |
+| `list` | List all requirement shortcuts |
+| `show NAME` | Show a specific requirement shortcut |
+
+**Examples:**
+```bash
+# Set a shortcut named 'train'
+scheduler config req-config set train "node1:4,node2:8"
+
+# Set a shortcut for small jobs
+scheduler config req-config set small 1
+
+# Use the shortcut in submission
+scheduler submit --req train python train.py
+
+# List all shortcuts
+scheduler config req-config list
+
+# Show details of 'train' shortcut
+scheduler config req-config show train
+
+# Remove a shortcut
+scheduler config req-config unset train
+```
+
 **Configuration File Format (YAML):**
 ```yaml
 # ~/.scheduler/config.yaml
 
 # Head node address (for worker nodes and clients)
-address: 192.168.1.100:8265
+address: 192.168.1.100:8266
 
 # Default node settings
 node:
@@ -1139,15 +1240,13 @@ conda:
     /home/user/project2: pytorch-gpu
 
 # Git snapshot settings
-snapshot_max_file_size: 1048576  # 1 MB default
+snapshot_max_file_size: 524288  # 512 KB default
 snapshot_max_files_per_folder: 1000
 snapshot_data_type_limits:
-  .npy: 10485760   # 10 MB for numpy arrays
-  .pkl: 5242880    # 5 MB for pickle files
-  .json: 2097152   # 2 MB for JSON files
-  .csv: 5242880    # 5 MB for CSV files
-snapshot_always_include_extensions: ['.py', '.sh', '.yaml', '.json', '.txt', '.md', '.toml', '.ini', '.cfg', '.conf', '.env']
-snapshot_exclude_patterns: ['__pycache__', '.git', '.scheduler-git', '*.pyc']
+  .json: 1048576   # 1 MB for JSON files
+  .csv: 1048576    # 1 MB for CSV files
+snapshot_always_include_extensions: ['.py', '.sh', '.yaml', '.yml', '.json', '.md', '.toml', '.ini', '.cfg', '.conf', '.env']
+snapshot_exclude_patterns: ['__pycache__', '.pytest_cache', '.mypy_cache', '.tox', '.egg-info', '.eggs', 'build', 'dist', '.git', '.scheduler-git', '*.pyc', '*.pyo', '*.pyd', '.so', '*.dylib', '.DS_Store', '*.swp', '*.swo', '.vscode', '.idea', '*.log', 'wandb', '*.safetensors']
 ```
 
 ### Git Snapshot Configuration
@@ -1158,7 +1257,7 @@ The scheduler automatically creates git-based snapshots of your workspace when s
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `snapshot_max_file_size` | int | 1048576 (1 MB) | Maximum size for individual files (bytes) |
+| `snapshot_max_file_size` | int | 524288 (512 KB) | Maximum size for individual files (bytes) |
 | `snapshot_max_files_per_folder` | int | 1000 | Maximum files allowed in a single folder |
 | `snapshot_data_type_limits` | dict | See below | Size limits for specific file extensions |
 | `snapshot_always_include_extensions` | list | See below | File extensions always included |
@@ -1168,22 +1267,20 @@ The scheduler automatically creates git-based snapshots of your workspace when s
 
 ```yaml
 snapshot_data_type_limits:
-  .npy: 10485760   # 10 MB for numpy arrays
-  .pkl: 5242880    # 5 MB for pickle files
-  .json: 2097152   # 2 MB for JSON files
-  .csv: 5242880    # 5 MB for CSV files
+  .json: 1048576   # 1 MB for JSON files
+  .csv: 1048576    # 1 MB for CSV files
 ```
 
 #### Default Always Include Extensions
 
 ```yaml
-snapshot_always_include_extensions: ['.py', '.sh', '.yaml', '.json', '.txt', '.md', '.toml', '.ini', '.cfg', '.conf', '.env']
+snapshot_always_include_extensions: ['.py', '.sh', '.yaml', '.yml', '.json', '.md', '.toml', '.ini', '.cfg', '.conf', '.env']
 ```
 
 #### Default Exclude Patterns
 
 ```yaml
-snapshot_exclude_patterns: ['__pycache__', '.git', '.scheduler-git', '*.pyc']
+snapshot_exclude_patterns: ['__pycache__', '.pytest_cache', '.mypy_cache', '.tox', '.egg-info', '.eggs', 'build', 'dist', '.git', '.scheduler-git', '*.pyc', '*.pyo', '*.pyd', '.so', '*.dylib', '.DS_Store', '*.swp', '*.swo', '.vscode', '.idea', '*.log', 'wandb', '*.safetensors']
 ```
 
 #### Include/Exclude Files
@@ -1247,7 +1344,7 @@ Environment variables that affect scheduler behavior:
 **Examples:**
 ```bash
 # Override head node address
-export SCHEDULER_ADDRESS=192.168.1.100:8265
+export SCHEDULER_ADDRESS=192.168.1.100:8266
 scheduler submit --req 2 train.py
 
 # Use custom config file
@@ -1256,7 +1353,7 @@ scheduler status
 
 # Enable debug logging
 export SCHEDULER_LOG_LEVEL=DEBUG
-scheduler start --address=head:8265
+scheduler start --address=head:8266
 ```
 
 ### Debug Logging
@@ -1282,7 +1379,7 @@ The scheduler provides extensive debug logging to help troubleshoot issues:
 SCHEDULER_LOG_LEVEL=DEBUG scheduler start --head
 
 # Enable debug logging for worker node
-SCHEDULER_LOG_LEVEL=DEBUG scheduler start --address=head:8265
+SCHEDULER_LOG_LEVEL=DEBUG scheduler start --address=head:8266
 
 # View debug logs
 tail -f ~/.scheduler/logs/scheduler-head.log
@@ -1309,10 +1406,10 @@ scheduler start --head
 
 # 2. Start worker nodes on each GPU machine
 # On gpu1:
-scheduler start --address=head-machine:8265 --node-name=gpu1
+scheduler start --address=head-machine:8266 --node-name=gpu1
 
 # On gpu2:
-scheduler start --address=head-machine:8265 --node-name=gpu2
+scheduler start --address=head-machine:8266 --node-name=gpu2
 
 # 3. Verify cluster is running
 scheduler status
@@ -1407,7 +1504,7 @@ pip install gpu-scheduler
 from scheduler import SchedulerClient
 
 # Connect to scheduler
-client = SchedulerClient(address="head-node:8265")
+client = SchedulerClient(address="head-node:8266")
 
 # Submit job
 job = client.submit_job(
@@ -1597,25 +1694,25 @@ When multiple node options are specified (comma-separated), the scheduler:
 ps aux | grep scheduler
 
 # Check network connectivity to head node
-curl http://head-machine:8265/api/v1/health
+curl http://head-machine:8266/api/v1/health
 
 # Try with explicit address
-scheduler start --address=192.168.1.100:8265 --node-name=my-node
+scheduler start --address=192.168.1.100:8266 --node-name=my-node
 ```
 
 ### Port conflicts with other processes
 ```bash
-# If port 8265 is occupied by other processes, scheduler will automatically find an available port
-scheduler start --head --port 8265
-# Output: "Port 8265 is already in use by another process"
+# If port 8266 is occupied by other processes, scheduler will automatically find an available port
+scheduler start --head --port 8266
+# Output: "Port 8266 is already in use by another process"
 #         "Searching for an available port..."
 #         "Using available port: 8266"
 
 # To use a specific port range, specify a different starting port
 scheduler start --head --port 9000
 
-# Check what's using port 8265
-netstat -tulpn | grep :8265
+# Check what's using port 8266
+netstat -tulpn | grep :8266
 ```
 
 ### Job stuck in pending
@@ -1634,13 +1731,13 @@ ssh gpu1 "nvidia-smi"
 ### Cannot connect to head node
 ```bash
 # Test connectivity
-curl http://head-machine:8265/api/v1/health
+curl http://head-machine:8266/api/v1/health
 
 # Check configuration
 scheduler config get address
 
 # Set address if not configured
-scheduler config set address 192.168.1.100:8265
+scheduler config set address 192.168.1.100:8266
 ```
 
 ### Head node stopped unexpectedly

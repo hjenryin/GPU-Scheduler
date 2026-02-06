@@ -38,7 +38,7 @@ GPU Scheduler provides distributed job scheduling across multiple GPU machines w
 scheduler start --head
 
 # On worker machines
-scheduler start --address=head-machine:8265
+scheduler start --address=head-machine:8266
 ```
 
 **2. Submit a job:**
@@ -198,18 +198,17 @@ All snapshot settings can be configured in `~/.scheduler/config.yaml`:
 
 ```yaml
 # Snapshot configuration
-snapshot_max_file_size: 1048576  # 1 MB default
+snapshot_max_file_size: 524288  # 512 KB default
 snapshot_max_files_per_folder: 1000
 snapshot_data_type_limits:
-  .npy: 10485760   # 10 MB for numpy arrays
-  .pkl: 5242880    # 5 MB for pickle files
-  .json: 2097152   # 2 MB for JSON files
-snapshot_always_include_extensions: ['.py', '.sh', '.yaml', '.json', '.txt']
-snapshot_exclude_patterns: ['__pycache__', '.git', '*.pyc']
+  .json: 1048576   # 1 MB for JSON files
+  .csv: 1048576    # 1 MB for CSV files
+snapshot_always_include_extensions: ['.py', '.sh', '.yaml', '.yml', '.json', '.md', '.toml', '.ini', '.cfg', '.conf', '.env']
+snapshot_exclude_patterns: ['__pycache__', '.pytest_cache', '.mypy_cache', '.tox', '.egg-info', '.eggs', 'build', 'dist', '.git', '.scheduler-git', '*.pyc', '*.pyo', '*.pyd', '.so', '*.dylib', '.DS_Store', '*.swp', '*.swo', '.vscode', '.idea', '*.log', 'wandb', '*.safetensors']
 ```
 
 **Tuning Guidelines:**
-- **Small code/config files**: Keep defaults (1 MB) for code and config files
+- **Small code/config files**: Keep defaults (512 KB) for code and config files
 - **Data files**: Set higher limits for data types your workflows commonly use
 - **Model checkpoints**: Either exclude from snapshots or store in shared locations
 - **Large datasets**: Keep in external storage and reference via absolute paths
@@ -259,8 +258,8 @@ This is a **coordination system**, not an enforcement system. It works well when
 - ✅ **Environment variables**: Pass custom env vars to jobs
 - ✅ **Working directory**: Execute jobs in specified directory
 - ✅ **Script arguments**: Pass arguments to job scripts
-- ✅ **Async by default**: Fire-and-forget submission, use `--block` to wait and stream logs
-- ✅ **Log streaming**: Real-time log viewing in block mode with stderr on failure
+- ✅ **Async by default**: Fire-and-forget submission
+- ✅ **Log viewing**: View job logs with stdout/stderr separation
 
 ### GPU Monitoring
 
@@ -299,7 +298,7 @@ Full programmatic access via Python client:
 ```python
 from scheduler import SchedulerClient
 
-client = SchedulerClient(address="head:8265")
+client = SchedulerClient(address="head:8266")
 
 # Submit job
 job = client.submit_job(
@@ -334,15 +333,15 @@ Direct HTTP access for advanced integration:
 
 ```bash
 # Submit job
-curl -X POST http://head:8265/api/v1/jobs \
+curl -X POST http://head:8266/api/v1/jobs \
   -H "Content-Type: application/json" \
   -d '{"script": "train.py", "requirements": "2"}'
 
 # Get job status
-curl http://head:8265/api/v1/jobs/job_abc123
+curl http://head:8266/api/v1/jobs/job_abc123
 
 # List nodes
-curl http://head:8265/api/v1/nodes
+curl http://head:8266/api/v1/nodes
 ```
 
 **[→ Complete HTTP API Reference](docs/API_REFERENCE.md#api-endpoint-reference-advanced)**
@@ -485,7 +484,7 @@ Configuration is stored in `~/.scheduler/config.yaml`:
 
 ```yaml
 # Head node address (for workers and clients)
-address: 192.168.1.100:8265
+address: 192.168.1.100:8266
 
 # Node settings
 node:
@@ -499,7 +498,7 @@ node:
 
 # Head node settings
 head:
-  port: 8265
+  port: 8266
   heartbeat_timeout: 60
   scheduling_interval: 5
   graceful_shutdown_timeout: 60
