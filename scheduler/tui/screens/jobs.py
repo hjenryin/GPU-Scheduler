@@ -207,7 +207,7 @@ class JobsScreen(Screen):
                 if hasattr(job, "submitted_at") and job.submitted_at
                 else "N/A"
             )
-            eta_display = format_eta_display(job.eta) if hasattr(job, "eta") else "-"
+            eta_display = format_eta_display(job.eta)
             runtime_display = format_runtime(job.get_runtime())
             
             # Use dynamically calculated width for GPUs column

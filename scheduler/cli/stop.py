@@ -86,8 +86,8 @@ def _stop_all_nodes() -> int:
                     connected_nodes = [node for node in nodes if node.status.value == "connected"]
                     if nodes:
                         click.echo(f"Found {len(connected_nodes)}/{len(nodes)} connected worker nodes in cluster")
-                except:
-                    pass  # Continue even if we can't list nodes
+                except Exception as e:
+                    logger.warning(f"Could not list nodes: {e}")
                 
                 # Request cluster shutdown to signal all workers
                 try:

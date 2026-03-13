@@ -223,7 +223,7 @@ class JobDetailScreen(Screen):
         # Format GPU list
         gpu_list = (
             ", ".join(map(str, job.assigned_gpus))
-            if hasattr(job, "assigned_gpus") and job.assigned_gpus
+            if job.assigned_gpus
             else "Not assigned"
         )
         # Format runtime
@@ -243,7 +243,7 @@ class JobDetailScreen(Screen):
         # Format command
         command_str = (
             " ".join(job.command)
-            if hasattr(job, "command") and job.command
+            if job.command
             else "N/A"
         )
 

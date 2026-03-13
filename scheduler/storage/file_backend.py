@@ -1,6 +1,9 @@
 import json
+import logging
 import os
 from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 from scheduler.storage.backend import StorageBackend
 from scheduler.core import Job, Node
@@ -34,7 +37,10 @@ class FileBackend(StorageBackend):
         try:
             with open(filepath, 'r') as f:
                 return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except FileNotFoundError:
+            return {}
+        except json.JSONDecodeError as e:
+            logger.warning(f"Corrupted JSON file {filepath}, returning empty state: {e}")
             return {}
 
     def _write_json(self, filepath: str, data: dict):

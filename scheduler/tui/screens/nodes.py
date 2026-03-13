@@ -156,7 +156,7 @@ class NodesScreen(Screen):
         free_gpu_count = len(free_gpu_ids)
         info_text = (
             f"Status: {node.status.value.capitalize()}\n"
-            f"Address: {node.address if hasattr(node, 'address') else 'N/A'}\n"
+            f"Address: {node.address}\n"
             f"GPUs: {node.num_gpus} total, {free_gpu_count} free, "
             f"{node.num_gpus - free_gpu_count} in use"
         )
@@ -215,7 +215,7 @@ class NodesScreen(Screen):
         ]
         jobs_text = ""
         for job in running_jobs:
-            gpu_ids = job.assigned_gpus if hasattr(job, "assigned_gpus") else []
+            gpu_ids = job.assigned_gpus or []
             gpu_str = ",".join(map(str, gpu_ids)) if gpu_ids else "?"
             jobs_text += f"  • {job.job_id}: {job.name or 'N/A'} (GPUs: {gpu_str})\n"
         if not jobs_text:
