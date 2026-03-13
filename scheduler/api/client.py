@@ -863,6 +863,7 @@ class SchedulerClient:
             snapshot_ref=data.get("snapshot_ref"),
             snapshot_working_dir=data.get("snapshot_working_dir"),
             conda_env=data.get("conda_env"),
+            eta=data.get("eta"),
         )
 
     def _node_from_response(self, data: dict) -> Node:

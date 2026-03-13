@@ -227,11 +227,7 @@ class JobDetailScreen(Screen):
             else "Not assigned"
         )
         # Format runtime
-        runtime_str = (
-            format_runtime(job.runtime)
-            if hasattr(job, "runtime")
-            else "N/A"
-        )
+        runtime_str = format_runtime(job.get_runtime())
         # Format exit code
         exit_code_str = (
             str(job.exit_code)

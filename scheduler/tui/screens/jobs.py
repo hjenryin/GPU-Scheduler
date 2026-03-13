@@ -208,7 +208,7 @@ class JobsScreen(Screen):
                 else "N/A"
             )
             eta_display = format_eta_display(job.eta) if hasattr(job, "eta") else "-"
-            runtime_display = format_runtime(job.runtime) if hasattr(job, "runtime") else "-"
+            runtime_display = format_runtime(job.get_runtime())
             
             # Use dynamically calculated width for GPUs column
             gpus_text = str(job.requirements) if job.requirements else "?"

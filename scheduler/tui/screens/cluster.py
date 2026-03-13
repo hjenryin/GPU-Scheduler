@@ -220,7 +220,7 @@ class ClusterScreen(Screen):
                 job.status.value,
                 job.assigned_node or "-",
                 str(job.requirements) if job.requirements else "?",
-                format_runtime(job.runtime) if hasattr(job, "runtime") else "-",
+                format_runtime(job.get_runtime()),
             )
         # Restore cursor position if table has rows
         try:

@@ -23,29 +23,25 @@ def parse_tqdm_eta(stderr_content: str) -> Optional[str]:
     if not stderr_content:
         return None
 
-    # Get the last non-empty line
-    lines = stderr_content.strip().split('\n')
+    # tqdm often rewrites a single terminal line using '\r'. Normalize both
+    # CR and LF into line boundaries and scan from the most recent output.
+    lines = [line.strip() for line in re.split(r'[\r\n]+', stderr_content) if line.strip()]
     if not lines:
         return None
 
-    last_line = lines[-1].strip()
-    if not last_line:
-        return None
-
     # tqdm format: percentage|bar| count [elapsed<remaining, speed]
-    # Look for pattern: [HH:MM:SS<HH:MM:SS, ...] or [MM:SS<MM:SS, ...]
-    # The ETA is after the '<' character
-
-    # Pattern to match tqdm output with ETA
-    # Examples:
+    # Example matches:
     # - [00:10<00:05, 10.00it/s]
     # - [01:23:45<02:15:30, 100.00it/s]
-    pattern = r'\[[\d:]+<([\d:]+),'
+    pattern = re.compile(r'\[[\d:]+<([\d:]+),')
 
-    match = re.search(pattern, last_line)
-    if match:
-        eta = match.group(1)
-        # Validate that it's a time format (HH:MM:SS or MM:SS or SS)
+    for line in reversed(lines):
+        matches = list(pattern.finditer(line))
+        if not matches:
+            continue
+
+        eta = matches[-1].group(1)
+        # Validate HH:MM:SS, MM:SS, or SS
         if re.match(r'^\d{1,2}:\d{2}(:\d{2})?$', eta) or re.match(r'^\d+$', eta):
             return eta
 

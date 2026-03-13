@@ -724,6 +724,7 @@ class TestResponseParsing:
             "env_vars": {"CUDA_VISIBLE_DEVICES": "0,1"},
             "dependencies": ["job_100"],
             "priority": 5,
+            "eta": "00:42",
         }
 
         job = client._job_from_response(data)
@@ -733,6 +734,7 @@ class TestResponseParsing:
         assert job.exit_code == 0
         assert job.assigned_gpus == [0, 1]
         assert job.priority == 5
+        assert job.eta == "00:42"
         assert isinstance(job.submitted_at, datetime)
         assert isinstance(job.completed_at, datetime)
 
