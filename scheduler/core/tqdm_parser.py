@@ -72,26 +72,26 @@ def format_eta_display(eta: Optional[str]) -> str:
             seconds = int(parts[2])
 
             if hours > 0:
-                return f"ETA: {hours}h {minutes}m"
+                return f"{hours}h {minutes}m"
             elif minutes > 0:
-                return f"ETA: {minutes}m {seconds}s"
+                return f"{minutes}m {seconds}s"
             else:
-                return f"ETA: {seconds}s"
+                return f"{seconds}s"
         elif len(parts) == 2:
             # MM:SS format
             minutes = int(parts[0])
             seconds = int(parts[1])
 
             if minutes > 0:
-                return f"ETA: {minutes}m {seconds}s"
+                return f"{minutes}m {seconds}s"
             else:
-                return f"ETA: {seconds}s"
+                return f"{seconds}s"
         elif len(parts) == 1:
             # SS format
             seconds = int(parts[0])
-            return f"ETA: {seconds}s"
+            return f"{seconds}s"
     except ValueError:
         # If parsing fails, return the raw ETA
-        return f"ETA: {eta}"
+        return eta
 
     return "-"
