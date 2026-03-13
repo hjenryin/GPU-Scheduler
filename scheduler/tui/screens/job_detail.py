@@ -204,65 +204,55 @@ class JobDetailScreen(Screen):
             pass  # Widgets may not be mounted yet
 
         # Update metadata
+        status = job.status.value
+        is_assigned = job.assigned_node is not None
+        is_running = status == "running"
+        is_finished = status in ("completed", "failed", "cancelled", "interrupted")
+
         submitted_time = (
             job.submitted_at.strftime("%Y-%m-%d %H:%M:%S")
-            if hasattr(job, "submitted_at") and job.submitted_at
-            else "N/A"
+            if job.submitted_at else "N/A"
         )
         started_time = (
             job.started_at.strftime("%Y-%m-%d %H:%M:%S")
-            if hasattr(job, "started_at") and job.started_at
-            else "N/A"
-        )
-        completed_time = (
-            job.completed_at.strftime("%Y-%m-%d %H:%M:%S")
-            if hasattr(job, "completed_at") and job.completed_at
-            else "N/A"
+            if job.started_at else "N/A"
         )
 
-        # Format GPU list
-        gpu_list = (
-            ", ".join(map(str, job.assigned_gpus))
-            if job.assigned_gpus
-            else "Not assigned"
-        )
-        # Format runtime
-        runtime_str = format_runtime(job.get_runtime())
-        # Format exit code
-        exit_code_str = (
-            str(job.exit_code)
-            if hasattr(job, "exit_code") and job.exit_code is not None
-            else "N/A"
-        )
-        # Format ETA
-        eta_str = (
-            format_eta_display(job.eta)
-            if hasattr(job, "eta") and job.eta
-            else "-"
-        )
-        # Format command
-        command_str = (
-            " ".join(job.command)
-            if job.command
-            else "N/A"
-        )
+        command_str = " ".join(job.command) if job.command else "N/A"
 
-        metadata = (
-            f"Job ID:      {job.job_id}\n"
-            f"Name:        {job.name or 'N/A'}\n"
-            f"Command:     {command_str}\n"
-            f"Status:      {job.status.value}\n"
-            f"Priority:    {job.priority}\n"
-            f"Node:        {job.assigned_node or 'Not assigned'}\n"
-            f"GPUs:        {gpu_list}\n"
-            f"Submitted:   {submitted_time}\n"
-            f"Started:     {started_time}\n"
-            f"Completed:   {completed_time}\n"
-            f"Runtime:     {runtime_str}\n"
-            f"ETA:         {eta_str}\n"
-            f"Exit Code:   {exit_code_str}"
-        )
-        self.query_one("#job-metadata", Static).update(metadata)
+        lines = [
+            f"Job ID:      {job.job_id}",
+            f"Name:        {job.name or 'N/A'}",
+            f"Command:     {command_str}",
+            f"Status:      {status}",
+            f"Priority:    {job.priority}",
+            f"Submitted:   {submitted_time}",
+            f"Started:     {started_time}",
+        ]
+
+        if is_assigned:
+            gpu_list = ", ".join(map(str, job.assigned_gpus)) if job.assigned_gpus else "?"
+            lines += [
+                f"Node:        {job.assigned_node}",
+                f"GPUs:        {gpu_list}",
+                f"Runtime:     {format_runtime(job.get_runtime())}",
+            ]
+
+        if is_running:
+            lines.append(f"ETA:         {format_eta_display(job.eta)}")
+
+        if is_finished:
+            completed_time = (
+                job.completed_at.strftime("%Y-%m-%d %H:%M:%S")
+                if job.completed_at else "N/A"
+            )
+            exit_code_str = str(job.exit_code) if job.exit_code is not None else "N/A"
+            lines += [
+                f"Completed:   {completed_time}",
+                f"Exit Code:   {exit_code_str}",
+            ]
+
+        self.query_one("#job-metadata", Static).update("\n".join(lines))
 
     def _update_bindings(self, can_cancel: bool, can_retry: bool):
         """
