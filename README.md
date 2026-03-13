@@ -18,7 +18,7 @@ GPU Scheduler is a **lightweight, user-space distributed job scheduler** designe
 - 🔄 **Ray-inspired interface** - familiar commands for Ray users
 - 📊 **Active GPU monitoring** - real-time utilization tracking
 - 🔗 **Multi-node clusters** - coordinate jobs across multiple machines
-- 🎯 **Smart scheduling** - considers GPU availability, stability, and grace periods
+- 🎯 **Smart scheduling** - considers GPU availability and grace periods
 - 📸 **Automatic snapshots** - git-based workspace snapshots for reproducibility
 - 🐍 **Python API** - programmatic job submission and monitoring
 - 🖥️ **Interactive TUI** - real-time cluster visualization
@@ -147,7 +147,7 @@ Familiar CLI patterns for Ray users:
 - Cannot enforce isolation, but intelligently schedules around active usage
 
 ### 3. Robust Scheduling
-- **Stability Detection**: GPUs must stay below threshold for 30s before considered free
+- **Immediate Availability**: GPUs are considered free as soon as utilization drops below thresholds
 - **Grace Periods**: Nodes pause accepting jobs for 120s after a job starts
 - **Conservative**: Prevents scheduling conflicts and false positives
 
@@ -223,7 +223,7 @@ snapshot_exclude_patterns: ['__pycache__', '.pytest_cache', '.mypy_cache', '.tox
 Not all frameworks respect `CUDA_VISIBLE_DEVICES`. The scheduler cannot prevent code from using all GPUs at the system level. Users should verify their code respects GPU assignments.
 
 ⚠️ **Shared Environment**  
-This scheduler monitors but cannot prevent other users from starting jobs outside the system. Grace periods and stability detection help minimize conflicts.
+This scheduler monitors but cannot prevent other users from starting jobs outside the system. Grace periods help minimize conflicts.
 
 ⚠️ **Best Effort Coordination**  
 This is a **coordination system**, not an enforcement system. It works well when users cooperate and code respects GPU assignments.
@@ -267,7 +267,7 @@ This is a **coordination system**, not an enforcement system. It works well when
 - ✅ **Memory tracking**: Used/total memory per GPU
 - ✅ **Temperature monitoring**: GPU temperature tracking
 - ✅ **Power consumption**: Current power draw per GPU
-- ✅ **Stability detection**: Configurable thresholds and stable time
+- ✅ **Utilization monitoring**: Real-time tracking of GPU usage and memory
 - ✅ **Grace periods**: Prevent over-scheduling during job initialization
 - ✅ **GPU freezing**: Temporarily prevent job scheduling on specific GPUs
 
@@ -493,7 +493,6 @@ node:
   gpu_poll_interval: 10
   gpu_util_threshold: 10
   gpu_mem_threshold: 10
-  gpu_stable_time: 30
   job_startup_grace: 120
 
 # Head node settings

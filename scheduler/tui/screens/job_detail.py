@@ -5,6 +5,7 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from scheduler.core import Job  # Import from peer submodule's public API
 from scheduler.core import format_eta_display
 from scheduler.tui.utils import format_runtime
+from scheduler.tui.screens.git_diff import GitDiffScreen
 from rich.text import Text
 
 
@@ -38,6 +39,7 @@ class JobDetailScreen(Screen):
     BINDINGS = [
         ("escape", "pop_screen", "Back"),
         ("l", "view_logs", "Logs"),
+        ("d", "view_diff", "Diff"),
         ("q", "quit", "Quit"),
     ]
 
@@ -66,8 +68,6 @@ class JobDetailScreen(Screen):
             VerticalScroll(
                 Static(f"Job Details: {self.job_id}", id="job-detail-title"),
                 Static("", id="job-metadata"),
-                Static("Job Configuration", id="job-config-header"),
-                Static("", id="job-config"),
                 Static("STDOUT Preview (last 20 lines)", id="stdout-header"),
                 Container(
                     TextArea(
@@ -90,6 +90,7 @@ class JobDetailScreen(Screen):
                 ),
                 Horizontal(
                     Button("View Full Logs (l)", id="logs-button", variant="primary"),
+                    Button("View Diff (d)", id="diff-button", variant="primary"),
                     Button("Cancel Job (c)", id="cancel-button", variant="error"),
                     Button("Back (esc)", id="back-button"),
                     Button("Retry\nIn-Place", id="retry-inplace-button", variant="success"),
@@ -243,10 +244,17 @@ class JobDetailScreen(Screen):
             if hasattr(job, "eta") and job.eta
             else "-"
         )
+        # Format command
+        command_str = (
+            " ".join(job.command)
+            if hasattr(job, "command") and job.command
+            else "N/A"
+        )
 
         metadata = (
             f"Job ID:      {job.job_id}\n"
             f"Name:        {job.name or 'N/A'}\n"
+            f"Command:     {command_str}\n"
             f"Status:      {job.status.value}\n"
             f"Priority:    {job.priority}\n"
             f"Node:        {job.assigned_node or 'Not assigned'}\n"
@@ -260,33 +268,6 @@ class JobDetailScreen(Screen):
         )
         self.query_one("#job-metadata", Static).update(metadata)
 
-        # Update configuration
-        cmd_str = ' '.join(job.command)
-
-        config = (
-            f"Command:     {cmd_str}\n"
-            f"Working Dir: {job.working_dir or 'Default'}\n"
-        )
-        if job.conda_env:
-            config += f"Conda Env:   {job.conda_env}\n"
-        config += (
-            f"Environment: {len(job.env_vars) if job.env_vars else 0} variables\n"
-            f"Requirements: {str(job.requirements) if job.requirements else '?'}"
-        )
-        if job.requirements and job.requirements.alternatives:
-            alt_str = ", ".join(
-                [
-                    f"{node or 'any'}:{ngpus}"
-                    for node, ngpus in job.requirements.alternatives
-                ]
-            )
-            config += f" ({alt_str})"
-
-        if job.dependencies:
-            config += f"\nDependencies: {', '.join(job.dependencies)}"
-
-        self.query_one("#job-config", Static).update(config)
-
     def _update_bindings(self, can_cancel: bool, can_retry: bool):
         """
         Update footer bindings based on job status.
@@ -299,6 +280,7 @@ class JobDetailScreen(Screen):
         new_bindings = [
             ("escape", "pop_screen", "Back"),
             ("l", "view_logs", "Logs"),
+            ("d", "view_diff", "Diff"),
         ]
         
         # Add conditional bindings
@@ -370,6 +352,14 @@ class JobDetailScreen(Screen):
                 stdout_widget.load_text(f"Error fetching stdout logs: {e}")
                 stderr_widget = self.query_one("#stderr-preview", TextArea)
                 stderr_widget.load_text(f"Error fetching stderr logs: {e}")
+
+    def action_view_diff(self):
+        """
+        View git diff.
+
+        Bound to 'd' key.
+        """
+        self.app.push_screen(GitDiffScreen(self.job_id))
 
     def action_cancel_job(self):
         """
@@ -496,6 +486,8 @@ class JobDetailScreen(Screen):
         """Handle button presses."""
         if event.button.id == "logs-button":
             self.action_view_logs()
+        elif event.button.id == "diff-button":
+            self.action_view_diff()
         elif event.button.id == "cancel-button":
             self.action_cancel_job()
         elif event.button.id == "back-button":

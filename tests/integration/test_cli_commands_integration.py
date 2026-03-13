@@ -72,7 +72,7 @@ def live_head(tmp_path_factory):
     try:
         yield {"port": port, "home": str(tmp_home), "config": config, "orchestrator": orchestrator}
     finally:
-        orchestrator.stop(graceful=True)
+        orchestrator.stop()
         time.sleep(0.5)
 
 
@@ -99,7 +99,7 @@ class TestCLIIntegration:
         assert isinstance(data, list)
         assert len(data) >= 1
         # Verify at least one job references our script name
-        assert any("echo.py" in (j.get("script") or "") for j in data)
+        assert any("echo.py" in str(j.get("command", [])) for j in data)
 
     def test_cancel_job(self, cli_runner, live_head, tmp_path):
         # Create script and submit

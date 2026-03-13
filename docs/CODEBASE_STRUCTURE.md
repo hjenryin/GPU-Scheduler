@@ -261,7 +261,7 @@ head/
   - Matches jobs to nodes based on requirements
   - Handles job dependencies (DAG resolution)
   - Implements priority-based scheduling
-  - Respects grace periods and stability windows
+  - Respects grace periods for job initialization
 
 - **`job_manager.py`**:
   - Manages job queue (pending, running, completed, failed)
@@ -329,9 +329,7 @@ worker/
 - **`gpu_monitor.py`**:
   - Polls GPU stats using nvidia-smi or pynvml
   - Tracks utilization, memory, temperature, power
-  - Implements stability detection (consecutive checks)
-  - Determines which GPUs are "free"
-  - Respects gpu_stable_time configuration
+  - Determines which GPUs are "free" based on thresholds
   - Detects new processes on GPUs
 
 - **`job_executor.py`**:
@@ -545,7 +543,6 @@ tui/
   - Composes: Grid layout of GPU cards
   - All GPUs across all nodes
   - Per-GPU statistics with progress bars
-  - Stability indicators (time free)
   - GPU utilization visualization
 
 - **`screens/job_detail.py`**:
@@ -927,12 +924,6 @@ Worker Daemon
    - No new jobs scheduled during this time
    - Prevents: race conditions, initialization conflicts, data loading gaps
    - Tunable via `--job-startup-grace`
-
-3. **Stability Detection**:
-   - A GPU is only "free" after staying below threshold for consecutive checks
-   - Default: 30 seconds of stable low utilization
-   - Prevents: false positives during brief idle periods
-   - Tunable via `--gpu-stable-time`
 
 4. **Shared Machine Environment**:
    - System is designed for shared GPU clusters

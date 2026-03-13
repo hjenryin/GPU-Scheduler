@@ -18,7 +18,6 @@ from scheduler.core.constants import (
     DEFAULT_GPU_POLL_INTERVAL,
     DEFAULT_GPU_UTIL_THRESHOLD,
     DEFAULT_GPU_MEM_THRESHOLD,
-    DEFAULT_GPU_STABLE_TIME,
     DEFAULT_JOB_STARTUP_GRACE,
     DEFAULT_STORAGE_BACKEND,
     DEFAULT_DATA_DIR,
@@ -48,7 +47,6 @@ class WorkerConfig:
     gpu_poll_interval: int = DEFAULT_GPU_POLL_INTERVAL
     gpu_util_threshold: float = DEFAULT_GPU_UTIL_THRESHOLD
     gpu_mem_threshold: float = DEFAULT_GPU_MEM_THRESHOLD
-    gpu_stable_time: int = DEFAULT_GPU_STABLE_TIME
     job_startup_grace: int = DEFAULT_JOB_STARTUP_GRACE
     heartbeat_interval: int = DEFAULT_HEARTBEAT_INTERVAL
     job_poll_timeout: int = DEFAULT_JOB_POLL_TIMEOUT
@@ -96,21 +94,7 @@ class Config:
 
     def __post_init__(self):
         """Validate configuration values after initialization."""
-        # Validate heartbeat_interval vs gpu_stable_time
-        if self.worker.heartbeat_interval > self.worker.gpu_stable_time:
-            raise ValidationException(
-                f"Invalid configuration: heartbeat_interval ({self.worker.heartbeat_interval}s) "
-                f"must be <= gpu_stable_time ({self.worker.gpu_stable_time}s). "
-                f"GPUs cannot be tracked as stable if heartbeats arrive less frequently than the stability window."
-            )
-
-        # Validate gpu_poll_interval vs gpu_stable_time
-        if self.worker.gpu_poll_interval > self.worker.gpu_stable_time:
-            raise ValidationException(
-                f"Invalid configuration: gpu_poll_interval ({self.worker.gpu_poll_interval}s) "
-                f"must be <= gpu_stable_time ({self.worker.gpu_stable_time}s). "
-                f"GPU stability cannot be properly tracked if polling is less frequent than the stability window."
-            )
+        pass
 
     @classmethod
     def from_dict(cls, config_dict: dict) -> 'Config':

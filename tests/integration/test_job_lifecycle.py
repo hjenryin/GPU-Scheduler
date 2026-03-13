@@ -25,11 +25,10 @@ def full_system(temp_dir):
             temp_dir=temp_dir,
             log_dir=temp_dir,
             work_dir=temp_dir,
-            heartbeat_interval=2,  # Must be <= gpu_stable_time
-            gpu_poll_interval=2,   # Must be <= gpu_stable_time for validation
+            heartbeat_interval=2,
+            gpu_poll_interval=2,
             gpu_util_threshold=10.0,
             gpu_mem_threshold=10.0,
-            gpu_stable_time=2,  # Reduced from 60 for faster tests
             job_startup_grace=3  # Reduced from 30 for faster tests
         )
     )
@@ -72,16 +71,13 @@ class TestJobLifecycle:
 
         # Send heartbeat with free GPUs
         stats = []
-        stable_time = datetime.now() - timedelta(seconds=3)
         for i in range(4):
             stats.append(GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300))
 
         node_manager.update_heartbeat("gpu1", stats)
 
-        # Manually set stability for testing
+        # Manually verify node is tracked
         node = node_manager.get_node("gpu1")
-        for gpu in node.gpus:
-            gpu.stable_since = stable_time
 
         # Run scheduling
         scheduler.schedule_cycle()
@@ -111,10 +107,7 @@ class TestJobLifecycle:
         ]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
-        for gpu in node.gpus:
-            gpu.stable_since = stable_time
 
         # Submit and schedule job
         job = job_manager.submit_job("/script.py", "2")
@@ -140,9 +133,7 @@ class TestJobLifecycle:
         ]
         node_manager.update_heartbeat("gpu1", low_usage_stats)
 
-        # GPUs should start becoming stable again
         node = node_manager.get_node("gpu1")
-        assert all(gpu.stable_since is not None for gpu in node.gpus)
 
     def test_multiple_jobs_scheduling(self, full_system):
         """Test scheduling multiple jobs across different nodes"""
@@ -160,10 +151,7 @@ class TestJobLifecycle:
             ]
             node_manager.update_heartbeat(node_name, stats)
 
-            stable_time = datetime.now() - timedelta(seconds=3)
             node = node_manager.get_node(node_name)
-            for gpu in node.gpus:
-                gpu.stable_since = stable_time
 
         # Submit multiple jobs
         job1 = job_manager.submit_job("/script1.py", "2", priority=1)
@@ -195,10 +183,7 @@ class TestJobLifecycle:
         ]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
-        for gpu in node.gpus:
-            gpu.stable_since = stable_time
 
         # Submit jobs with dependencies
         job1 = job_manager.submit_job("/preprocess.py", "1", name="preprocess")
@@ -221,8 +206,7 @@ class TestJobLifecycle:
         # Reset GPU stability and clear grace period
         node = node_manager.get_node("gpu1")
         low_usage_stats = GPUStats(0, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300)
-        node.gpus[0].update_stats(low_usage_stats, util_threshold=10.0, mem_threshold=10.0)
-        node.gpus[0].stable_since = stable_time
+        node.gpus[0].update_stats(low_usage_stats)
         node.grace_period_until = None  # Clear grace period
 
         # Second scheduling cycle - job2 should run now
@@ -244,10 +228,7 @@ class TestJobLifecycle:
         ]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
-        for gpu in node.gpus:
-            gpu.stable_since = stable_time
 
         # Submit and schedule first job
         job1 = job_manager.submit_job("/script1.py", "1")
@@ -335,10 +316,7 @@ class TestJobLifecycle:
         ]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
-        for gpu in node.gpus:
-            gpu.stable_since = stable_time
 
         # Submit low priority job first, then high priority
         low_job = job_manager.submit_job("/low.py", "2", priority=1)

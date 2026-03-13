@@ -48,7 +48,7 @@ This system provides distributed job scheduling across multiple GPU machines wit
 - Cannot enforce isolation, but monitors and schedules intelligently
 
 **3. Robust Scheduling**
-- **Stability Detection**: GPUs must be stable (below threshold for 30s) before considered free
+- **Immediate Availability**: GPUs are considered free as soon as utilization drops below thresholds
 - **Grace Periods**: Nodes don't accept new jobs for 120s after a job starts
 - **Conservative**: Prevents conflicts and false positives
 
@@ -68,7 +68,7 @@ This system provides distributed job scheduling across multiple GPU machines wit
 
 ⚠️ **CUDA_VISIBLE_DEVICES Compliance**: Not all frameworks respect `CUDA_VISIBLE_DEVICES`. The scheduler cannot prevent code from using all GPUs. Users should verify their code respects GPU assignments or configure GPU visibility manually in their scripts.
 
-⚠️ **Shared Environment**: This scheduler monitors but cannot prevent other users from starting jobs outside the system. Grace periods and stability detection help minimize conflicts.
+⚠️ **Shared Environment**: This scheduler monitors but cannot prevent other users from starting jobs outside the system. Grace periods help minimize conflicts.
 
 ⚠️ **Best Effort**: This is a coordination system, not an enforcement system. It works well when users cooperate and code respects GPU assignments.
 
@@ -120,7 +120,6 @@ scheduler start [OPTIONS]
 | `--gpu-poll-interval` | int | `10` | Seconds between GPU status checks |
 | `--gpu-util-threshold` | int | `10` | GPU utilization % below which GPU is considered free |
 | `--gpu-mem-threshold` | int | `10` | GPU memory % below which GPU is considered free |
-| `--gpu-stable-time` | int | `30` | Seconds GPU must stay below threshold before considered free |
 | `--job-startup-grace` | int | `120` | Seconds to wait after job starts before scheduling new jobs on same node |
 
 **Examples:**
@@ -150,7 +149,6 @@ scheduler start --address=head.local:8266 --num-gpus=8
 # Start worker with conservative GPU detection
 scheduler start --address=head.local:8266 \
                 --gpu-util-threshold=5 \
-                --gpu-stable-time=60 \
                 --job-startup-grace=180
 
 # Start in foreground (blocking)
@@ -165,13 +163,7 @@ scheduler start --head --block
    - Multiple jobs starting simultaneously and competing for resources
    - Scheduling during model loading or dataset preprocessing phases when GPU utilization is temporarily low
 
-3. **Stable GPU Detection**: A GPU is only considered "free" after its utilization stays below the threshold for a consecutive period (default 30 seconds). This prevents:
-   - False positives during brief idle periods
-   - Scheduling during data loading gaps
-   - Conflicts with newly started jobs from other users
-
-4. **Tuning Recommendations**:
-   - Increase `--gpu-stable-time` (e.g., 60s) if you see frequent false positives
+3. **Tuning Recommendations**:
    - Increase `--job-startup-grace` (e.g., 300s) if your jobs have long initialization phases
    - Decrease `--gpu-util-threshold` (e.g., 5%) for stricter GPU availability detection
    - Monitor your actual workload patterns and adjust accordingly
@@ -411,19 +403,18 @@ Shows detailed GPU statistics across all nodes:
 │ │ 0    │ ████████████████░░ 82%  │ 14G/16G  │ 72°C   │ job_abc123    ││
 │ │ 1    │ ░░░░░░░░░░░░░░░░░░  5%  │  1G/16G  │ 45°C   │ free (30s)    ││
 │ │ 2    │ ████████████████░░ 79%  │ 13G/16G  │ 69°C   │ job_abc123    ││
-│ │ 3    │ ░░░░░░░░░░░░░░░░░░  3%  │  1G/16G  │ 43°C   │ free (45s)    ││
+│ │ 3    │ ░░░░░░░░░░░░░░░░░░  3%  │  1G/16G  │ 43°C   │ -             ││
 │ └──────┴─────────────────────────┴──────────┴────────┴───────────────┘│
 │                                                                        │
 │ gpu2 - 8 GPUs (8 free, 0 in use)                                      │
 │ ┌──────┬─────────────────────────┬──────────┬────────┬───────────────┐│
 │ │ GPU  │ Utilization             │ Memory   │ Temp   │ Job           ││
 │ ├──────┼─────────────────────────┼──────────┼────────┼───────────────┤│
-│ │ 0    │ ░░░░░░░░░░░░░░░░░░  3%  │  1G/32G  │ 38°C   │ free (120s)   ││
-│ │ 1    │ ░░░░░░░░░░░░░░░░░░  2%  │  1G/32G  │ 36°C   │ free (115s)   ││
+│ │ 0    │ ░░░░░░░░░░░░░░░░░░  3%  │  1G/32G  │ 38°C   │ -             ││
+│ │ 1    │ ░░░░░░░░░░░░░░░░░░  2%  │  1G/32G  │ 36°C   │ -             ││
 │ │ ...                                                                 ││
 │ └──────┴─────────────────────────┴──────────┴────────┴───────────────┘│
 │                                                                        │
-│ Note: "free (Xs)" shows how long GPU has been below threshold         │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1218,7 +1209,6 @@ node:
   gpu_poll_interval: 10
   gpu_util_threshold: 10
   gpu_mem_threshold: 10
-  gpu_stable_time: 30
   job_startup_grace: 120
 
 # Head node settings (only used if running as head)
@@ -1388,8 +1378,8 @@ tail -f ~/.scheduler/logs/scheduler-worker.log
 
 **Debug Log Format:**
 ```
-[2025-10-24 17:21:46.081945] Node worker1.get_free_gpus: checking 8 GPUs with thresholds util=10.0%, mem=10.0%, stable_time=2s
-[2025-10-24 17:21:46.081945] GPU 1: util=0.0%, mem=1.4%, is_free=True, is_stable=True, stable_since=2025-10-24 17:21:33.113722, elapsed=12.97s
+[2025-10-24 17:21:46.081945] Node worker1.get_free_gpus: checking 8 GPUs with thresholds util=10.0%, mem=10.0%
+[2025-10-24 17:21:46.081945] GPU 1: util=0.0%, mem=1.4%, is_free=True
 [2025-10-24 17:21:46.081945] GPU 1: ADDED to free GPUs
 [2025-10-24 17:21:46.081945] Node worker1: FINAL free GPUs = [1, 2, 3, 4, 5, 6, 7]
 ```
@@ -1656,7 +1646,7 @@ For direct HTTP API access:
 When multiple node options are specified (comma-separated), the scheduler:
 1. Evaluates each option from left to right
 2. Checks if the node exists, is connected, and has enough free GPUs
-3. A GPU is considered "free" only if it has been below the utilization threshold for at least `gpu_stable_time` seconds
+3. A GPU is considered "free" only if it is below the utilization and memory thresholds.
 4. For **fixed allocation** (e.g., `gpu1:4`): Requires exactly the specified number of GPUs
 5. For **flexible allocation** (e.g., `gpu1`): Takes all available GPUs (minimum 1 required)
 6. Selects the first option that satisfies all conditions
@@ -1664,7 +1654,7 @@ When multiple node options are specified (comma-separated), the scheduler:
 8. When a job is assigned to a node, that node enters a grace period (`job_startup_grace`) during which no new jobs will be scheduled
 
 **Flexible Allocation Behavior:**
-- Jobs using flexible allocation (e.g., `--req gpu1`) will receive **all free and stable GPUs** on the specified node
+- Jobs using flexible allocation (e.g., `--req gpu1`) will receive **all free GPUs** on the specified node
 - The scheduler requires at least 1 GPU to be available for flexible allocation to succeed
 - This is useful for:
   - Jobs that can scale with available resources (distributed training, data processing)
@@ -1753,7 +1743,7 @@ scheduler start --head
 
 ### Jobs not scheduling despite free GPUs
 ```bash
-# Check if GPUs are stable (not in grace period)
+# Check if GPUs are above thresholds
 scheduler status
 # Press 'G' to see detailed GPU view with stability timers
 
@@ -1761,7 +1751,7 @@ scheduler status
 # The status TUI shows this information
 
 # Consider tuning parameters:
-# - Decrease gpu_stable_time if too conservative
+# - Adjust thresholds if too conservative or too loose
 # - Decrease job_startup_grace if jobs initialize quickly
 # - Decrease gpu_util_threshold for stricter detection
 ```

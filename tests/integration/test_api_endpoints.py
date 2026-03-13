@@ -221,7 +221,7 @@ class TestJobEndpoints:
         # Submit multiple jobs
         for i in range(5):
             api_client.post("/api/v1/jobs", json={
-                "script": f"job{i}.py",
+                "command": [f"job{i}.py"],
                 "requirements": "1"
             })
 
@@ -782,7 +782,7 @@ class TestResponseSchemas:
         # Required fields
         assert "job_id" in data
         assert "name" in data
-        assert "script" in data
+        assert "command" in data
         assert "requirements" in data
         assert "status" in data
         assert "submitted_at" in data

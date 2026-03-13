@@ -34,8 +34,6 @@ def mock_gpu_stats():
 def mock_gpu(mock_gpu_stats):
     """Create real GPU object."""
     gpu = GPU(gpu_id=0, stats=mock_gpu_stats)
-    # Set as stable (been free for 120 seconds to be sure)
-    gpu.stable_since = datetime.now() - timedelta(seconds=120)
     return gpu
 
 
@@ -53,8 +51,6 @@ def mock_gpu_occupied():
         running_job_id="job_123"
     )
     gpu = GPU(gpu_id=1, stats=stats)
-    # Not stable (in use)
-    gpu.stable_since = None
     return gpu
 
 
@@ -87,7 +83,6 @@ def mock_node_disconnected(mock_gpus):
     for i in range(4):
         stats = GPUStats(i, 5.0, 500*1024**2, 16*1024**3, 60, 100, 300, None)  # 5% util, low mem
         gpu = GPU(i, stats)
-        gpu.stable_since = datetime.now() - timedelta(seconds=120)  # Ensure stable
         gpus.append(gpu)
     
     node = Node(

@@ -75,7 +75,8 @@ class TestStatusCommand:
         mock_run_tui.side_effect = KeyboardInterrupt()
         mock_client_class.return_value = mock_client
 
-        with patch('scheduler.cli.status.click.echo', autospec=True) as mock_echo:
+        with patch('scheduler.cli.status.click.echo', autospec=True) as mock_echo, \
+             patch('scheduler.cli.status.sys.stdout.isatty', return_value=True):
             result = status_command()
             assert result == 0
             mock_echo.assert_called_with("\nExiting...")
@@ -96,7 +97,8 @@ class TestStatusCommand:
         mock_run_tui.side_effect = Exception("TUI error")
         mock_client_class.return_value = mock_client
 
-        with patch('scheduler.cli.status.click.echo', autospec=True):
+        with patch('scheduler.cli.status.click.echo', autospec=True), \
+             patch('scheduler.cli.status.sys.stdout.isatty', return_value=True):
             result = status_command()
             assert result == 1
 
@@ -115,7 +117,8 @@ class TestStatusCommand:
             mock_client.list_nodes.return_value = []
             mock_client_class.return_value = mock_client
 
-            with patch('scheduler.cli.status.click.echo', autospec=True):
+            with patch('scheduler.cli.status.click.echo', autospec=True), \
+                 patch('scheduler.cli.status.sys.stdout.isatty', return_value=True):
                 result = status_command()
                 assert result == 0
                 # Should call SchedulerClient with config only (no address)
@@ -137,7 +140,8 @@ class TestStatusCommand:
             mock_client.list_nodes.return_value = []
             mock_client_class.return_value = mock_client
 
-            with patch('scheduler.cli.status.click.echo', autospec=True):
+            with patch('scheduler.cli.status.click.echo', autospec=True), \
+                 patch('scheduler.cli.status.sys.stdout.isatty', return_value=True):
                 result = status_command()
                 assert result == 0
                 # Should call SchedulerClient with config only, allowing it to
@@ -164,7 +168,8 @@ class TestStatusCommand:
             # TUI crashes with exception
             mock_run_tui.side_effect = RuntimeError("TUI crashed")
 
-            with patch('scheduler.cli.status.click.echo', autospec=True) as mock_echo:
+            with patch('scheduler.cli.status.click.echo', autospec=True) as mock_echo, \
+                 patch('scheduler.cli.status.sys.stdout.isatty', return_value=True):
                 result = status_command()
                 assert result == 1
                 # Should log the error

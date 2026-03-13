@@ -1088,3 +1088,42 @@ class GitSnapshotManager:
 
         except Exception as e:
             logger.warning(f"Error during purge for job {job_id}: {e}")
+
+    def get_diff(self, working_dir: str, from_ref: str, to_ref: Optional[str] = None) -> str:
+        """Get git diff between refs using the shadow repository
+        
+        Args:
+            working_dir: Working directory containing the shadow repo
+            from_ref: Commit SHA to compare from (e.g. snapshot_ref)
+            to_ref: Commit SHA to compare to. If None, compares to current working directory.
+            
+        Returns:
+            Diff string
+        """
+        try:
+            git_dir = self._get_shadow_repo_path(working_dir)
+            if not os.path.exists(git_dir):
+                return f"Error: Shadow repository not found at {git_dir}"
+
+            cmd = self._git_base_args(working_dir, git_dir) + ['diff', '--patch', from_ref]
+            if to_ref:
+                cmd.append(to_ref)
+            
+            result = subprocess.run(
+                cmd,
+                cwd=working_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=30,
+                check=False  # Don't raise on exit code 1 (diff found)
+            )
+            
+            if result.returncode not in [0, 1]:
+                return f"Git error: {result.stderr}"
+                
+            return result.stdout if result.stdout else "No changes."
+            
+        except Exception as e:
+            logger.error(f"Error getting diff: {e}")
+            return f"Error getting diff: {e}"

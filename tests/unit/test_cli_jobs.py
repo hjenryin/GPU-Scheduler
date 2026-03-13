@@ -31,6 +31,12 @@ class TestJobsCommand:
         mock_job.assigned_gpus = []
         mock_job.started_at = None
         mock_job.completed_at = None
+        mock_job.eta = None
+        mock_job.command = ["test-cmd"]
+        mock_job.conda_env = None
+        mock_job.working_dir = None
+        mock_job.exit_code = None
+        mock_job.error_message = None
         
         mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_jobs.return_value = [mock_job]
@@ -50,11 +56,17 @@ class TestJobsCommand:
         mock_job.to_dict.return_value = {"job_id": "job_123"}
         mock_job.job_id = "job_123"
         mock_job.name = "test"
-        mock_job.status.value = "running"
+        mock_job.status = JobStatus.RUNNING
         mock_job.assigned_node = None
         mock_job.assigned_gpus = []
         mock_job.started_at = None
         mock_job.completed_at = None
+        mock_job.eta = None
+        mock_job.command = ["test-cmd"]
+        mock_job.conda_env = None
+        mock_job.working_dir = None
+        mock_job.exit_code = None
+        mock_job.error_message = None
         
         mock_client = Mock(spec_set=SchedulerClient)
         mock_client.list_jobs.return_value = [mock_job]
@@ -72,6 +84,18 @@ class TestJobsCommand:
         """Test getting specific job IDs"""
         mock_job = Mock(spec_set=Job)
         mock_job.to_dict.return_value = {"job_id": "job_123"}
+        mock_job.name = "test"
+        mock_job.status = JobStatus.PENDING
+        mock_job.assigned_node = None
+        mock_job.assigned_gpus = []
+        mock_job.started_at = None
+        mock_job.completed_at = None
+        mock_job.eta = None
+        mock_job.command = ["test-cmd"]
+        mock_job.conda_env = None
+        mock_job.working_dir = None
+        mock_job.exit_code = None
+        mock_job.error_message = None
         
         mock_client = Mock(spec_set=SchedulerClient)
         mock_client.get_job.return_value = mock_job

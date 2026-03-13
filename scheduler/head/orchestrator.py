@@ -61,6 +61,20 @@ class Orchestrator:
         self.job_manager = JobManager(persistence, config)
         self.node_manager = NodeManager(persistence, config)
 
+        def _on_job_terminal(job):
+            if job.assigned_node and job.assigned_gpus:
+                node = self.node_manager.get_node(job.assigned_node)
+                if node:
+                    changed = False
+                    for gpu_id in job.assigned_gpus:
+                        if gpu_id < len(node.gpus) and node.gpus[gpu_id].assigned_job_id == job.job_id:
+                            node.gpus[gpu_id].unassign()
+                            changed = True
+                    if changed:
+                        self.node_manager.save_node(node)
+
+        self.job_manager.on_job_terminal_callback = _on_job_terminal
+
         # Initialize scheduler
         self.scheduler = Scheduler(
             self.job_manager,
@@ -203,8 +217,7 @@ class Orchestrator:
         total_gpus = sum(node.num_gpus for node in nodes)
         free_gpus = sum(len(node.get_free_gpus(
             self.config.worker.gpu_util_threshold,
-            self.config.worker.gpu_mem_threshold,
-            self.config.worker.gpu_stable_time
+            self.config.worker.gpu_mem_threshold
         )) for node in nodes)
         used_gpus = total_gpus - free_gpus
 

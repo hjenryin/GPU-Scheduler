@@ -501,7 +501,7 @@ True E2E tests run with real GPU hardware and are now functional:
 
 **Configuration Fix Applied:**
 - Head node configuration now includes worker parameters to ensure consistent timing
-- `gpu_stable_time=2` seconds for faster E2E testing
+- `heartbeat_interval=2` seconds for faster E2E testing
 - `heartbeat_interval=2` and `gpu_poll_interval=2` to match stability requirements
 
 ### ⚠️ What is Partially Tested

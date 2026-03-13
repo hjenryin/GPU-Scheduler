@@ -918,14 +918,13 @@ class SchedulerClient:
                     power_limit=gpu_data.get("power_limit")
                 )
 
-                stable_since = datetime.fromisoformat(gpu_data["stable_since"]) if gpu_data.get("stable_since") else None
                 frozen_until = datetime.fromisoformat(gpu_data["frozen_until"]) if gpu_data.get("frozen_until") else None
 
                 gpu = GPU(
                     gpu_id=gpu_data["gpu_id"],
                     stats=stats,
-                    stable_since=stable_since,
-                    frozen_until=frozen_until
+                    frozen_until=frozen_until,
+                    assigned_job_id=gpu_data.get("assigned_job_id")
                 )
                 node.gpus.append(gpu)
 
@@ -1075,4 +1074,42 @@ class SchedulerClient:
             return response.json()
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to get head logs: {e}")
+            raise ConnectionException(f"Failed to connect to head node: {e}")
+
+    def get_job_diff(self, job_id: str, compare_with: str = "end") -> str:
+        """
+        Get job git diff.
+
+        Args:
+            job_id: Job ID
+            compare_with: "end" (compare start vs end) or "current" (compare start vs current workspace)
+
+        Returns:
+            Diff output string
+
+        Raises:
+            JobNotFoundException: If job not found
+            ConnectionException: If cannot connect
+        """
+        params = {"compare_with": compare_with}
+        try:
+            response = self.session.get(
+                f"{self.base_url}/jobs/{job_id}/diff",
+                params=params,
+                timeout=30
+            )
+            if response.status_code == 404:
+                try:
+                    detail = response.json().get("detail", "")
+                    if "Not Found" in detail and "Job" not in detail:
+                        raise ConnectionException("API endpoint not found. Please restart the scheduler head node to apply updates.")
+                except ValueError:
+                    pass
+                raise JobNotFoundException(f"Job {job_id} not found")
+            response.raise_for_status()
+            return response.json().get("diff", "")
+        except JobNotFoundException:
+            raise
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to get diff for job {job_id}: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")

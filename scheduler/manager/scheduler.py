@@ -90,6 +90,14 @@ class Scheduler:
         # Start grace period on the node
         self.node_manager.start_node_grace_period(node_name)
 
+        # Assign GPUs to the job until it terminates
+        node = self.node_manager.get_node(node_name)
+        if node:
+            for gpu_id in gpu_ids:
+                if gpu_id < len(node.gpus):
+                    node.gpus[gpu_id].assign(job.job_id)
+            self.node_manager.save_node(node)
+
         # Mark job as started
         # Note: We only suggest GPUs via CUDA_VISIBLE_DEVICES, not enforce assignments
         # GPU availability is determined by actual usage monitoring via pynvml
@@ -128,11 +136,10 @@ class Scheduler:
                     logger.debug(f"Node {node.node_name} is in grace period, skipping")
                     continue
 
-                # Get free and stable GPUs
+                # Get free GPUs
                 free_gpus = node.get_free_gpus(
                     self.config.worker.gpu_util_threshold,
-                    self.config.worker.gpu_mem_threshold,
-                    self.config.worker.gpu_stable_time
+                    self.config.worker.gpu_mem_threshold
                 )
                 logger.debug(f"Node {node.node_name} has {len(free_gpus)} free GPUs: {free_gpus}")
 

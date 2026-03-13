@@ -32,12 +32,6 @@ class TestFullWorkflow:
         stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(4)]
         node_manager.update_heartbeat("gpu1", stats)
 
-        # Set GPUs as stable (simulate time passing)
-        stable_time = datetime.now() - timedelta(seconds=3)
-        node = node_manager.get_node("gpu1")
-        for gpu in node.gpus:
-            gpu.stable_since = stable_time
-
         # Step 3: User submits job
         job = job_manager.submit_job(
             command=["/path/to/train.py"],
@@ -68,10 +62,6 @@ class TestFullWorkflow:
         low_usage_stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(4)]
         node_manager.update_heartbeat("gpu1", low_usage_stats)
 
-        node = node_manager.get_node("gpu1")
-        # GPUs should start becoming stable again after low usage is detected
-        assert all(gpu.stable_since is not None for gpu in node.gpus[:2])
-
     def test_multi_job_multi_node_workflow(self, full_system):
         """Test workflow with multiple jobs and nodes"""
         job_manager = full_system['job_manager']
@@ -86,11 +76,6 @@ class TestFullWorkflow:
 
             stats = [GPUStats(j, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for j in range(4)]
             node_manager.update_heartbeat(node_name, stats)
-
-            stable_time = datetime.now() - timedelta(seconds=3)
-            node = node_manager.get_node(node_name)
-            for gpu in node.gpus:
-                gpu.stable_since = stable_time
 
         # Submit multiple jobs
         jobs = []
@@ -125,11 +110,6 @@ class TestFullWorkflow:
         stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(2)]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=3)
-        node = node_manager.get_node("gpu1")
-        for gpu in node.gpus:
-            gpu.stable_since = stable_time
-
         # Submit and schedule job
         job = job_manager.submit_job(["/script.py"], "2")
         scheduler.schedule_cycle()
@@ -150,10 +130,6 @@ class TestFullWorkflow:
         low_usage_stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(2)]
         node_manager.update_heartbeat("gpu1", low_usage_stats)
 
-        # GPUs become available naturally when actual usage drops
-        node = node_manager.get_node("gpu1")
-        assert all(gpu.stable_since is not None for gpu in node.gpus)
-
     def test_job_cancellation_workflow(self, full_system):
         """Test canceling a job"""
         job_manager = full_system['job_manager']
@@ -165,11 +141,6 @@ class TestFullWorkflow:
         node_manager.register_node("gpu1", "192.168.1.10", 2)
         stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(2)]
         node_manager.update_heartbeat("gpu1", stats)
-
-        stable_time = datetime.now() - timedelta(seconds=3)
-        node = node_manager.get_node("gpu1")
-        for gpu in node.gpus:
-            gpu.stable_since = stable_time
 
         # Submit and schedule job
         job = job_manager.submit_job(["/long_running.py"], "2")
@@ -187,10 +158,6 @@ class TestFullWorkflow:
         from scheduler.core.models import GPUStats
         low_usage_stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(2)]
         node_manager.update_heartbeat("gpu1", low_usage_stats)
-
-        # GPUs become available naturally when actual usage drops
-        node = node_manager.get_node("gpu1")
-        assert all(gpu.stable_since is not None for gpu in node.gpus)
 
 
 @pytest.fixture
@@ -211,11 +178,10 @@ def full_system(temp_dir):
             temp_dir=temp_dir,
             log_dir=temp_dir,
             work_dir=temp_dir,
-            heartbeat_interval=2,  # Must be <= gpu_stable_time
-            gpu_poll_interval=2,   # Must be <= gpu_stable_time for validation
+            heartbeat_interval=2,
+            gpu_poll_interval=2,
             gpu_util_threshold=10.0,
             gpu_mem_threshold=10.0,
-            gpu_stable_time=2,  # Reduced from 60 for faster tests
             job_startup_grace=3  # Reduced from 30 for faster tests
         )
     )

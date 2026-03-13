@@ -91,7 +91,7 @@ class TestGitSnapshotIntegration:
 
         # Submit job
         job = job_manager.submit_job(
-            script=script_path,
+            command=[script_path],
             requirements="1",
             working_dir=temp_git_repo
         )
@@ -112,7 +112,7 @@ class TestGitSnapshotIntegration:
 
         # Submit job
         job = job_manager.submit_job(
-            script=script_path,
+            command=[script_path],
             requirements="1",
             working_dir=temp_non_git_dir
         )
@@ -136,7 +136,7 @@ class TestGitSnapshotIntegration:
 
         # Submit job
         job = job_manager.submit_job(
-            script=script_path,
+            command=[script_path],
             requirements="1",
             working_dir=temp_git_repo
         )
@@ -159,7 +159,7 @@ class TestGitSnapshotIntegration:
 
         # Submit job
         job = job_manager.submit_job(
-            script=script_path,
+            command=[script_path],
             requirements="1",
             working_dir=temp_git_repo
         )
@@ -201,7 +201,7 @@ class TestGitSnapshotIntegration:
 
         # Submit job - should succeed without creating snapshot
         job = job_manager.submit_job(
-            script=script_path,
+            command=[script_path],
             requirements="1",
             working_dir=temp_git_repo
         )

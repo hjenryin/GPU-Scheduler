@@ -52,7 +52,7 @@ class TestClusterScreen:
         }.get(selector, Mock(spec=[]))  # Fallback mock
 
         # Call with threshold parameters
-        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
+        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0)
 
         # Verify summary calculation
         mock_summary.update.assert_called_once()
@@ -74,7 +74,7 @@ class TestClusterScreen:
             "#job-table": create_autospec(DataTable, instance=True, spec_set=True)
         }.get(selector, Mock(spec=[]))  # Fallback mock
 
-        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
+        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0)
 
         # Verify table operations - active nodes (not disconnected) should be added
         active_nodes = [n for n in mock_nodes if n.status != NodeStatus.DISCONNECTED]
@@ -98,7 +98,7 @@ class TestClusterScreen:
             "#job-table": mock_job_table
         }.get(selector, Mock(spec=[]))  # Fallback mock
 
-        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
+        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0)
 
         # Verify summary counts active nodes (not disconnected)
         summary_text = mock_summary.update.call_args[0][0]
@@ -124,7 +124,7 @@ class TestClusterScreen:
             "#job-table": create_autospec(DataTable, instance=True, spec_set=True)
         }.get(selector, Mock(spec=[]))  # Fallback mock
 
-        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
+        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0)
 
         # Verify GPU bars update
         mock_gpu_bars.update.assert_called_once()
@@ -144,7 +144,7 @@ class TestClusterScreen:
             "#gpu-bars": create_autospec(Static, instance=True, spec_set=True)
         }.get(selector, Mock(spec=[]))  # Fallback mock
 
-        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
+        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0)
 
         # Verify job table operations
         mock_job_table.clear.assert_called_once()
@@ -184,7 +184,7 @@ class TestNodesScreen:
             "#jobs-detail-list": create_autospec(Static, instance=True, spec_set=True)
         }.get(selector, Mock(spec=[]))  # Fallback mock
 
-        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
+        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0)
 
         # Verify nodes list operations - only active nodes (not disconnected) shown
         active_nodes = [n for n in mock_nodes if n.status != NodeStatus.DISCONNECTED]
@@ -205,7 +205,7 @@ class TestNodesScreen:
             "#jobs-detail-list": create_autospec(Static, instance=True, spec_set=True)  # Textual widget
         }.get(selector, Mock(spec=[]))  # Fallback mock
 
-        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
+        screen.update_data(mock_nodes, mock_jobs, util_threshold=10.0, mem_threshold=10.0)
 
         # Should auto-select first node
         assert screen.selected_node == mock_nodes[0].node_name
@@ -474,7 +474,7 @@ class TestGPUsScreen:
             "#gpu-summary": create_autospec(Static, instance=True, spec_set=True)  # Textual widget
         }.get(selector, Mock(spec=[]))  # Fallback mock
 
-        screen.update_data(mock_nodes, util_threshold=10.0, mem_threshold=10.0, stable_time=30)
+        screen.update_data(mock_nodes, util_threshold=10.0, mem_threshold=10.0)
 
         # Verify GPU table operations
         mock_gpu_table.clear.assert_called_once()

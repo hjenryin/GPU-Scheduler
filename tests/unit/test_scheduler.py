@@ -22,18 +22,14 @@ class TestScheduler:
         # Register a node with 2 GPUs
         node_manager.register_node("gpu1", "192.168.1.10", 2)
 
-        # Send heartbeat with stable GPUs
+        # Send heartbeat with idle GPUs
         stats = [
             GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300),
             GPUStats(1, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)
         ]
         node_manager.update_heartbeat("gpu1", stats)
 
-        # Set GPUs as stable
-        stable_time = datetime.now() - timedelta(seconds=3)
-        node = node_manager.get_node("gpu1")
-        for gpu in node.gpus:
-            gpu.stable_since = stable_time
+
 
         # Submit a job requiring 2 GPUs
         job = job_manager.submit_job(
@@ -58,9 +54,7 @@ class TestScheduler:
         stats = [GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
-        node.gpus[0].stable_since = stable_time
 
         # Submit dependency job first
         dep_job = job_manager.submit_job(
@@ -90,8 +84,7 @@ class TestScheduler:
         # Reset GPU stability and clear grace period
         node = node_manager.get_node("gpu1")
         low_usage_stats = GPUStats(0, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300)
-        node.gpus[0].update_stats(low_usage_stats, util_threshold=10.0, mem_threshold=10.0)
-        node.gpus[0].stable_since = stable_time
+        node.gpus[0].update_stats(low_usage_stats)
         node.grace_period_until = None  # Clear grace period
 
         # Run scheduling again - should schedule now
@@ -107,9 +100,7 @@ class TestScheduler:
         stats = [GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
-        node.gpus[0].stable_since = stable_time
 
         # Start grace period
         node_manager.start_node_grace_period("gpu1")
@@ -134,9 +125,7 @@ class TestScheduler:
         stats = [GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
-        node.gpus[0].stable_since = stable_time
 
         # Submit job requiring 2 GPUs
         job = job_manager.submit_job(
@@ -162,10 +151,7 @@ class TestScheduler:
             ]
             node_manager.update_heartbeat(node_name, stats)
 
-            stable_time = datetime.now() - timedelta(seconds=3)
             node = node_manager.get_node(node_name)
-            for gpu in node.gpus:
-                gpu.stable_since = stable_time
 
         # Submit job requiring gpu2 specifically
         job = job_manager.submit_job(
@@ -191,10 +177,7 @@ class TestScheduler:
         ]
         node_manager.update_heartbeat("gpu2", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu2")
-        for gpu in node.gpus:
-            gpu.stable_since = stable_time
 
         # Submit job with alternatives (gpu1:2 OR gpu2:2)
         # Since only gpu2 exists, should schedule on gpu2
@@ -211,31 +194,6 @@ class TestScheduler:
         assert updated_job.status == JobStatus.RUNNING
         assert updated_job.assigned_node == "gpu2"
 
-    def test_schedule_gpu_not_stable(self, scheduler, job_manager, node_manager):
-        """Test job is not scheduled on GPU that hasn't stabilized"""
-        # Register node with GPU that just became free
-        node_manager.register_node("gpu1", "192.168.1.10", 1)
-        stats = [GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)]
-        node_manager.update_heartbeat("gpu1", stats)
-
-        # Set recent stability time (only 1 second, less than stable_time=2)
-        recent_time = datetime.now() - timedelta(seconds=1)
-        node = node_manager.get_node("gpu1")
-        node.gpus[0].stable_since = recent_time
-
-        # Submit job
-        job = job_manager.submit_job(
-            command=["/script.py"],
-            requirements="1",
-            name="test-job"
-        )
-
-        # Run scheduling - should not schedule (needs 2s stability)
-        scheduler.schedule_cycle()
-
-        updated_job = job_manager.get_job(job.job_id)
-        assert updated_job.status == JobStatus.PENDING
-
     def test_schedule_priority_order(self, scheduler, job_manager, node_manager):
         """Test jobs are scheduled in priority order"""
         # Register node with 1 GPU
@@ -243,9 +201,7 @@ class TestScheduler:
         stats = [GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
-        node.gpus[0].stable_since = stable_time
 
         # Submit jobs with different priorities (low priority first)
         low_priority_job = job_manager.submit_job(
@@ -281,10 +237,7 @@ class TestScheduler:
         ]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
-        for gpu in node.gpus:
-            gpu.stable_since = stable_time
 
         # Submit job
         job = job_manager.submit_job(
@@ -307,9 +260,7 @@ class TestScheduler:
         stats = [GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)]
         node_manager.update_heartbeat("gpu1", stats)
 
-        stable_time = datetime.now() - timedelta(seconds=3)
         node = node_manager.get_node("gpu1")
-        node.gpus[0].stable_since = stable_time
 
         # Submit job requiring 4 GPUs
         job = job_manager.submit_job(

@@ -1,4 +1,4 @@
-from typing import List, Optional, Set, Dict
+from typing import List, Optional, Set, Dict, Callable
 import logging
 from datetime import datetime
 import os
@@ -57,6 +57,7 @@ class JobManager:
     jobs: Dict[str, Job] = {}
     persistence: PersistenceManager = None
     config: Config = None
+    on_job_terminal_callback: Optional[Callable[[Job], None]] = None
 
     def __init__(self, persistence: PersistenceManager, config: Config):
         """
@@ -73,6 +74,9 @@ class JobManager:
         # Event system for long-polling
         # Maps node_name -> asyncio.Event that gets set when a new job is assigned
         self._job_assignment_events: Dict[str, asyncio.Event] = {}
+
+        # Optional callback to execute when a job enters a terminal state
+        self.on_job_terminal_callback = None
 
         # TEMPORARY: Migrate storage from old format (script+script_args) to new format (command)
         # This can be safely removed after all storage is migrated
@@ -485,6 +489,10 @@ class JobManager:
             job.after_commit_ref = after_commit_ref
 
         self.persistence.save_job(job)
+        
+        if self.on_job_terminal_callback:
+            self.on_job_terminal_callback(job)
+            
         logger.info(f"Job {job_id} completed with exit code {exit_code}")
 
     def fail_job(self, job_id: str, error_message: str, exit_code: Optional[int] = None, after_commit_ref: Optional[str] = None):
@@ -527,6 +535,10 @@ class JobManager:
             job.after_commit_ref = after_commit_ref
 
         self.persistence.save_job(job)
+        
+        if self.on_job_terminal_callback:
+            self.on_job_terminal_callback(job)
+            
         logger.error(f"Job {job_id} failed: {error_message}")
 
     def cancel_job(self, job_id: str):
@@ -555,6 +567,9 @@ class JobManager:
         job.completed_at = datetime.now()
 
         self.persistence.save_job(job)
+        
+        if self.on_job_terminal_callback:
+            self.on_job_terminal_callback(job)
 
         # Trigger job assignment event for the node so it immediately discovers the cancellation
         if job.assigned_node:
@@ -579,6 +594,10 @@ class JobManager:
         # Don't set completed_at since the job is still running, just untracked
 
         self.persistence.save_job(job)
+        
+        if self.on_job_terminal_callback:
+            self.on_job_terminal_callback(job)
+            
         logger.info(f"Job {job_id} marked as untracked")
 
     def retry_job_inplace(self, job_id: str) -> Job:

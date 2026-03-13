@@ -137,6 +137,11 @@ def create_app(
     async def get_head_logs(level: Optional[str] = None, limit: Optional[int] = None):
         return await get_head_logs_route(level, limit)
 
+    # Git diff route
+    @app.get(f"{constants.API_BASE_PATH}/jobs/{{job_id}}/diff")
+    async def get_job_diff(job_id: str, compare_with: str = "end"):
+        return await get_job_diff_route(job_id, compare_with)
+
     return app
 
 
@@ -801,4 +806,42 @@ async def get_head_logs_route(level: Optional[str] = None, limit: Optional[int] 
         raise
     except Exception as e:
         logger.error(f"Error getting head logs: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+async def get_job_diff_route(job_id: str, compare_with: str = "end") -> dict:
+    """GET /api/v1/jobs/{job_id}/diff - Get job git diff"""
+    try:
+        job = _job_manager.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {job_id} not found")
+
+        if not job.snapshot_ref or not job.snapshot_working_dir:
+             return {"diff": "No snapshot available for this job (not submitted from a git repo or snapshot failed)."}
+
+        # Determine target ref
+        target_ref = None
+        if compare_with == "end":
+            if not job.after_commit_ref:
+                 return {"diff": "Job has not completed or no after-commit created (maybe no changes were made)."}
+            target_ref = job.after_commit_ref
+        elif compare_with == "current":
+            target_ref = None # Compares snapshot_ref with current working directory
+        else:
+            return {"diff": f"Invalid compare_with mode: {compare_with}. Use 'end' or 'current'."}
+        
+        # Use GitSnapshotManager to get diff
+        from scheduler.core import load_config
+        from scheduler.worker import GitSnapshotManager
+        
+        config = load_config()
+        git_manager = GitSnapshotManager(config)
+        
+        diff_output = git_manager.get_diff(job.snapshot_working_dir, job.snapshot_ref, target_ref)
+        return {"diff": diff_output}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting diff for job {job_id}: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

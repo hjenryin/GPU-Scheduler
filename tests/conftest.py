@@ -82,11 +82,10 @@ def test_config(temp_dir):
             temp_dir=temp_dir,
             log_dir=temp_dir,
             work_dir=temp_dir,
-            heartbeat_interval=2,  # Must be <= gpu_stable_time
+            heartbeat_interval=2,  # Frequency of heartbeat checks
             gpu_poll_interval=2,
             gpu_util_threshold=10.0,
             gpu_mem_threshold=10.0,
-            gpu_stable_time=2,  # Reduced from 60 for faster tests
             job_startup_grace=3  # Reduced from 30 for faster tests
         ),
         storage=StorageConfig(),
@@ -122,12 +121,8 @@ def sample_gpu_stats() -> List[GPUStats]:
 @pytest.fixture
 def sample_node(sample_gpu_stats) -> Node:
     """Sample node fixture"""
-    # Create a GPU that's been stable for more than the stable time threshold (2 seconds for tests)
-    from datetime import timedelta
-    stable_time = datetime.now() - timedelta(seconds=3)
-    
     gpus = [
-        GPU(gpu_id=0, stats=sample_gpu_stats[0], stable_since=stable_time),
+        GPU(gpu_id=0, stats=sample_gpu_stats[0]),
         GPU(gpu_id=1, stats=sample_gpu_stats[1])
     ]
 

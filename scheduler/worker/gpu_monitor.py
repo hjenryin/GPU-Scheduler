@@ -5,6 +5,8 @@ import threading
 import time
 from typing import List, Optional
 
+import psutil
+
 from scheduler.core import Config, GPUStats
 
 logger = logging.getLogger(__name__)
@@ -111,6 +113,25 @@ class GPUMonitor:
         else:
             return self._poll_with_nvidia_smi()
 
+    def _get_process_user(self, pid: int) -> Optional[str]:
+        """
+        Get the user who owns the process with the given PID.
+
+        Args:
+            pid: Process ID
+
+        Returns:
+            Username if found, None otherwise
+        """
+        try:
+            process = psutil.Process(pid)
+            return process.username()
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            return None
+        except Exception as e:
+            logger.debug(f"Failed to get user for PID {pid}: {e}")
+            return None
+
     def _poll_with_pynvml(self) -> List[GPUStats]:
         """Poll GPU stats using pynvml."""
         stats = []
@@ -150,7 +171,18 @@ class GPUMonitor:
                     power_limit = None  # Display N/A, like nvitop
 
                 # Get running processes on this GPU
-                running_job_id = self._get_running_job_id(i)
+                running_job_id = None
+                user = None
+                
+                try:
+                    processes = self.pynvml.nvmlDeviceGetComputeRunningProcesses(handle)
+                    if processes:
+                        # For now, use the first process found
+                        pid = processes[0].pid
+                        running_job_id = f"pid_{pid}"
+                        user = self._get_process_user(pid)
+                except Exception as e:
+                    logger.debug(f"Failed to get running processes for GPU {i}: {e}")
 
                 stats.append(GPUStats(
                     gpu_id=i,
@@ -160,7 +192,8 @@ class GPUMonitor:
                     temperature=temperature,
                     power_draw=power_draw,
                     power_limit=power_limit,
-                    running_job_id=running_job_id
+                    running_job_id=running_job_id,
+                    user=user
                 ))
 
             return stats

@@ -33,6 +33,8 @@ class JobsScreen(Screen):
         self.jobs_data: List[Job] = []
         self.current_filter: str = "all"
         self.search_text: str = ""
+        self._last_table_data: List[tuple] = []  # Track last rendered data to detect changes
+        self._initial_render: bool = True  # Flag to ensure first render always happens
 
     def compose(self) -> ComposeResult:
         """
@@ -67,6 +69,12 @@ class JobsScreen(Screen):
         )
         jobs_table.cursor_type = "row"
 
+    def on_screen_resume(self):
+        """Called when screen becomes active. Force a refresh."""
+        # Reset initial render flag to force a refresh when returning to this screen
+        self._initial_render = True
+        self._refresh_table_if_changed()
+
     def update_data(self, jobs: List[Job]):
         """
         Update screen with new data.
@@ -75,10 +83,99 @@ class JobsScreen(Screen):
             jobs: List of Job instances
         """
         self.jobs_data = jobs
-        self._refresh_table()
+        self._refresh_table_if_changed()
 
-    def _refresh_table(self):
-        """Refresh the jobs table with current filter and search."""
+    def _truncate_text(self, text: str, max_len: int) -> str:
+        """Truncate text with ellipsis if it exceeds max length."""
+        if len(text) <= max_len:
+            return text
+        return text[:max_len-3] + "..."
+
+    def _calculate_column_widths(self, filtered_jobs: List[Job]) -> tuple:
+        """
+        Calculate actual column widths needed based on data and terminal width.
+        Priority order for truncation:
+        1. Show everything if possible
+        2. Truncate GPUs first (down to min 15 chars)
+        3. Then truncate Name (down to min 10 chars)
+        
+        Returns (name_width, gpus_width)
+        """
+        try:
+            terminal_width = self.app.size.width
+            
+            # Calculate actual max widths needed for each column from the data
+            max_job_id = max((len(j.job_id) for j in filtered_jobs), default=6) if filtered_jobs else 6
+            max_status = max((len(j.status.value) for j in filtered_jobs), default=7) if filtered_jobs else 7
+            max_node = max((len(j.assigned_node or "-") for j in filtered_jobs), default=4) if filtered_jobs else 4
+            max_gpus_data = max((len(str(j.requirements) if j.requirements else "?") for j in filtered_jobs), default=4) if filtered_jobs else 4
+            max_name_data = max((len(j.name or "N/A") for j in filtered_jobs), default=4) if filtered_jobs else 4
+            max_runtime = 8  # Runtime format is relatively fixed (e.g., "12h 34m")
+            max_eta = 8  # ETA format is relatively fixed
+            max_submitted = 16  # Date format is fixed (YYYY-MM-DD HH:MM)
+            
+            # Add column headers into consideration
+            max_job_id = max(max_job_id, len("Job ID"))
+            max_status = max(max_status, len("Status"))
+            max_node = max(max_node, len("Node"))
+            max_gpus_data = max(max_gpus_data, len("GPUs"))
+            max_name_data = max(max_name_data, len("Name"))
+            max_runtime = max(max_runtime, len("Runtime"))
+            max_eta = max(max_eta, len("ETA"))
+            max_submitted = max(max_submitted, len("Submitted"))
+            
+            # DataTable adds padding (approximately 3 chars per column)
+            num_columns = 8
+            padding = num_columns * 3
+            borders = 2
+            
+            # Calculate truly fixed columns (everything except Name and GPUs)
+            fixed_width = max_job_id + max_status + max_node + max_runtime + max_eta + max_submitted + padding + borders
+            
+            # Available space for Name and GPUs combined
+            available_for_flexible = terminal_width - fixed_width
+            
+            # Minimum constraints
+            min_gpus_width = 15
+            min_name_width = 10
+            
+            # Strategy: Try to show everything, then truncate GPUs, then Name
+            # Ideal case: both columns show full data
+            ideal_gpus = max_gpus_data
+            ideal_name = max_name_data
+            ideal_total = ideal_gpus + ideal_name
+            
+            if available_for_flexible >= ideal_total:
+                # Best case: show everything
+                return (ideal_name, ideal_gpus)
+            
+            # Not enough space, need to truncate
+            # First, try truncating GPUs down to minimum
+            if available_for_flexible >= min_gpus_width + ideal_name:
+                # We can show full name, just truncate GPUs
+                gpus_width = available_for_flexible - ideal_name
+                gpus_width = max(min_gpus_width, gpus_width)
+                return (ideal_name, gpus_width)
+            
+            # Still not enough, GPUs is at minimum, need to truncate Name too
+            gpus_width = min_gpus_width
+            name_width = available_for_flexible - gpus_width
+            name_width = max(min_name_width, name_width)
+            
+            return (name_width, gpus_width)
+            
+        except (AttributeError, TypeError):
+            # Fallback to reasonable defaults
+            return (30, 15)
+
+    def _refresh_table_if_changed(self):
+        """Refresh the jobs table only if data has changed."""
+        try:
+            jobs_table = self.query_one("#jobs-table", DataTable)
+        except Exception:
+            # Table not yet mounted, skip
+            return
+            
         # Apply filters
         filtered_jobs = self.jobs_data
 
@@ -99,23 +196,11 @@ class JobsScreen(Screen):
                 or (j.assigned_node and search_lower in j.assigned_node.lower())
             ]
 
-        # Update table
-        jobs_table = self.query_one("#jobs-table", DataTable)
-        jobs_scroll = self.query_one("#jobs-scroll", VerticalScroll)
+        # Calculate dynamic column widths based on actual data and terminal size
+        name_width, gpus_width = self._calculate_column_widths(filtered_jobs)
 
-        # Preserve cursor position and scroll position
-        try:
-            old_cursor = jobs_table.cursor_row if jobs_table.row_count > 0 else 0
-        except (TypeError, AttributeError):
-            old_cursor = 0
-
-        # Save scroll position
-        try:
-            old_scroll_y = jobs_scroll.scroll_y
-        except (TypeError, AttributeError):
-            old_scroll_y = 0
-
-        jobs_table.clear()
+        # Build new table data
+        new_table_data = []
         for job in filtered_jobs:
             submitted_time = (
                 job.submitted_at.strftime("%Y-%m-%d %H:%M")
@@ -123,29 +208,58 @@ class JobsScreen(Screen):
                 else "N/A"
             )
             eta_display = format_eta_display(job.eta) if hasattr(job, "eta") else "-"
-            jobs_table.add_row(
+            runtime_display = format_runtime(job.runtime) if hasattr(job, "runtime") else "-"
+            
+            # Use dynamically calculated width for GPUs column
+            gpus_text = str(job.requirements) if job.requirements else "?"
+            gpus_display = self._truncate_text(gpus_text, gpus_width)
+            
+            # Store full name, will truncate dynamically when rendering
+            name_display = job.name or "N/A"
+            
+            new_table_data.append((
                 job.job_id,
-                job.name or "N/A",
+                name_display,
                 job.status.value,
                 job.assigned_node or "-",
-                str(job.requirements) if job.requirements else "?",
-                format_runtime(job.runtime) if hasattr(job, "runtime") else "-",
+                gpus_display,
+                runtime_display,
                 eta_display,
                 submitted_time,
+            ))
+
+        # Check if data has actually changed (skip check on initial render)
+        if not self._initial_render and new_table_data == self._last_table_data:
+            # No changes, skip refresh to preserve table position
+            return
+
+        # Data has changed or this is the initial render, update the table
+        self._initial_render = False
+        self._last_table_data = new_table_data
+        jobs_table.clear()
+        
+        for row_data in new_table_data:
+            # Apply name truncation based on dynamically calculated width
+            name = row_data[1]
+            truncated_name = self._truncate_text(name, name_width)
+            
+            jobs_table.add_row(
+                row_data[0],  # job_id
+                truncated_name,  # name (dynamically truncated)
+                row_data[2],  # status
+                row_data[3],  # assigned_node
+                row_data[4],  # gpus (already truncated)
+                row_data[5],  # runtime
+                row_data[6],  # eta
+                row_data[7],  # submitted_time
             )
 
-        # Restore cursor position if table has rows
-        try:
-            if jobs_table.row_count > 0:
-                jobs_table.move_cursor(row=min(old_cursor, jobs_table.row_count - 1))
-        except (TypeError, AttributeError):
-            pass
-
-        # Restore scroll position
-        try:
-            jobs_scroll.scroll_y = old_scroll_y
-        except (TypeError, AttributeError):
-            pass
+    def _refresh_table(self):
+        """Force refresh the jobs table (used for filter/search changes)."""
+        # Clear the cache to force a refresh
+        self._last_table_data = []
+        self._initial_render = True  # Treat as initial render to force update
+        self._refresh_table_if_changed()
 
     def on_input_changed(self, event):
         """Handle search input changes."""
@@ -156,26 +270,13 @@ class JobsScreen(Screen):
     def on_data_table_row_selected(self, event):
         """Handle row selection in jobs table."""
         if event.data_table.id == "jobs-table":
-            # Check if the row key exists in the current table state
-            # This prevents errors when the table is refreshed and old row keys become invalid
-            if event.row_key in event.data_table._row_locations:
+            try:
                 row_data = event.data_table.get_row(event.row_key)
                 job_id = str(row_data[0])
                 self.on_job_selected(job_id)
-            else:
-                # If the row key doesn't exist, use the cursor position instead
-                # This handles cases where the table was refreshed between click and selection
-                jobs_table = self.query_one("#jobs-table", DataTable)
-                if jobs_table.cursor_row is not None and jobs_table.row_count > 0:
-                    # Ensure cursor_row is within bounds
-                    row_idx = min(jobs_table.cursor_row, jobs_table.row_count - 1)
-                    # Get the actual row key from the current table data
-                    row_keys = list(jobs_table._row_locations.keys())
-                    if row_idx < len(row_keys):
-                        row_key = row_keys[row_idx]
-                        row_data = jobs_table.get_row(row_key)
-                        job_id = str(row_data[0])
-                        self.on_job_selected(job_id)
+            except (KeyError, IndexError):
+                # Row doesn't exist anymore, ignore
+                pass
 
     def on_job_selected(self, job_id: str):
         """

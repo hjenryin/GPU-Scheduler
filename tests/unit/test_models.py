@@ -21,7 +21,8 @@ class TestGPUStats:
             memory_total=16 * 1024**3,  # 16 GB
             temperature=65,
             power_draw=150,
-            power_limit=300
+            power_limit=300,
+            user="testuser"
         )
 
         assert stats.gpu_id == 0
@@ -31,16 +32,18 @@ class TestGPUStats:
         assert stats.temperature == 65
         assert stats.power_draw == 150
         assert stats.power_limit == 300
+        assert stats.user == "testuser"
 
     def test_gpu_stats_to_dict(self):
         """Test GPU stats serialization"""
-        stats = GPUStats(0, 50.0, 8 * 1024**3, 16 * 1024**3, 65, 150, 300)
+        stats = GPUStats(0, 50.0, 8 * 1024**3, 16 * 1024**3, 65, 150, 300, user="testuser")
         data = stats.to_dict()
 
         assert data['gpu_id'] == 0
         assert data['utilization'] == 50.0
         assert data['memory_used'] == 8 * 1024**3
         assert data['temperature'] == 65
+        assert data['user'] == "testuser"
 
     def test_gpu_stats_from_dict(self):
         """Test GPU stats deserialization"""
@@ -51,13 +54,15 @@ class TestGPUStats:
             'memory_total': 16 * 1024**3,
             'temperature': 70,
             'power_draw': 200,
-            'power_limit': 300
+            'power_limit': 300,
+            'user': 'testuser'
         }
 
         stats = GPUStats.from_dict(data)
         assert stats.gpu_id == 1
         assert stats.utilization == 75.0
         assert stats.memory_used == 12 * 1024**3
+        assert stats.user == 'testuser'
 
     def test_is_free_below_thresholds(self):
         """Test GPU is considered free when below thresholds"""
@@ -86,45 +91,6 @@ class TestGPU:
 
         assert gpu.gpu_id == 0
         assert gpu.stats == stats
-        assert gpu.stable_since is None
-
-    def test_update_stats_becomes_stable(self):
-        """Test GPU becomes stable when below threshold"""
-        stats = GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)
-        gpu = GPU(gpu_id=0, stats=stats)
-
-        # Update with low utilization
-        new_stats = GPUStats(0, 3.0, 0.5 * 1024**3, 16 * 1024**3, 40, 30, 300)
-        gpu.update_stats(new_stats, util_threshold=10.0, mem_threshold=10.0)
-
-        assert gpu.stable_since is not None
-
-    def test_update_stats_loses_stability(self):
-        """Test GPU loses stability when above threshold"""
-        stats = GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)
-        gpu = GPU(gpu_id=0, stats=stats, stable_since=datetime.now())
-
-        # Update with high utilization
-        new_stats = GPUStats(0, 90.0, 12 * 1024**3, 16 * 1024**3, 75, 250, 300)
-        gpu.update_stats(new_stats, util_threshold=10.0, mem_threshold=10.0)
-
-        assert gpu.stable_since is None
-
-    def test_is_stable_after_duration(self):
-        """Test GPU stability after required duration"""
-        stats = GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)
-        stable_time = datetime.now() - timedelta(seconds=65)
-        gpu = GPU(gpu_id=0, stats=stats, stable_since=stable_time)
-
-        assert gpu.is_stable(stable_time=60) is True
-
-    def test_is_not_stable_before_duration(self):
-        """Test GPU not stable before required duration"""
-        stats = GPUStats(0, 5.0, 1 * 1024**3, 16 * 1024**3, 45, 50, 300)
-        stable_time = datetime.now() - timedelta(seconds=30)
-        gpu = GPU(gpu_id=0, stats=stats, stable_since=stable_time)
-
-        assert gpu.is_stable(stable_time=60) is False
 
     def test_gpu_serialization(self):
         """Test GPU to_dict and from_dict"""
@@ -394,16 +360,14 @@ class TestNode:
         stats_free = GPUStats(0, 3.0, 0.5 * 1024**3, 16 * 1024**3, 40, 30, 300)
         stats_busy = GPUStats(1, 90.0, 14 * 1024**3, 16 * 1024**3, 75, 250, 300)
 
-        stable_time = datetime.now() - timedelta(seconds=3)
-        gpu_free = GPU(0, stats_free, stable_since=stable_time)
+        gpu_free = GPU(0, stats_free)
         gpu_busy = GPU(1, stats_busy)
 
         node = Node("gpu1", "192.168.1.10", 2, gpus=[gpu_free, gpu_busy])
 
         free_gpus = node.get_free_gpus(
             util_threshold=10.0,
-            mem_threshold=10.0,
-            stable_time=2  # Updated to match test config
+            mem_threshold=10.0
         )
 
         assert free_gpus == [0]
@@ -428,25 +392,21 @@ class TestNode:
         gpus = [GPU(i, stats_free) for i in range(4)]
         node = Node("gpu1", "192.168.1.10", 4, gpus=gpus)
 
-        # Update GPU stats to mark them as stable
+        # Update GPU stats to mark them as idle
         for gpu in gpus:
-            gpu.update_stats(stats_free, util_threshold=10, mem_threshold=10)
-
-        # Simulate time passing for stability
-        for gpu in gpus[:2]:
-            gpu.stable_since = datetime.now() - timedelta(seconds=35)
+            gpu.update_stats(stats_free)
 
         # Get free GPUs - should be available based on actual usage
-        free_gpus = node.get_free_gpus(util_threshold=10, mem_threshold=10, stable_time=30)
-        assert len(free_gpus) >= 2  # At least the stable ones
+        free_gpus = node.get_free_gpus(util_threshold=10, mem_threshold=10)
+        assert len(free_gpus) == 4  # All should be free since below thresholds
 
         # Now simulate high usage on some GPUs
         stats_busy = GPUStats(0, 85.0, 14 * 1024**3, 16 * 1024**3, 72, 280, 300)
-        gpus[0].update_stats(stats_busy, util_threshold=10, mem_threshold=10)
-        gpus[1].update_stats(stats_busy, util_threshold=10, mem_threshold=10)
+        gpus[0].update_stats(stats_busy)
+        gpus[1].update_stats(stats_busy)
 
         # These GPUs should no longer be considered free
-        free_gpus = node.get_free_gpus(util_threshold=10, mem_threshold=10, stable_time=30)
+        free_gpus = node.get_free_gpus(util_threshold=10, mem_threshold=10)
         assert 0 not in free_gpus
         assert 1 not in free_gpus
 

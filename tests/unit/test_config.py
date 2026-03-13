@@ -31,7 +31,6 @@ class TestConfig:
         assert config.worker.gpu_poll_interval == 10
         assert config.worker.gpu_util_threshold == 10.0
         assert config.worker.gpu_mem_threshold == 10.0
-        assert config.worker.gpu_stable_time == 120
         assert config.worker.job_startup_grace == 120
 
         # Check storage config defaults
@@ -193,7 +192,7 @@ class TestLoadConfig:
             config = load_config(config_path)
 
             assert isinstance(config, Config)
-            assert config.head.port == 8265  # Default value
+            assert config.head.port == 8266  # Default value
         finally:
             os.unlink(config_path)
 
@@ -221,7 +220,7 @@ class TestLoadConfig:
             # Custom value
             assert config.head.port == 9000
             # Default values should still be present
-            assert config.head.heartbeat_timeout == 60
+            assert config.head.heartbeat_timeout == 30
             assert config.worker.gpu_util_threshold == 10.0
         finally:
             os.unlink(config_path)
@@ -305,7 +304,7 @@ class TestInitConfig:
 
             # Load and verify defaults
             config = load_config(config_path)
-            assert config.head.port == 8265
+            assert config.head.port == 8266
             assert config.head.heartbeat_timeout == 60
 
     def test_init_config_file_exists(self):

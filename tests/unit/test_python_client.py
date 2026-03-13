@@ -458,8 +458,7 @@ class TestNodeMethods:
                         "memory_total": 16000,
                         "temperature": 65,
                         "power_draw": 150,
-                        "power_limit": 250,
-                        "stable_since": "2025-01-01T00:00:00"
+                        "power_limit": 250
                     }
                 ]
             }
@@ -757,8 +756,7 @@ class TestResponseParsing:
                     "memory_total": 16000,
                     "temperature": 70,
                     "power_draw": 200,
-                    "power_limit": 250,
-                    "stable_since": "2025-01-01T00:30:00"
+                    "power_limit": 250
                 },
                 {
                     "gpu_id": 1,
@@ -767,8 +765,7 @@ class TestResponseParsing:
                     "memory_total": 16000,
                     "temperature": 45,
                     "power_draw": 50,
-                    "power_limit": 250,
-                    "stable_since": "2025-01-01T00:00:00"
+                    "power_limit": 250
                 }
             ]
         }
@@ -781,7 +778,6 @@ class TestResponseParsing:
         # Verify GPU stats are properly parsed
         assert node.gpus[0].stats.utilization == 75
         assert node.gpus[1].stats.utilization == 10
-        assert isinstance(node.gpus[0].stable_since, datetime)
 
 
 class TestExceptionHandling:

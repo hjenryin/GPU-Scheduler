@@ -147,18 +147,12 @@ class TestNodeManager:
 
         node = node_manager.get_node("gpu1")
 
-        # GPUs should start becoming stable after multiple heartbeats with low usage
-        # Simulate time passing by setting stable_since manually
-        for gpu in node.gpus[:2]:
-            gpu.stable_since = datetime.now() - timedelta(seconds=35)
-
         # Check that GPUs are considered free based on actual usage
         free_gpus = node.get_free_gpus(
             util_threshold=10.0,
-            mem_threshold=10.0,
-            stable_time=30
+            mem_threshold=10.0
         )
-        assert len(free_gpus) >= 2
+        assert len(free_gpus) == 4
 
         # Now simulate high usage on some GPUs
         high_usage_stats = [
@@ -172,8 +166,7 @@ class TestNodeManager:
         # GPUs with high usage should not be considered free
         free_gpus = node.get_free_gpus(
             util_threshold=10.0,
-            mem_threshold=10.0,
-            stable_time=30
+            mem_threshold=10.0
         )
         assert 0 not in free_gpus
         assert 1 not in free_gpus
@@ -247,44 +240,6 @@ class TestNodeManager:
 
         node = node_manager.get_node("gpu1")
         assert node.gpus[0].stats.utilization == 85.0
-        # GPU should no longer be stable due to high usage
-        assert node.gpus[0].stable_since is None
-
-    def test_gpu_stability_tracking(self, node_manager):
-        """Test GPU stability is tracked through heartbeats"""
-        node_manager.register_node("gpu1", "192.168.1.10", 2)
-
-        # First heartbeat - initialize GPUs
-        stats1 = [
-            GPUStats(0, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300),
-            GPUStats(1, 95.0, 15*1024**3, 16*1024**3, 75, 280, 300)  # Busy
-        ]
-        node_manager.update_heartbeat("gpu1", stats1)
-
-        # Second heartbeat - GPU stats get updated, GPU 0 should become stable
-        stats2 = [
-            GPUStats(0, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300),  # Still free
-            GPUStats(1, 95.0, 15*1024**3, 16*1024**3, 75, 280, 300)  # Still busy
-        ]
-        node_manager.update_heartbeat("gpu1", stats2)
-
-        node = node_manager.get_node("gpu1")
-        # GPU 0 should start tracking stability after second update
-        assert node.gpus[0].stable_since is not None
-        # GPU 1 is busy, should not be stable
-        assert node.gpus[1].stable_since is None
-
-        # Third heartbeat - GPU 1 becomes free
-        stats3 = [
-            GPUStats(0, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300),
-            GPUStats(1, 3.0, 0.5*1024**3, 16*1024**3, 40, 30, 300)  # Now free
-        ]
-        node_manager.update_heartbeat("gpu1", stats3)
-
-        node = node_manager.get_node("gpu1")
-        # GPU 1 should now start tracking stability
-        assert node.gpus[1].stable_since is not None
-
     def test_request_shutdown_all_workers(self, node_manager):
         """Test requesting shutdown for all worker nodes"""
         # Register some nodes

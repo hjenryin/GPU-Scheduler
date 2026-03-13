@@ -47,7 +47,6 @@ def _run_head_process(port, temp_dir, ready_event):
             worker=WorkerConfig(
                 gpu_util_threshold=10.0,
                 gpu_mem_threshold=10.0,
-                gpu_stable_time=1,  # Reduced from 2 for faster e2e tests
                 heartbeat_interval=1,  # Reduced from 2 for faster e2e tests
                 gpu_poll_interval=1,  # Reduced from 2 for faster e2e tests
                 job_startup_grace=2  # Reduced from 3 for faster e2e tests
@@ -96,7 +95,6 @@ def _run_worker_process(head_address, node_name, temp_dir, ready_event):
                 gpu_poll_interval=1,  # Reduced from 2 for faster e2e tests
                 gpu_util_threshold=10.0,
                 gpu_mem_threshold=10.0,
-                gpu_stable_time=1,  # Reduced from 2 for faster e2e tests
                 job_startup_grace=2  # Reduced from 3 for faster e2e tests
             )
         )
@@ -367,8 +365,7 @@ class TestPythonAPIComplete:
         # Test with thresholds
         free_gpus = node.get_free_gpus(
             util_threshold=10.0,
-            mem_threshold=10.0,
-            stable_time=2
+            mem_threshold=10.0
         )
         assert isinstance(free_gpus, list)
 

@@ -38,11 +38,10 @@ def cli():
 @click.option('--gpu-poll-interval', type=int, help='GPU poll interval (worker only)')
 @click.option('--gpu-util-threshold', type=int, help='GPU utilization threshold (worker only)')
 @click.option('--gpu-mem-threshold', type=int, help='GPU memory threshold (worker only)')
-@click.option('--gpu-stable-time', type=int, help='GPU stable time (worker only)')
 @click.option('--job-startup-grace', type=int, help='Job startup grace period (worker only)')
 def start(head, address, port, node_name, num_gpus, block, log_level,
           heartbeat_timeout, scheduling_interval,
-          gpu_poll_interval, gpu_util_threshold, gpu_mem_threshold, gpu_stable_time, job_startup_grace):
+          gpu_poll_interval, gpu_util_threshold, gpu_mem_threshold, job_startup_grace):
     """Start scheduler node"""
     try:
             code = start_command(
@@ -58,7 +57,6 @@ def start(head, address, port, node_name, num_gpus, block, log_level,
             gpu_poll_interval=gpu_poll_interval,
             gpu_util_threshold=gpu_util_threshold,
             gpu_mem_threshold=gpu_mem_threshold,
-            gpu_stable_time=gpu_stable_time,
             job_startup_grace=job_startup_grace
         )
             sys.exit(code)

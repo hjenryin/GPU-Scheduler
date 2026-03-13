@@ -26,7 +26,6 @@ class NodesScreen(Screen):
         self.jobs_data: List[Job] = []
         self.util_threshold: float = 10.0
         self.mem_threshold: float = 10.0
-        self.stable_time: int = 30
 
     def compose(self) -> ComposeResult:
         """
@@ -67,7 +66,7 @@ class NodesScreen(Screen):
 
         # Set up GPU detail table
         gpu_table = self.query_one("#gpu-detail-table", DataTable)
-        gpu_table.add_columns("GPU", "Util", "Memory", "Temp", "Power", "Status", "Job")
+        gpu_table.add_columns("GPU", "Util", "Memory", "Temp", "Power", "Status", "User", "Job")
 
     def update_data(
         self,
@@ -75,7 +74,6 @@ class NodesScreen(Screen):
         jobs: List[Job],
         util_threshold: float = 10.0,
         mem_threshold: float = 10.0,
-        stable_time: int = 30,
     ):
         """
         Update screen with new data.
@@ -85,7 +83,6 @@ class NodesScreen(Screen):
             jobs: List of Job instances
             util_threshold: GPU utilization threshold
             mem_threshold: GPU memory threshold
-            stable_time: Required stable time in seconds
         """
         # Filter to only active nodes (exclude disconnected)
         from scheduler.core import NodeStatus
@@ -95,7 +92,6 @@ class NodesScreen(Screen):
         self.jobs_data = jobs
         self.util_threshold = util_threshold
         self.mem_threshold = mem_threshold
-        self.stable_time = stable_time
 
         # Update nodes list
         nodes_list = self.query_one("#nodes-list", DataTable)
@@ -153,9 +149,9 @@ class NodesScreen(Screen):
         self.query_one("#node-detail-header", Static).update(f"Node: {node_name}")
 
         # Update node info
-        # Use proper free GPU calculation based on thresholds and stability
+        # Use proper free GPU calculation based on thresholds
         free_gpu_ids = node.get_free_gpus(
-            self.util_threshold, self.mem_threshold, self.stable_time
+            self.util_threshold, self.mem_threshold
         )
         free_gpu_count = len(free_gpu_ids)
         info_text = (
@@ -177,18 +173,22 @@ class NodesScreen(Screen):
         for gpu in node.gpus:
             # Use same logic as GPU screen for consistency
             is_free = gpu.stats.is_free(self.util_threshold, self.mem_threshold)
-            is_stable = gpu.is_stable(self.stable_time)
 
-            if is_free and is_stable:
+            if is_free and gpu.assigned_job_id is None:
                 status = "Free"
                 job_id = "-"
             elif gpu.stats.running_job_id is not None:
                 status = "In Use"
                 job_id = gpu.stats.running_job_id
+            elif gpu.assigned_job_id is not None:
+                status = "Assigned"
+                job_id = gpu.assigned_job_id
             else:
-                # GPU has no job but is not yet stable or above thresholds
                 status = "Waiting"
                 job_id = "-"
+            
+            # Helper to safely get user
+            user = getattr(gpu.stats, 'user', None) or "-"
 
             gpu_table.add_row(
                 str(gpu.gpu_id),
@@ -197,6 +197,7 @@ class NodesScreen(Screen):
                 f"{gpu.stats.temperature}°C" if gpu.stats.temperature else "N/A",
                 f"{gpu.stats.power_draw}W" if gpu.stats.power_draw else "N/A",
                 status,
+                user,
                 job_id,
             )
         # Restore cursor position if table has rows
