@@ -84,7 +84,8 @@ def submit_batch_command(
     
     # Use current directory if not specified (must be set on client side, not server side)
     if working_dir is None:
-        working_dir = os.getcwd()
+        from scheduler.core import get_logical_cwd
+        working_dir = get_logical_cwd()
     
     # Submit each script
     failed = 0

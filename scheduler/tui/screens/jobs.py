@@ -208,6 +208,12 @@ class JobsScreen(Screen):
                 else "N/A"
             )
             eta_display = format_eta_display(job.eta)
+            if eta_display and eta_display.endswith("s"):
+                parts = eta_display.split()
+                if len(parts) > 1 and parts[-1].endswith("s"):
+                    eta_display = " ".join(parts[:-1])
+                elif len(parts) == 1 and parts[0].endswith("s"):
+                    eta_display = "<1m"
             runtime_display = format_runtime(job.get_runtime())
             
             # Use dynamically calculated width for GPUs column
@@ -217,10 +223,12 @@ class JobsScreen(Screen):
             # Store full name, will truncate dynamically when rendering
             name_display = job.name or "N/A"
             
+            status_display = f"{job.status.value} (restarted)" if getattr(job, 'restarted', False) else job.status.value
+            
             new_table_data.append((
                 job.job_id,
                 name_display,
-                job.status.value,
+                status_display,
                 job.assigned_node or "-",
                 gpus_display,
                 runtime_display,

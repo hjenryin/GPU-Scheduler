@@ -60,7 +60,7 @@ def _print_job_table(jobs):
     if not jobs:
         click.echo("No jobs found")
         return
-    click.echo(f"{'JOB_ID':<18} {'NAME':<20} {'STATUS':<12} {'NODE':<10} {'GPUS':<6} {'RUNTIME':<12}")
+    click.echo(f"{'JOB_ID':<18} {'NAME':<20} {'STATUS':<18} {'NODE':<10} {'GPUS':<6} {'RUNTIME':<12}")
     click.echo("-" * 90)
     for job in jobs:
         runtime = "-"
@@ -70,13 +70,15 @@ def _print_job_table(jobs):
             m, s = divmod(r, 60)
             runtime = f"{h:02d}:{m:02d}:{s:02d}"
         gpus = len(job.assigned_gpus) if job.assigned_gpus else 0
-        click.echo(f"{job.job_id:<18} {job.name:<20} {job.status.value:<12} {job.assigned_node or '-':<10} {gpus:<6} {runtime:<12}")
+        status_display = f"{job.status.value} (restarted)" if getattr(job, 'restarted', False) else job.status.value
+        click.echo(f"{job.job_id:<18} {job.name:<20} {status_display:<18} {job.assigned_node or '-':<10} {gpus:<6} {runtime:<12}")
 
 
 def _print_job_details(job):
     click.echo(f"\nJob: {job.job_id}")
     click.echo(f"Name: {job.name}")
-    click.echo(f"Status: {job.status.value}")
+    status_display = f"{job.status.value} (restarted)" if getattr(job, 'restarted', False) else job.status.value
+    click.echo(f"Status: {status_display}")
     click.echo(f"Command: {' '.join(job.command)}")
 
     if job.conda_env:

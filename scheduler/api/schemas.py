@@ -16,6 +16,7 @@ class JobSubmitRequest(BaseModel):
     snapshot_ref: Optional[str] = None
     snapshot_working_dir: Optional[str] = None
     conda_env: Optional[str] = None
+    restart: Optional[str] = None
 
 
 class JobResponse(BaseModel):
@@ -41,6 +42,7 @@ class JobResponse(BaseModel):
     after_commit_ref: Optional[str] = None
     conda_env: Optional[str] = None
     eta: Optional[str] = None
+    restarted: bool = False
 
     @classmethod
     def from_job(cls, job: Job) -> 'JobResponse':
@@ -66,7 +68,8 @@ class JobResponse(BaseModel):
             snapshot_working_dir=job.snapshot_working_dir,
             after_commit_ref=job.after_commit_ref,
             conda_env=job.conda_env,
-            eta=job.eta
+            eta=job.eta,
+            restarted=job.restarted
         )
 
 

@@ -50,7 +50,7 @@ def format_runtime(runtime: Optional[timedelta]) -> str:
         runtime: Runtime duration
 
     Returns:
-        Formatted string (e.g., "01:23:45" or "-")
+        Formatted string (e.g., "01:23" or "-")
     """
     if runtime is None:
         return "-"
@@ -58,9 +58,10 @@ def format_runtime(runtime: Optional[timedelta]) -> str:
     total_seconds = int(runtime.total_seconds())
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
-    seconds = total_seconds % 60
 
-    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    if hours > 0:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m"
 
 
 def format_time_ago(timestamp: Optional[datetime]) -> str:

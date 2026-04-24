@@ -12,6 +12,23 @@ from scheduler.core.exceptions import InvalidRequirementException, PermissionDen
 logger = logging.getLogger(__name__)
 
 
+def get_logical_cwd() -> str:
+    """
+    Get the logical current working directory, preserving symlinks if possible.
+    Python's os.getcwd() resolves symlinks on POSIX systems, which can cause
+    path mismatch issues in distributed environments.
+    """
+    pwd = os.environ.get('PWD')
+    if pwd:
+        try:
+            if os.path.samefile(pwd, os.getcwd()):
+                return pwd
+        except OSError:
+            pass
+    return os.getcwd()
+
+
+
 def parse_requirements(req_str: str) -> List[Tuple[Optional[str], int]]:
     """
     Parse requirement string into list of alternatives.
@@ -422,3 +439,42 @@ def parse_time_duration(duration_str: str) -> timedelta:
     else:
         # Should never reach here due to regex
         raise ValidationException(f"Invalid duration unit: {unit}")
+
+
+def parse_size(size_str: str) -> int:
+    """
+    Parse a file size string with optional units into bytes.
+    
+    Args:
+        size_str: Size string (e.g., '512k', '1.5m', '2GB')
+        
+    Returns:
+        Integer representing size in bytes.
+    """
+    if isinstance(size_str, (int, float)):
+        return int(size_str)
+        
+    size_str = str(size_str).strip().lower()
+    if size_str.isdigit():
+        return int(size_str)
+        
+    import re
+    match = re.match(r'^([\d.]+)\s*([a-zA-Z]+)$', size_str)
+    if not match:
+        raise ValidationException(
+            f"Invalid size format: {size_str}. "
+            "Expected format: <number><unit> where unit is k/m/g. Examples: 512k, 1m, 2gb"
+        )
+        
+    value = float(match.group(1))
+    unit = match.group(2)
+    
+    if unit in ('k', 'kb', 'kib'): multiplier = 1024
+    elif unit in ('m', 'mb', 'mib'): multiplier = 1024 ** 2
+    elif unit in ('g', 'gb', 'gib'): multiplier = 1024 ** 3
+    elif unit in ('t', 'tb', 'tib'): multiplier = 1024 ** 4
+    elif unit in ('b', ''): multiplier = 1
+    else:
+        raise ValidationException(f"Unsupported size unit: {unit}")
+        
+    return int(value * multiplier)

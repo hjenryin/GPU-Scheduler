@@ -224,7 +224,7 @@ class JobDetailScreen(Screen):
             f"Job ID:      {job.job_id}",
             f"Name:        {job.name or 'N/A'}",
             f"Command:     {command_str}",
-            f"Status:      {status}",
+            f"Status:      {status} (restarted)" if getattr(job, 'restarted', False) else f"Status:      {status}",
             f"Priority:    {job.priority}",
             f"Submitted:   {submitted_time}",
             f"Started:     {started_time}",

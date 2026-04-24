@@ -45,15 +45,19 @@ class GitSnapshotManager:
         self.config = config
 
         # Load configuration values with defaults from constants
-        self.max_file_size = getattr(config, 'snapshot_max_file_size', DEFAULT_SNAPSHOT_MAX_FILE_SIZE)
-        self.max_files_per_folder = getattr(config, 'snapshot_max_files_per_folder', DEFAULT_SNAPSHOT_MAX_FILES_PER_FOLDER)
+        snapshot_config = getattr(config, 'snapshot', None)
+        
+        self.max_file_size = getattr(snapshot_config, 'max_file_size', getattr(config, 'snapshot_max_file_size', DEFAULT_SNAPSHOT_MAX_FILE_SIZE))
+        self.max_files_per_folder = getattr(snapshot_config, 'max_files_per_folder', getattr(config, 'snapshot_max_files_per_folder', DEFAULT_SNAPSHOT_MAX_FILES_PER_FOLDER))
 
         # Load data type size limits (can be overridden by config)
-        self.data_type_size_limits = getattr(config, 'snapshot_data_type_limits', DEFAULT_SNAPSHOT_DATA_TYPE_LIMITS.copy())
+        raw_limits = getattr(snapshot_config, 'data_type_limits', getattr(config, 'snapshot_data_type_limits', DEFAULT_SNAPSHOT_DATA_TYPE_LIMITS.copy()))
+        self.data_type_size_limits = {ext if ext.startswith('.') else f'.{ext}': limit for ext, limit in raw_limits.items()}
 
         # Load file extension and exclusion patterns (can be overridden by config)
-        self.always_include_extensions = getattr(config, 'snapshot_always_include_extensions', DEFAULT_SNAPSHOT_ALWAYS_INCLUDE_EXTENSIONS.copy())
-        self.exclude_patterns = getattr(config, 'snapshot_exclude_patterns', DEFAULT_SNAPSHOT_EXCLUDE_PATTERNS.copy())
+        raw_always = getattr(snapshot_config, 'always_include_extensions', getattr(config, 'snapshot_always_include_extensions', DEFAULT_SNAPSHOT_ALWAYS_INCLUDE_EXTENSIONS))
+        self.always_include_extensions = {ext if ext.startswith('.') else f'.{ext}' for ext in raw_always}
+        self.exclude_patterns = set(getattr(snapshot_config, 'exclude_patterns', getattr(config, 'snapshot_exclude_patterns', DEFAULT_SNAPSHOT_EXCLUDE_PATTERNS)))
 
         logger.debug(f"GitSnapshotManager initialized (max_file_size={self.max_file_size}, "
                     f"max_files_per_folder={self.max_files_per_folder})")

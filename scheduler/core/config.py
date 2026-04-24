@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
-from typing import Any, Optional, Dict
+from typing import Any, Optional, Dict, List
 import yaml
 import os
 
@@ -27,6 +27,11 @@ from scheduler.core.constants import (
     TEMP_DIR_PATH,
     LOG_DIR_PATH,
     JOB_POLL_TIMEOUT as DEFAULT_JOB_POLL_TIMEOUT,
+    DEFAULT_SNAPSHOT_MAX_FILE_SIZE,
+    DEFAULT_SNAPSHOT_MAX_FILES_PER_FOLDER,
+    DEFAULT_SNAPSHOT_DATA_TYPE_LIMITS,
+    DEFAULT_SNAPSHOT_ALWAYS_INCLUDE_EXTENSIONS,
+    DEFAULT_SNAPSHOT_EXCLUDE_PATTERNS
 )
 
 
@@ -75,6 +80,16 @@ class CondaConfig:
 
 
 @dataclass(frozen=True)
+class SnapshotConfig:
+    """Git snapshot configuration"""
+    max_file_size: int = DEFAULT_SNAPSHOT_MAX_FILE_SIZE
+    max_files_per_folder: int = DEFAULT_SNAPSHOT_MAX_FILES_PER_FOLDER
+    data_type_limits: Dict[str, int] = field(default_factory=lambda: DEFAULT_SNAPSHOT_DATA_TYPE_LIMITS.copy())
+    always_include_extensions: List[str] = field(default_factory=lambda: list(DEFAULT_SNAPSHOT_ALWAYS_INCLUDE_EXTENSIONS))
+    exclude_patterns: List[str] = field(default_factory=lambda: list(DEFAULT_SNAPSHOT_EXCLUDE_PATTERNS))
+
+
+@dataclass(frozen=True)
 class Config:
     """
     Main configuration container with nested sections.
@@ -91,6 +106,7 @@ class Config:
     storage: StorageConfig = field(default_factory=StorageConfig)
     client: ClientConfig = field(default_factory=ClientConfig)
     conda: CondaConfig = field(default_factory=CondaConfig)
+    snapshot: SnapshotConfig = field(default_factory=SnapshotConfig)
 
     def __post_init__(self):
         """Validate configuration values after initialization."""
@@ -124,6 +140,7 @@ class Config:
         storage_dict = config_dict.get('storage', {})
         client_dict = config_dict.get('client', {})
         conda_dict = config_dict.get('conda', {})
+        snapshot_dict = config_dict.get('snapshot', {})
 
         # Filter to only valid fields for each sub-config
         def filter_dict(d: dict, dataclass_type):
@@ -137,6 +154,7 @@ class Config:
         storage_filtered = filter_dict(storage_dict, StorageConfig)
         client_filtered = filter_dict(client_dict, ClientConfig)
         conda_filtered = filter_dict(conda_dict, CondaConfig)
+        snapshot_filtered = filter_dict(snapshot_dict, SnapshotConfig)
 
         return cls(
             address=address,
@@ -144,7 +162,8 @@ class Config:
             worker=WorkerConfig(**worker_filtered) if worker_filtered else WorkerConfig(),
             storage=StorageConfig(**storage_filtered) if storage_filtered else StorageConfig(),
             client=ClientConfig(**client_filtered) if client_filtered else ClientConfig(),
-            conda=CondaConfig(**conda_filtered) if conda_filtered else CondaConfig()
+            conda=CondaConfig(**conda_filtered) if conda_filtered else CondaConfig(),
+            snapshot=SnapshotConfig(**snapshot_filtered) if snapshot_filtered else SnapshotConfig()
         )
 
     def to_dict(self) -> dict:

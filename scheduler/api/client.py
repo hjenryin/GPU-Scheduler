@@ -132,6 +132,7 @@ class SchedulerClient:
         env_vars: Dict[str, str] = None,
         dependencies: List[str] = None,
         priority: int = 0,
+        restart: Optional[str] = None,
     ) -> Job:
         """
         Submit a job.
@@ -149,6 +150,7 @@ class SchedulerClient:
             env_vars: Environment variables
             dependencies: Job dependencies
             priority: Job priority
+            restart: Job ID of the job being restarted
 
         Returns:
             Created Job instance
@@ -166,7 +168,8 @@ class SchedulerClient:
 
         # Use current working directory if not specified
         if working_dir is None:
-            working_dir = os.getcwd()
+            from scheduler.core import get_logical_cwd
+            working_dir = get_logical_cwd()
 
         # Detect conda environment from workspace
         conda_env_detected = None
@@ -209,6 +212,7 @@ class SchedulerClient:
             snapshot_ref=snapshot_ref,
             snapshot_working_dir=snapshot_working_dir,
             conda_env=conda_env_detected,
+            restart=restart,
         )
 
         try:
@@ -316,6 +320,7 @@ class SchedulerClient:
             "snapshot_ref": original_job.snapshot_ref,  # Reuse same commit
             "snapshot_working_dir": original_job.snapshot_working_dir,
             "conda_env": original_job.conda_env,
+            "restart": job_id,
         }
 
         try:
@@ -370,6 +375,7 @@ class SchedulerClient:
             env_vars=original_job.env_vars,
             dependencies=original_job.dependencies,  # Already resolved
             priority=original_job.priority,
+            restart=job_id,
         )
 
     def retry_job_no_deps(self, job_id: str) -> Job:
@@ -411,6 +417,7 @@ class SchedulerClient:
             env_vars=original_job.env_vars,
             dependencies=None,  # Remove dependencies
             priority=original_job.priority,
+            restart=job_id,
         )
 
     def list_jobs(
@@ -916,7 +923,9 @@ class SchedulerClient:
                     memory_total=gpu_data["memory_total"],
                     temperature=gpu_data["temperature"],
                     power_draw=gpu_data["power_draw"],
-                    power_limit=gpu_data.get("power_limit")
+                    power_limit=gpu_data.get("power_limit"),
+                    running_job_id=gpu_data.get("running_job_id"),
+                    user=gpu_data.get("user")
                 )
 
                 frozen_until = datetime.fromisoformat(gpu_data["frozen_until"]) if gpu_data.get("frozen_until") else None

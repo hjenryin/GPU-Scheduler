@@ -51,7 +51,8 @@ def set_conda_env(env_name: str, path: Optional[str]):
     """
     # Determine workspace root
     if path is None:
-        path = os.getcwd()
+        from scheduler.core import get_logical_cwd
+        path = get_logical_cwd()
 
     try:
         workspace_root = find_workspace_root(path)
@@ -102,7 +103,8 @@ def unset_conda_env(path: Optional[str]):
         scheduler config conda-env unset --path /home/user/project
     """
     if path is None:
-        path = os.getcwd()
+        from scheduler.core import get_logical_cwd
+        path = get_logical_cwd()
 
     try:
         workspace_root = find_workspace_root(path)
@@ -177,7 +179,8 @@ def show_conda_env(path: Optional[str]):
         scheduler config conda-env show --path /home/user/project
     """
     if path is None:
-        path = os.getcwd()
+        from scheduler.core import get_logical_cwd
+        path = get_logical_cwd()
 
     try:
         workspace_root = find_workspace_root(path)

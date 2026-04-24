@@ -232,6 +232,7 @@ class JobManager:
         snapshot_ref: Optional[str] = None,
         snapshot_working_dir: Optional[str] = None,
         conda_env: Optional[str] = None,
+        restart: Optional[str] = None,
     ) -> Job:
         """
         Submit a new job.
@@ -248,6 +249,7 @@ class JobManager:
             snapshot_ref: Git snapshot reference (created by client)
             snapshot_working_dir: Workspace root where snapshot was created
             conda_env: Conda environment name for job execution
+            restart: Original job ID being restarted
 
         Returns:
             Created Job instance
@@ -271,7 +273,8 @@ class JobManager:
         # working_dir should be set by the client, not the server
         # If not provided, use current directory as fallback
         if working_dir is None:
-            working_dir = os.getcwd()
+            from scheduler.core import get_logical_cwd
+            working_dir = get_logical_cwd()
 
         # Resolve ^ syntax in dependencies
         resolved_dependencies = []
@@ -305,6 +308,13 @@ class JobManager:
         # Store in memory and persist
         self.jobs[job_id] = job
         self.persistence.save_job(job)
+
+        # Mark original job as restarted if applicable
+        if restart:
+            old_job = self.get_job(restart)
+            if old_job:
+                old_job.restarted = True
+                self.persistence.save_job(old_job)
 
         logger.info(f"Job {job_id} ({job_name}) submitted")
         return job

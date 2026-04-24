@@ -383,6 +383,7 @@ class Job:
     after_commit_ref: Optional[str] = None
     conda_env: Optional[str] = None
     eta: Optional[str] = None
+    restarted: bool = False
 
     def __init__(
         self,
@@ -406,7 +407,8 @@ class Job:
         snapshot_working_dir: Optional[str] = None,
         after_commit_ref: Optional[str] = None,
         conda_env: Optional[str] = None,
-        eta: Optional[str] = None
+        eta: Optional[str] = None,
+        restarted: bool = False
     ):
         """
         Initialize job.
@@ -455,6 +457,7 @@ class Job:
         self.after_commit_ref = after_commit_ref
         self.conda_env = conda_env
         self.eta = eta
+        self.restarted = restarted
 
     @property
     def start_time(self) -> Optional[datetime]:
@@ -519,7 +522,8 @@ class Job:
             'snapshot_working_dir': self.snapshot_working_dir,
             'after_commit_ref': self.after_commit_ref,
             'conda_env': self.conda_env,
-            'eta': self.eta
+            'eta': self.eta,
+            'restarted': self.restarted
         }
 
     @classmethod
@@ -574,7 +578,8 @@ class Job:
             snapshot_working_dir=data.get('snapshot_working_dir'),
             after_commit_ref=data.get('after_commit_ref'),
             conda_env=data.get('conda_env'),
-            eta=data.get('eta')
+            eta=data.get('eta'),
+            restarted=data.get('restarted', False)
         )
 
 
@@ -598,6 +603,7 @@ class JobSubmitRequest:
         snapshot_ref: Optional[str] = None,
         snapshot_working_dir: Optional[str] = None,
         conda_env: Optional[str] = None,
+        restart: Optional[str] = None,
     ):
         """
         Initialize job submission request.
@@ -626,6 +632,7 @@ class JobSubmitRequest:
         self.snapshot_ref = snapshot_ref
         self.snapshot_working_dir = snapshot_working_dir
         self.conda_env = conda_env
+        self.restart = restart
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dict for API payload."""
@@ -641,6 +648,7 @@ class JobSubmitRequest:
             "snapshot_ref": self.snapshot_ref,
             "snapshot_working_dir": self.snapshot_working_dir,
             "conda_env": self.conda_env,
+            "restart": self.restart,
         }
 
 

@@ -39,7 +39,9 @@ from scheduler.core.utils import (
     ensure_dir_exists,
     parse_address,
     parse_time_duration,
+    parse_size,
     find_workspace_root,
+    get_logical_cwd,
 )
 
 from scheduler.core.tqdm_parser import (
@@ -112,6 +114,7 @@ __all__ = [
     "parse_requirements",
     "parse_address",
     "parse_time_duration",
+    "parse_size",
     "format_duration",
     "format_timestamp",
     "format_bytes",
@@ -122,6 +125,7 @@ __all__ = [
     "get_local_ip",
     "ensure_dir_exists",
     "find_workspace_root",
+    "get_logical_cwd",
     "parse_tqdm_eta",
     "format_eta_display",
     # Constants

@@ -2,7 +2,7 @@ import yaml
 from typing import Optional
 import click
 
-from scheduler.core import load_config, save_config, init_config
+from scheduler.core import load_config, save_config, init_config, Config
 from scheduler.core import constants
 
 
@@ -72,8 +72,21 @@ def config_command(
             current = config_dict
             for k in keys[:-1]:
                 current = current.setdefault(k, {})
-            current[keys[-1]] = value
-            save_config(config_dict)
+            # Parse value through yaml to get original type correctly
+            try:
+                parsed_value = yaml.safe_load(value)
+            except yaml.YAMLError:
+                parsed_value = value
+                
+            current[keys[-1]] = parsed_value
+            
+            # Reconstruct Config and validate
+            if hasattr(Config, 'from_dict'):
+                new_config = Config.from_dict(config_dict)
+                save_config(new_config)
+            else:
+                save_config(config_dict)
+                
             click.echo(f"Set {key} = {value}")
             return 0
 
