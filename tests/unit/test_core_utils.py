@@ -390,7 +390,23 @@ class TestParseTimeDuration:
         """Test parsing invalid format without number raises ValidationException"""
         from scheduler.core.utils import parse_time_duration
         with pytest.raises(ValidationException):
-            parse_time_duration("d")
+            parse_time_duration("invalid")
+        
+def test_parse_size():
+    from scheduler.core.utils import parse_size
+    assert parse_size("512k") == 512 * 1024
+    assert parse_size("1m") == 1024 * 1024
+    assert parse_size("2gb") == 2 * 1024 * 1024 * 1024
+    assert parse_size("1024") == 1024
+    assert parse_size(2048) == 2048
+    assert parse_size("1.5 MB") == int(1.5 * 1024 * 1024)
+    assert parse_size("100b") == 100
+    
+    with pytest.raises(ValidationException):
+        parse_size("invalid")
+        
+    with pytest.raises(ValidationException):
+        parse_size("100x")
 
     def test_parse_zero_duration(self):
         """Test parsing zero duration raises ValidationException"""
