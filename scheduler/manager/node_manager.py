@@ -123,15 +123,8 @@ class NodeManager:
         node.update_heartbeat(gpu_stats)
 
         # State machine for shutdown confirmation:
-        # NONE -> PENDING -> SENT -> CONFIRMED
-
-        # Transition: PENDING -> SENT (first heartbeat after shutdown requested)
-        if node.shutdown_state == ShutdownState.PENDING:
-            node.shutdown_state = ShutdownState.SENT
-            logger.info(f"Sending shutdown signal to {node_name}")
-
-        # Transition: SENT -> CONFIRMED (worker confirms receipt)
-        elif shutdown_acknowledged and node.shutdown_state == ShutdownState.SENT:
+        # NONE -> REQUESTED -> CONFIRMED
+        if shutdown_acknowledged and node.shutdown_state == ShutdownState.REQUESTED:
             node.shutdown_state = ShutdownState.CONFIRMED
             logger.info(f"Node {node_name} confirmed shutdown")
 
@@ -217,12 +210,12 @@ class NodeManager:
     def request_shutdown_all_workers(self):
         """
         Request shutdown for all worker nodes.
-        Sets the shutdown_state to PENDING on all nodes so they will
+        Sets the shutdown_state to REQUESTED on all nodes so they will
         gracefully shutdown when they next poll/heartbeat.
         """
         for node in self.nodes.values():
             if node.status == NodeStatus.CONNECTED:
-                node.shutdown_state = ShutdownState.PENDING
+                node.shutdown_state = ShutdownState.REQUESTED
                 self.persistence.save_node(node)
                 logger.info(f"Shutdown requested for node {node.node_name}")
         logger.info(f"Shutdown requested for {len(self.nodes)} worker nodes")

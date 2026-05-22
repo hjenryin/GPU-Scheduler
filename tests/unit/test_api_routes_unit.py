@@ -512,7 +512,7 @@ class TestHeartbeatRoute:
         
         # Mock node with shutdown requested
         mock_node = create_autospec(Node, instance=True, spec_set=True)
-        mock_node.shutdown_state = ShutdownState.SENT
+        mock_node.shutdown_state = ShutdownState.REQUESTED
         mock_node_manager.get_node.return_value = mock_node
         
         result = await heartbeat_route("node1", request, timeout=1)

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from scheduler.core.models import (
     GPUStats, GPU, JobRequirement, Job, Node,
-    JobStatus, NodeStatus
+    JobStatus, NodeStatus, ShutdownState
 )
 from scheduler.core.exceptions import InvalidRequirementException
 
@@ -431,3 +431,20 @@ class TestNode:
         assert node_restored.num_gpus == 2
         assert len(node_restored.gpus) == 2
         assert node_restored.status == NodeStatus.CONNECTED
+
+    @pytest.mark.parametrize("legacy_state", ["pending", "sent"])
+    def test_node_from_dict_maps_legacy_shutdown_states_to_requested(self, legacy_state):
+        """Test old persisted shutdown states remain readable."""
+        data = {
+            "node_name": "gpu1",
+            "address": "192.168.1.10",
+            "num_gpus": 2,
+            "gpus": [],
+            "status": "connected",
+            "registered_at": datetime.now().isoformat(),
+            "shutdown_state": legacy_state,
+        }
+
+        node = Node.from_dict(data)
+
+        assert node.shutdown_state == ShutdownState.REQUESTED

@@ -31,10 +31,9 @@ class NodeStatus(Enum):
 
 class ShutdownState(Enum):
     """Node shutdown state enumeration"""
-    NONE = "none"              # No shutdown requested
-    PENDING = "pending"        # Head has requested shutdown
-    SENT = "sent"             # Head has sent signal via heartbeat response
-    CONFIRMED = "confirmed"    # Worker has confirmed receipt
+    NONE = "none"                  # No shutdown requested
+    REQUESTED = "requested"        # Head has requested worker shutdown
+    CONFIRMED = "confirmed"        # Worker has confirmed receipt
 
 
 class GPUStats:
@@ -690,7 +689,7 @@ class Node:
             last_heartbeat: Last heartbeat timestamp
             registered_at: Registration timestamp
             grace_period_until: Timestamp until which node is in grace period
-            shutdown_state: Current shutdown state (NONE, PENDING, SENT, CONFIRMED)
+            shutdown_state: Current shutdown state (NONE, REQUESTED, CONFIRMED)
         """
         self.node_name = node_name
         self.address = address
@@ -812,8 +811,13 @@ class Node:
         # Parse GPUs
         gpus = [GPU.from_dict(gpu_data) for gpu_data in data.get('gpus', [])]
 
-        # Parse shutdown state
-        shutdown_state = ShutdownState(data['shutdown_state']) if data.get('shutdown_state') else ShutdownState.NONE
+        # Parse shutdown state. Older persisted files may contain the removed
+        # PENDING/SENT states; both mean shutdown has been requested.
+        shutdown_state_value = data.get('shutdown_state')
+        if shutdown_state_value in ('pending', 'sent'):
+            shutdown_state = ShutdownState.REQUESTED
+        else:
+            shutdown_state = ShutdownState(shutdown_state_value) if shutdown_state_value else ShutdownState.NONE
 
         return cls(
             node_name=data['node_name'],

@@ -270,6 +270,21 @@ class TestNodeManager:
         assert node1.shutdown_state != ShutdownState.NONE
         assert node2.shutdown_state != ShutdownState.NONE
 
+    def test_shutdown_ack_from_requested_confirms_node(self, node_manager):
+        """Test shutdown ack transitions requested nodes to confirmed."""
+        node_manager.register_node("gpu1", "192.168.1.10", 4)
+        stats = [GPUStats(i, 5.0, 1*1024**3, 16*1024**3, 45, 50, 300) for i in range(4)]
+        node_manager.update_heartbeat("gpu1", stats)
+
+        node_manager.request_shutdown_all_workers()
+        node = node_manager.get_node("gpu1")
+        assert node.shutdown_state == ShutdownState.REQUESTED
+
+        node_manager.update_heartbeat("gpu1", stats, shutdown_acknowledged=True)
+
+        node = node_manager.get_node("gpu1")
+        assert node.shutdown_state == ShutdownState.CONFIRMED
+
     def test_reregister_clears_shutdown_flags(self, node_manager):
         """Test that re-registering a node clears shutdown flags"""
         # Register a node

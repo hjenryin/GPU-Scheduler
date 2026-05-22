@@ -319,7 +319,7 @@ class Orchestrator:
             except Exception as e:
                 logger.error(f"Failed to cancel job {job.job_id}: {e}")
 
-        # 3. Signal all workers (sets shutdown_state=PENDING)
+        # 3. Signal all workers (sets shutdown_state=REQUESTED)
         self.node_manager.request_shutdown_all_workers()
         logger.info("Shutdown signal sent to all workers")
 
