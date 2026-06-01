@@ -36,6 +36,7 @@ class WorkerDaemon:
         self.node_name = node_name
         self.running = False
         self.restart_id = os.environ.get('SCHEDULER_RESTART_ID')
+        self.shutdown_event = threading.Event()
 
         # Get head node address (from config.address or construct from head config)
         if config.address:
@@ -79,7 +80,8 @@ class WorkerDaemon:
             node_name=node_name,
             head_address=self.head_address,
             gpu_monitor=self.gpu_monitor,
-            config=config
+            config=config,
+            shutdown_event=self.shutdown_event
         )
 
         # Initialize client for job operations
@@ -151,6 +153,7 @@ class WorkerDaemon:
         logger.info("Stopping worker daemon...")
 
         self.running = False
+        self.shutdown_event.set()
 
         # Don't wait for jobs or terminate them - let them continue running
         with self.active_jobs_lock:
@@ -276,7 +279,7 @@ class WorkerDaemon:
 
                 # If poll response is empty, sleep briefly
                 if not jobs:
-                    time.sleep(5)
+                    self.shutdown_event.wait(5)
         except KeyboardInterrupt:
             logger.info("Received keyboard interrupt")
             # Re-raise to propagate to parent context
@@ -406,7 +409,7 @@ class WorkerDaemon:
                     break
 
                 # Still running, sleep and check again
-                time.sleep(5)
+                self.shutdown_event.wait(5)
 
         except Exception as e:
             logger.error(f"Error monitoring job {job.job_id}: {e}")
@@ -520,7 +523,7 @@ class WorkerDaemon:
                     logger.error(f"Log sync error: {e}")
 
                 # Sleep for 10 seconds between syncs
-                time.sleep(10)
+                self.shutdown_event.wait(10)
 
         # Start sync thread
         self.log_sync_thread = threading.Thread(target=sync_loop, daemon=True, name="LogSync")

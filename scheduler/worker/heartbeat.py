@@ -18,7 +18,8 @@ class HeartbeatSender:
         node_name: str,
         head_address: str,
         gpu_monitor: GPUMonitor,
-        config: Config
+        config: Config,
+        shutdown_event: Optional[threading.Event] = None
     ):
         """
         Initialize heartbeat sender.
@@ -33,6 +34,7 @@ class HeartbeatSender:
         self.head_address = head_address
         self.gpu_monitor = gpu_monitor
         self.config = config
+        self.shutdown_event = shutdown_event
 
         # Create scheduler client
         self.client = SchedulerClient(address=head_address, config=config)
@@ -98,6 +100,8 @@ class HeartbeatSender:
             if response.shutdown_requested:
                 logger.info(f"Shutdown requested by head node for {self.node_name}")
                 self.shutdown_requested = True
+                if self.shutdown_event:
+                    self.shutdown_event.set()
 
                 # Send immediate confirmation heartbeat
                 try:
@@ -117,6 +121,8 @@ class HeartbeatSender:
                 self.restart_requested = True
                 self.restart_id = response.restart_id
                 logger.info(f"Restart {self.restart_id} requested by head node for {self.node_name}")
+                if self.shutdown_event:
+                    self.shutdown_event.set()
 
                 try:
                     logger.info("Sending immediate restart confirmation")
