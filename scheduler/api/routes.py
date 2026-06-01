@@ -12,7 +12,7 @@ from scheduler.api.schemas import (
     NodeRegisterRequest, NodeRegisterResponse, NodeHeartbeat, HeartbeatResponse, NodeResponse,
     GPUFreezeRequest
 )
-from scheduler.core import JobStatus, GPUStats, JobNotFoundException, NodeNotFoundException, constants, ShutdownState
+from scheduler.core import JobStatus, GPUStats, JobNotFoundException, NodeNotFoundException, constants, ShutdownState, RestartState
 from scheduler.core import load_config
 
 logger = logging.getLogger(__name__)
@@ -131,6 +131,10 @@ def create_app(
     @app.post(f"{constants.API_BASE_PATH}/shutdown/cluster")
     async def shutdown_cluster(background_tasks: BackgroundTasks):
         return await shutdown_cluster_route(background_tasks)
+
+    @app.post(f"{constants.API_BASE_PATH}/restart/cluster")
+    async def restart_cluster(timeout: Optional[int] = None):
+        return await restart_cluster_route(timeout)
 
     # Log routes
     @app.get(f"{constants.API_BASE_PATH}/logs/head")
@@ -301,7 +305,8 @@ async def register_node_route(request: NodeRegisterRequest) -> NodeRegisterRespo
         node = _node_manager.register_node(
             node_name=request.node_name,
             address=request.address,
-            num_gpus=request.num_gpus
+            num_gpus=request.num_gpus,
+            restart_id=request.restart_id
         )
 
         # Get rsync port from orchestrator
@@ -333,7 +338,8 @@ async def heartbeat_route(
         _node_manager.update_heartbeat(
             node_name,
             gpu_stats,
-            shutdown_acknowledged=request.shutdown_acknowledged
+            shutdown_acknowledged=request.shutdown_acknowledged,
+            restart_acknowledged=request.restart_acknowledged
         )
 
         # Helper to get current job IDs (must be computed at response time, not request time,
@@ -354,12 +360,14 @@ async def heartbeat_route(
             while time.time() - start < timeout:
                 # Check if shutdown was requested
                 node = _node_manager.get_node(node_name)
-                if node and node.shutdown_state != ShutdownState.NONE:
+                if node and (node.shutdown_state != ShutdownState.NONE or node.restart_state == RestartState.REQUESTED):
                     recorded_job_ids = get_job_ids()
                     rsync_port = get_rsync_port()
                     return HeartbeatResponse(
                         status="ok",
-                        shutdown_requested=True,
+                        shutdown_requested=node.shutdown_state != ShutdownState.NONE,
+                        restart_requested=node.restart_state == RestartState.REQUESTED,
+                        restart_id=node.restart_id if node.restart_state == RestartState.REQUESTED else None,
                         recorded_job_ids=recorded_job_ids,
                         running_job_ids=[],  # DEPRECATED: No longer used
                         rsync_port=rsync_port
@@ -371,9 +379,12 @@ async def heartbeat_route(
         # Normal response (no shutdown, timeout reached or no timeout provided)
         recorded_job_ids = get_job_ids()
         rsync_port = get_rsync_port()
+        node = _node_manager.get_node(node_name)
         return HeartbeatResponse(
             status="ok",
             shutdown_requested=False,
+            restart_requested=bool(node and node.restart_state == RestartState.REQUESTED),
+            restart_id=node.restart_id if node and node.restart_state == RestartState.REQUESTED else None,
             recorded_job_ids=recorded_job_ids,
             running_job_ids=[],  # DEPRECATED: No longer used
             rsync_port=rsync_port
@@ -433,6 +444,12 @@ async def poll_job_route(node_name: str, timeout: int = 30) -> List[JobResponse]
         logger.debug(f"Poll timeout for node {node_name}")
         return []
 
+    # Return promptly when a restart is pending so workers can reach heartbeat/reexec quickly.
+    node = _node_manager.get_node(node_name)
+    if node and getattr(node, 'restart_state', RestartState.NONE) in (RestartState.REQUESTED, RestartState.ACKNOWLEDGED):
+        logger.info(f"Returning empty poll response for node {node_name}; restart is pending")
+        return []
+
     # Wait for job assignment event
     event = _job_manager.get_job_assignment_event(node_name)
 
@@ -440,6 +457,11 @@ async def poll_job_route(node_name: str, timeout: int = 30) -> List[JobResponse]
         await asyncio.wait_for(event.wait(), timeout=remaining_time)
         # Event was set! Clear it and check for jobs
         event.clear()
+
+        node = _node_manager.get_node(node_name)
+        if node and getattr(node, 'restart_state', RestartState.NONE) in (RestartState.REQUESTED, RestartState.ACKNOWLEDGED):
+            logger.info(f"Returning empty poll response for node {node_name}; restart is pending")
+            return []
 
         # Find ALL RUNNING jobs assigned to this node
         running_jobs = _job_manager.get_running_jobs()
@@ -456,6 +478,11 @@ async def poll_job_route(node_name: str, timeout: int = 30) -> List[JobResponse]
         return node_jobs
 
     except asyncio.TimeoutError:
+        node = _node_manager.get_node(node_name)
+        if node and getattr(node, 'restart_state', RestartState.NONE) in (RestartState.REQUESTED, RestartState.ACKNOWLEDGED):
+            logger.info(f"Returning empty poll response for node {node_name}; restart is pending")
+            return []
+
         # Timeout reached - check for jobs as recovery mechanism
         # This handles cases where event notification was somehow missed
         running_jobs = _job_manager.get_running_jobs()
@@ -570,6 +597,37 @@ async def shutdown_cluster_route(background_tasks: BackgroundTasks) -> dict:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to shutdown cluster: {e}"
+        )
+
+
+async def restart_cluster_route(timeout: Optional[int] = None) -> dict:
+    """POST /api/v1/restart/cluster - Restart workers, then schedule head restart."""
+    try:
+        logger.info("Cluster restart requested")
+
+        from scheduler.head import Orchestrator
+        orchestrator = Orchestrator.get_instance()
+        if not orchestrator:
+            logger.error("Orchestrator instance not available")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Orchestrator not available"
+            )
+
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            orchestrator.restart_cluster,
+            timeout
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error during cluster restart: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to restart cluster: {e}"
         )
 
 

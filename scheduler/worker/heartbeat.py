@@ -43,6 +43,9 @@ class HeartbeatSender:
         # Thread control
         self.running = False
         self.heartbeat_thread: Optional[threading.Thread] = None
+        self.shutdown_requested = False
+        self.restart_requested = False
+        self.restart_id: Optional[str] = None
 
         logger.info(f"HeartbeatSender initialized for node {node_name} -> {head_address}")
 
@@ -94,6 +97,7 @@ class HeartbeatSender:
 
             if response.shutdown_requested:
                 logger.info(f"Shutdown requested by head node for {self.node_name}")
+                self.shutdown_requested = True
 
                 # Send immediate confirmation heartbeat
                 try:
@@ -106,6 +110,24 @@ class HeartbeatSender:
                     logger.info("Shutdown confirmation sent")
                 except Exception as e:
                     logger.error(f"Failed to send confirmation: {e}")
+
+                return True
+
+            if response.restart_requested:
+                self.restart_requested = True
+                self.restart_id = response.restart_id
+                logger.info(f"Restart {self.restart_id} requested by head node for {self.node_name}")
+
+                try:
+                    logger.info("Sending immediate restart confirmation")
+                    self.client.send_heartbeat(
+                        self.node_name,
+                        gpu_stats,
+                        restart_acknowledged=True
+                    )
+                    logger.info("Restart confirmation sent")
+                except Exception as e:
+                    logger.error(f"Failed to send restart confirmation: {e}")
 
                 return True
 
@@ -143,9 +165,9 @@ class HeartbeatSender:
         logger.info("Heartbeat loop started")
 
         while self.running:
-            shutdown_requested = self.send_heartbeat()
-            if shutdown_requested:
-                logger.info("Shutdown requested - stopping heartbeat loop")
+            stop_requested = self.send_heartbeat()
+            if stop_requested:
+                logger.info("Stop/restart requested - stopping heartbeat loop")
                 self.running = False
                 break
             # NO sleep! send_heartbeat() already waited via long-polling
@@ -159,4 +181,13 @@ class HeartbeatSender:
         Returns:
             True if shutdown was requested by the head node
         """
-        return not self.running
+        return self.shutdown_requested or not self.running
+
+    def is_restart_requested(self) -> bool:
+        """Check if restart has been requested by the head node."""
+        return self.restart_requested
+
+    def close(self):
+        """Close underlying client resources."""
+        if hasattr(self.client, 'close'):
+            self.client.close()

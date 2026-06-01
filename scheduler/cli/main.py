@@ -17,6 +17,7 @@ from scheduler.cli.status import status_command
 from scheduler.cli.purge import purge_command
 from scheduler.cli.freeze import freeze_command
 from scheduler.cli.unfreeze import unfreeze_command
+from scheduler.cli.restart import restart_command
 
 
 @click.group()
@@ -75,6 +76,21 @@ def stop(all_nodes):
     """Stop scheduler"""
     try:
         code = stop_command(all_nodes=all_nodes)
+        sys.exit(code)
+    except KeyboardInterrupt:
+        click.echo("\nInterrupted")
+        sys.exit(130)
+    except Exception as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
+
+
+@cli.command()
+@click.option('--timeout', type=int, help='Seconds to wait for workers to restart')
+def restart(timeout):
+    """Restart scheduler cluster"""
+    try:
+        code = restart_command(timeout=timeout)
         sys.exit(code)
     except KeyboardInterrupt:
         click.echo("\nInterrupted")

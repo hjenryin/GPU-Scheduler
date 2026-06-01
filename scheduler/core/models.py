@@ -36,6 +36,14 @@ class ShutdownState(Enum):
     CONFIRMED = "confirmed"        # Worker has confirmed receipt
 
 
+class RestartState(Enum):
+    """Node restart state enumeration"""
+    NONE = "none"                  # No restart requested
+    REQUESTED = "requested"        # Head has requested worker restart
+    ACKNOWLEDGED = "acknowledged"  # Worker has confirmed restart receipt
+    REJOINED = "rejoined"          # Worker restarted and re-registered
+
+
 class GPUStats:
     """GPU statistics snapshot"""
     
@@ -664,6 +672,8 @@ class Node:
     registered_at: Optional[datetime] = None
     grace_period_until: Optional[datetime] = None
     shutdown_state: ShutdownState = ShutdownState.NONE
+    restart_state: RestartState = RestartState.NONE
+    restart_id: Optional[str] = None
 
     def __init__(
         self,
@@ -675,7 +685,9 @@ class Node:
         last_heartbeat: Optional[datetime] = None,
         registered_at: Optional[datetime] = None,
         grace_period_until: Optional[datetime] = None,
-        shutdown_state: ShutdownState = ShutdownState.NONE
+        shutdown_state: ShutdownState = ShutdownState.NONE,
+        restart_state: RestartState = RestartState.NONE,
+        restart_id: Optional[str] = None
     ):
         """
         Initialize node.
@@ -690,6 +702,8 @@ class Node:
             registered_at: Registration timestamp
             grace_period_until: Timestamp until which node is in grace period
             shutdown_state: Current shutdown state (NONE, REQUESTED, CONFIRMED)
+            restart_state: Current restart state (NONE, REQUESTED, ACKNOWLEDGED, REJOINED)
+            restart_id: Restart attempt identifier this node is participating in
         """
         self.node_name = node_name
         self.address = address
@@ -700,6 +714,8 @@ class Node:
         self.registered_at = registered_at or datetime.now()
         self.grace_period_until = grace_period_until
         self.shutdown_state = shutdown_state
+        self.restart_state = restart_state
+        self.restart_id = restart_id
 
     def update_heartbeat(self, gpu_stats: List[GPUStats]):
         """Update node heartbeat and GPU statistics.
@@ -787,7 +803,9 @@ class Node:
             'last_heartbeat': self.last_heartbeat.isoformat() if self.last_heartbeat else None,
             'registered_at': self.registered_at.isoformat() if self.registered_at else None,
             'grace_period_until': self.grace_period_until.isoformat() if self.grace_period_until else None,
-            'shutdown_state': self.shutdown_state.value
+            'shutdown_state': self.shutdown_state.value,
+            'restart_state': self.restart_state.value,
+            'restart_id': self.restart_id
         }
 
     @classmethod
@@ -819,6 +837,9 @@ class Node:
         else:
             shutdown_state = ShutdownState(shutdown_state_value) if shutdown_state_value else ShutdownState.NONE
 
+        restart_state_value = data.get('restart_state')
+        restart_state = RestartState(restart_state_value) if restart_state_value else RestartState.NONE
+
         return cls(
             node_name=data['node_name'],
             address=data['address'],
@@ -828,6 +849,8 @@ class Node:
             last_heartbeat=last_heartbeat,
             registered_at=registered_at,
             grace_period_until=grace_period_until,
-            shutdown_state=shutdown_state
+            shutdown_state=shutdown_state,
+            restart_state=restart_state,
+            restart_id=data.get('restart_id')
         )
 

@@ -196,27 +196,11 @@ class TestHeartbeatSender:
 
     @patch('scheduler.worker.heartbeat.SchedulerClient', autospec=True)
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)
-    @patch('time.sleep', autospec=True)
-    def test_heartbeat_loop_sends_periodically(self, mock_sleep, mock_gpu_monitor, mock_client_class, test_config):
-        """Test that heartbeat loop sends heartbeats periodically"""
+    def test_heartbeat_loop_sends_periodically(self, mock_gpu_monitor, mock_client_class, test_config):
+        """Test that heartbeat loop repeats until the sender stops."""
         mock_gpu_monitor_instance = create_autospec(GPUMonitor, instance=True, spec_set=True)
-        mock_gpu_monitor_instance.get_latest_stats.return_value = []
-
         mock_client_instance = create_autospec(SchedulerClient, instance=True, spec_set=True)
-        mock_response = HeartbeatResponse(status="ok", shutdown_requested=False, log_requests=[])
-        mock_client_instance.send_heartbeat.return_value = mock_response
         mock_client_class.return_value = mock_client_instance
-
-        # Mock sleep to control loop iterations
-        call_count = [0]
-
-        def sleep_side_effect(duration):
-            call_count[0] += 1
-            if call_count[0] >= 3:
-                # Stop after 3 iterations
-                sender.running = False
-
-        mock_sleep.side_effect = sleep_side_effect
 
         sender = HeartbeatSender(
             node_name="test-node",
@@ -225,14 +209,21 @@ class TestHeartbeatSender:
             config=test_config
         )
 
-        sender.start()
+        call_count = [0]
 
-        # Wait for thread to complete
-        time.sleep(0.1)
-        sender.heartbeat_thread.join(timeout=1)
+        def send_heartbeat_side_effect():
+            call_count[0] += 1
+            if call_count[0] >= 3:
+                sender.running = False
+            return False
 
-        # Should have sent multiple heartbeats
-        assert mock_client_instance.send_heartbeat.call_count >= 3
+        sender.send_heartbeat = send_heartbeat_side_effect
+        sender.running = True
+
+        sender._heartbeat_loop()
+
+        assert call_count[0] == 3
+        assert sender.running is False
 
     @patch('scheduler.worker.heartbeat.SchedulerClient', autospec=True)
     @patch('scheduler.worker.heartbeat.GPUMonitor', autospec=True)

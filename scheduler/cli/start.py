@@ -13,6 +13,20 @@ from scheduler.worker import WorkerDaemon
 logger = logging.getLogger(__name__)
 
 
+def _is_reexec_in_place() -> bool:
+    return os.environ.get('SCHEDULER_REEXEC_IN_PLACE') == '1'
+
+
+def _lock_owned_by_current_process(lockfile_path: str) -> bool:
+    try:
+        import json
+        with open(lockfile_path, 'r') as f:
+            data = json.load(f)
+        return data.get('pid') == os.getpid()
+    except Exception:
+        return False
+
+
 def _cleanup_daemon_logs(log_dir: str, daemon_prefix: str, max_age_hours: int = 24):
     """
     Clean up old log entries from daemon log files before starting daemon.
@@ -254,8 +268,8 @@ def _start_head_node(config: Config, block: bool) -> int:
         click.echo("Use 'scheduler stop' to stop it first")
         return 1
 
-    # If non-blocking mode, fork a background process
-    if not block:
+    # If non-blocking mode, fork a background process. During reexec, keep this PID.
+    if not block and not _is_reexec_in_place():
         return _daemonize_head(config, singleton)
     
     # Blocking mode - run in foreground
@@ -270,19 +284,20 @@ def _start_head_node(config: Config, block: bool) -> int:
         import time
         time.sleep(1)  # Give head a moment to start
         
-        click.echo("Starting worker on this machine...")
+        if not _is_reexec_in_place():
+            click.echo("Starting worker on this machine...")
 
-        # Start worker as separate process using CLI
-        # Worker will read the same config file as head
-        # Note: --block flag defaults to False, so worker will daemonize
-        subprocess.Popen(
-            ['scheduler', 'start', f'--address=localhost:{config.head.port}'],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
+            # Start worker as separate process using CLI
+            # Worker will read the same config file as head
+            # Note: --block flag defaults to False, so worker will daemonize
+            subprocess.Popen(
+                ['scheduler', 'start', f'--address=localhost:{config.head.port}'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
 
-        # Give worker time to start
-        time.sleep(2)
+            # Give worker time to start
+            time.sleep(2)
 
         click.echo("\n✓ Cluster ready (head + worker on this machine)")
         click.echo("\nTo connect worker nodes from other machines, run:")
@@ -384,19 +399,20 @@ def _daemonize_head(config: Config, singleton: SingletonDaemon) -> int:
         orchestrator = Orchestrator(config, singleton)
         orchestrator.start()
         
-        # Also start a worker on the same machine
+        # Also start a worker on the same machine for fresh starts. Reexec keeps workers independent.
         import time
-        time.sleep(1)
-        
-        # Start worker as separate process using CLI
-        # Worker will read the same config file as head
-        # Note: --block flag defaults to False, so worker will daemonize
-        subprocess.Popen(
-            ['scheduler', 'start', f'--address=localhost:{config.head.port}'],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-        time.sleep(2)
+        if not _is_reexec_in_place():
+            time.sleep(1)
+            
+            # Start worker as separate process using CLI
+            # Worker will read the same config file as head
+            # Note: --block flag defaults to False, so worker will daemonize
+            subprocess.Popen(
+                ['scheduler', 'start', f'--address=localhost:{config.head.port}'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            time.sleep(2)
 
         # Keep daemon alive
         orchestrator.keep_alive_loop()
@@ -586,14 +602,14 @@ def _start_worker_node(config: Config, node_name: Optional[str], num_gpus: Optio
 
     # Check if already running (don't acquire lock yet for daemon mode)
     from scheduler.worker import is_daemon_running
-    if is_daemon_running(lockfile_path):
+    if is_daemon_running(lockfile_path) and not _lock_owned_by_current_process(lockfile_path):
         click.echo(f"\nError: Worker '{node_name}' is already running on this machine")
         click.echo("Use 'scheduler stop' to stop it first")
         return 1
 
     # If non-blocking mode, fork a background process
     # The daemon process will acquire the lock after forking
-    if not block:
+    if not block and not _is_reexec_in_place():
         return _daemonize_worker(config, node_name, num_gpus, lockfile_path)
     
     # Blocking mode - run in foreground

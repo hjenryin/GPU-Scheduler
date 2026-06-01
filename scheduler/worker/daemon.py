@@ -35,6 +35,7 @@ class WorkerDaemon:
         self.config = config
         self.node_name = node_name
         self.running = False
+        self.restart_id = os.environ.get('SCHEDULER_RESTART_ID')
 
         # Get head node address (from config.address or construct from head config)
         if config.address:
@@ -158,11 +159,28 @@ class WorkerDaemon:
 
         # Stop heartbeat
         self.heartbeat_sender.stop()
+        self.heartbeat_sender.close()
 
         # Log sync thread will stop when self.running = False (it's already False at this point)
+        if self.log_sync_thread and self.log_sync_thread.is_alive():
+            self.log_sync_thread.join(timeout=5)
+
+        # Stop job monitor threads without terminating user job processes.
+        with self.active_jobs_lock:
+            monitor_threads = [
+                info.get('monitor_thread')
+                for info in self.active_jobs.values()
+                if info and info.get('monitor_thread')
+            ]
+        for monitor_thread in monitor_threads:
+            if hasattr(monitor_thread, 'is_alive') and monitor_thread.is_alive():
+                monitor_thread.join(timeout=2)
 
         # Stop GPU monitoring
         self.gpu_monitor.stop_monitoring()
+
+        if hasattr(self.client, 'close'):
+            self.client.close()
 
         logger.info("Worker daemon stopped")
 
@@ -187,7 +205,11 @@ class WorkerDaemon:
 
         try:
             while self.running:
-                # Check if shutdown was requested via heartbeat
+                # Check if restart/shutdown was requested via heartbeat
+                if self.heartbeat_sender.is_restart_requested():
+                    logger.info("Restart requested by head node - restarting worker")
+                    break
+
                 if self.heartbeat_sender.is_shutdown_requested():
                     logger.info("Shutdown requested by head node - stopping worker")
                     break
@@ -260,7 +282,24 @@ class WorkerDaemon:
             # Re-raise to propagate to parent context
             raise
         finally:
+            restart_requested = self.heartbeat_sender.is_restart_requested()
+            restart_id = self.heartbeat_sender.restart_id
             self.stop(graceful=True)
+            if restart_requested:
+                self._reexec(restart_id)
+
+
+    def _reexec(self, restart_id: Optional[str]):
+        """Replace this worker process with a fresh scheduler process."""
+        import sys
+
+        env = os.environ.copy()
+        env['SCHEDULER_REEXEC_IN_PLACE'] = '1'
+        if restart_id:
+            env['SCHEDULER_RESTART_ID'] = restart_id
+
+        logger.info(f"Re-executing worker process for restart {restart_id}")
+        os.execvpe(sys.argv[0], sys.argv, env)
 
     def register_with_head(self):
         """
@@ -274,8 +313,11 @@ class WorkerDaemon:
             response = self.client.register_node(
                 node_name=self.node_name,
                 address=self.worker_address,
-                num_gpus=self.num_gpus
+                num_gpus=self.num_gpus,
+                restart_id=self.restart_id
             )
+            if self.restart_id:
+                os.environ.pop('SCHEDULER_RESTART_ID', None)
             logger.info(f"Successfully registered with head node: {response}")
 
             # Extract rsync port from registration response

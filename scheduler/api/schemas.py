@@ -84,6 +84,7 @@ class NodeRegisterRequest(BaseModel):
     node_name: str
     address: str
     num_gpus: int
+    restart_id: Optional[str] = None
 
 
 class NodeRegisterResponse(BaseModel):
@@ -97,12 +98,15 @@ class NodeHeartbeat(BaseModel):
     """Node heartbeat request schema"""
     gpu_stats: List[dict]  # List of GPUStats dicts
     shutdown_acknowledged: bool = False  # Worker confirms shutdown receipt
+    restart_acknowledged: bool = False  # Worker confirms restart receipt
 
 
 class HeartbeatResponse(BaseModel):
-    """Head → Worker: Heartbeat response"""
+    """Head -> Worker: Heartbeat response"""
     status: str
     shutdown_requested: bool
+    restart_requested: bool = False
+    restart_id: Optional[str] = None
     recorded_job_ids: List[str] = []  # All job IDs for log file management (purge all others)
     running_job_ids: List[str] = []  # DEPRECATED: No longer used, kept for backward compatibility
     rsync_port: Optional[int] = None  # Current rsync port, workers should update if changed

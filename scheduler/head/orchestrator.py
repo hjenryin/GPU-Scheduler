@@ -5,10 +5,12 @@ import threading
 import subprocess
 import tempfile
 import os
+import sys
+import uuid
 from datetime import datetime
 from typing import Optional
 
-from scheduler.core import Config, PermissionDeniedException, ShutdownState
+from scheduler.core import Config, PermissionDeniedException, ShutdownState, RestartState
 from scheduler.storage import FileBackend, SQLiteBackend
 from scheduler.manager import PersistenceManager, JobManager, NodeManager, Scheduler
 from scheduler.head.api_server import APIServer
@@ -40,6 +42,8 @@ class Orchestrator:
         self.singleton = singleton
         self.running = False
         self.scheduler_thread: Optional[threading.Thread] = None
+        self.head_restart_requested = False
+        self.head_restart_id: Optional[str] = None
 
         # rsync daemon for log syncing
         self.rsync_daemon_process: Optional[subprocess.Popen] = None
@@ -56,6 +60,8 @@ class Orchestrator:
 
         # Initialize persistence layer
         persistence = PersistenceManager(backend, config)
+        self.persistence = persistence
+        self.storage_backend = backend
 
         # Initialize managers
         self.job_manager = JobManager(persistence, config)
@@ -154,7 +160,7 @@ class Orchestrator:
 
         logger.info("Orchestrator started successfully")
 
-    def stop(self):
+    def stop(self, release_lock: bool = True):
         """
         Stop the orchestrator and all components immediately.
         """
@@ -179,8 +185,13 @@ class Orchestrator:
 
         logger.info("Orchestrator stopped")
         
+        try:
+            self.storage_backend.close()
+        except Exception as e:
+            logger.warning(f"Failed to close storage backend: {e}")
+
         # Release singleton lock if we have one
-        if self.singleton:
+        if release_lock and self.singleton:
             self.singleton.release_lock()
 
     def keep_alive_loop(self):
@@ -190,6 +201,11 @@ class Orchestrator:
         # Keep main thread alive
         try:
             while self.running:
+                if self.head_restart_requested:
+                    restart_id = self.head_restart_id
+                    logger.info(f"Head restart {restart_id} requested; re-executing from main loop")
+                    time.sleep(1)
+                    self._reexec_head(restart_id)
                 time.sleep(1)
         except KeyboardInterrupt:
             logger.info("Received keyboard interrupt")
@@ -290,6 +306,75 @@ class Orchestrator:
         # Re-raise KeyboardInterrupt to allow proper cleanup in parent contexts
         if signum == signal.SIGINT:
             raise KeyboardInterrupt()
+
+
+    def restart_cluster(self, timeout: Optional[int] = None) -> dict:
+        """Request all workers to restart, wait for rejoin, then schedule head restart."""
+        restart_id = f"restart_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+        if timeout is None:
+            timeout = max(10, 2 * self.config.worker.heartbeat_interval)
+
+        logger.info(f"Starting cluster restart {restart_id} with timeout {timeout}s")
+
+        running_jobs = self.job_manager.get_running_jobs()
+        logger.info(f"Marking {len(running_jobs)} running jobs as untracked for restart")
+        for job in running_jobs:
+            try:
+                self.job_manager.untrack_job(job.job_id)
+            except Exception as e:
+                logger.error(f"Failed to untrack job {job.job_id}: {e}")
+
+        target_nodes = self.node_manager.request_restart_all_workers(restart_id)
+        for node_name in target_nodes:
+            try:
+                self.job_manager.get_job_assignment_event(node_name).set()
+            except Exception as e:
+                logger.warning(f"Failed to wake job poll for {node_name}: {e}")
+
+        start_time = time.time()
+        progress = self.node_manager.get_restart_progress(restart_id, target_nodes)
+        while time.time() - start_time < timeout:
+            progress = self.node_manager.get_restart_progress(restart_id, target_nodes)
+            if len(progress['rejoined_nodes']) == len(target_nodes):
+                logger.info(f"All {len(target_nodes)} workers rejoined restart {restart_id}")
+                self.head_restart_requested = True
+                self.head_restart_id = restart_id
+                return {
+                    'status': 'restart_scheduled',
+                    'restart_id': restart_id,
+                    'nodes_count': len(target_nodes),
+                    'acked_nodes': progress['acked_nodes'],
+                    'rejoined_nodes': progress['rejoined_nodes'],
+                    'missing_nodes': [],
+                    'head_restart_scheduled': True
+                }
+            time.sleep(0.5)
+
+        progress = self.node_manager.get_restart_progress(restart_id, target_nodes)
+        missing_nodes = progress['missing_nodes']
+        logger.warning(f"Restart {restart_id} timed out waiting for workers: {missing_nodes}")
+        self.node_manager.clear_restart(restart_id)
+        return {
+            'status': 'restart_timeout',
+            'restart_id': restart_id,
+            'nodes_count': len(target_nodes),
+            'acked_nodes': progress['acked_nodes'],
+            'rejoined_nodes': progress['rejoined_nodes'],
+            'missing_nodes': missing_nodes,
+            'head_restart_scheduled': False
+        }
+
+    def _reexec_head(self, restart_id: Optional[str]):
+        """Replace this head process with a fresh scheduler process."""
+        env = os.environ.copy()
+        env['SCHEDULER_REEXEC_IN_PLACE'] = '1'
+        if restart_id:
+            env['SCHEDULER_RESTART_ID'] = restart_id
+
+        logger.info(f"Cleaning up head resources before reexec for restart {restart_id}")
+        self.stop(release_lock=False)
+        logger.info(f"Re-executing head process for restart {restart_id}")
+        os.execvpe(sys.argv[0], sys.argv, env)
 
     def shutdown_cluster_workers(self) -> bool:
         """

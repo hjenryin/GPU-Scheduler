@@ -123,6 +123,10 @@ class SingletonDaemon:
                             # Check if process is still running
                             try:
                                 os.kill(pid, 0)  # Doesn't actually kill, just checks if process exists
+                                if pid == os.getpid():
+                                    self.lockfile = os.open(self.lockfile_path, os.O_RDWR)
+                                    logger.info(f"Adopted existing singleton lock after reexec: {self.lockfile_path}")
+                                    return True
                                 logger.warning(f"Another daemon is running (PID: {pid})")
                                 return False
                             except OSError:

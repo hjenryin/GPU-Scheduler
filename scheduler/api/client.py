@@ -632,7 +632,8 @@ class SchedulerClient:
         self,
         node_name: str,
         address: str,
-        num_gpus: int
+        num_gpus: int,
+        restart_id: Optional[str] = None
     ) -> dict:
         """
         Register a worker node (worker use only).
@@ -641,6 +642,7 @@ class SchedulerClient:
             node_name: Node name
             address: Node address
             num_gpus: Number of GPUs
+            restart_id: Restart attempt ID when registering after self-reexec
 
         Returns:
             Registration response
@@ -654,6 +656,8 @@ class SchedulerClient:
             "address": address,
             "num_gpus": num_gpus
         }
+        if restart_id:
+            payload["restart_id"] = restart_id
 
         try:
             response = self.session.post(f"{self.base_url}/nodes/register", json=payload, timeout=30)
@@ -668,7 +672,8 @@ class SchedulerClient:
         node_name: str,
         gpu_stats: List[GPUStats],
         shutdown_acknowledged: bool = False,
-        timeout: Optional[int] = None
+        timeout: Optional[int] = None,
+        restart_acknowledged: bool = False
     ):
         """
         Send heartbeat (worker use only).
@@ -678,6 +683,7 @@ class SchedulerClient:
             gpu_stats: GPU statistics
             shutdown_acknowledged: True if confirming shutdown receipt
             timeout: Long-poll timeout in seconds
+            restart_acknowledged: True if confirming restart receipt
 
         Returns:
             HeartbeatResponse with shutdown_requested and job lists
@@ -689,7 +695,8 @@ class SchedulerClient:
 
         payload = {
             "gpu_stats": [stats.to_dict() for stats in gpu_stats],
-            "shutdown_acknowledged": shutdown_acknowledged
+            "shutdown_acknowledged": shutdown_acknowledged,
+            "restart_acknowledged": restart_acknowledged
         }
 
         # Add timeout as query parameter if provided
@@ -968,6 +975,40 @@ class SchedulerClient:
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to request cluster shutdown: {e}")
             raise ConnectionException(f"Failed to connect to head node: {e}")
+
+    def restart_cluster(self, timeout: Optional[int] = None) -> dict:
+        """
+        Request head node to restart the cluster.
+
+        Args:
+            timeout: Optional restart timeout in seconds
+
+        Returns:
+            Restart response payload
+
+        Raises:
+            ConnectionException: If cannot connect to head node
+        """
+        params = {}
+        if timeout is not None:
+            params["timeout"] = timeout
+
+        request_timeout = (timeout + 15) if timeout else 120
+        try:
+            response = self.session.post(
+                f"{self.base_url}/restart/cluster",
+                params=params,
+                timeout=request_timeout
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to request cluster restart: {e}")
+            raise ConnectionException(f"Failed to connect to head node: {e}")
+
+    def close(self):
+        """Close underlying HTTP resources."""
+        self.session.close()
 
     def freeze_gpu(self, node_name: str, gpu_id: int, duration_seconds: int) -> dict:
         """
