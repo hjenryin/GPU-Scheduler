@@ -233,7 +233,8 @@ class Orchestrator:
         total_gpus = sum(node.num_gpus for node in nodes)
         free_gpus = sum(len(node.get_free_gpus(
             self.config.worker.gpu_util_threshold,
-            self.config.worker.gpu_mem_threshold
+            self.config.worker.gpu_mem_threshold,
+            self.config.worker.gpu_stable_time
         )) for node in nodes)
         used_gpus = total_gpus - free_gpus
 

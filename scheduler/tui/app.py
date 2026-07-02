@@ -121,9 +121,11 @@ class SchedulerTUI(App):
         if self.config:
             self.util_threshold = self.config.worker.gpu_util_threshold
             self.mem_threshold = self.config.worker.gpu_mem_threshold
+            self.stable_time = getattr(self.config.worker, 'gpu_stable_time', 120)
         else:
             self.util_threshold = 10.0
             self.mem_threshold = 10.0
+            self.stable_time = 120
 
     def compose(self) -> ComposeResult:
         """
@@ -170,18 +172,18 @@ class SchedulerTUI(App):
                 if isinstance(current_screen, ClusterScreen):
                     logger.info("Updating ClusterScreen data")
                     current_screen.update_data(self.nodes_data, self.jobs_data, 
-                                              self.util_threshold, self.mem_threshold)
+                                              self.util_threshold, self.mem_threshold, self.stable_time)
                 elif isinstance(current_screen, NodesScreen):
                     logger.info("Updating NodesScreen data")
                     current_screen.update_data(self.nodes_data, self.jobs_data,
-                                              self.util_threshold, self.mem_threshold)
+                                              self.util_threshold, self.mem_threshold, self.stable_time)
                 elif isinstance(current_screen, JobsScreen):
                     logger.info("Updating JobsScreen data")
                     current_screen.update_data(self.jobs_data)
                 elif isinstance(current_screen, GPUsScreen):
                     logger.info("Updating GPUsScreen data")
                     current_screen.update_data(self.nodes_data,
-                                              self.util_threshold, self.mem_threshold)
+                                              self.util_threshold, self.mem_threshold, self.stable_time)
                 elif isinstance(current_screen, StatusScreen):
                     logger.info("Updating StatusScreen data")
                     current_screen.update_data(self.client)

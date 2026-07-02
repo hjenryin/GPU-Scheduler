@@ -68,6 +68,7 @@ class ClusterScreen(Screen):
         jobs: List[Job],
         util_threshold: float = 10.0,
         mem_threshold: float = 10.0,
+        stable_time: int = 120,
     ):
         """
         Update screen with new data.
@@ -77,6 +78,7 @@ class ClusterScreen(Screen):
             jobs: List of Job instances
             util_threshold: GPU utilization threshold
             mem_threshold: GPU memory threshold
+            stable_time: Required stable time in seconds
         """
         logger.info(
             f"ClusterScreen.update_data called with {len(nodes)} nodes "
@@ -92,7 +94,7 @@ class ClusterScreen(Screen):
         total_gpus = sum(node.num_gpus for node in active_nodes_list)
         # Use the proper get_free_gpus method like the scheduler does
         free_gpus = sum(
-            len(node.get_free_gpus(util_threshold, mem_threshold))
+            len(node.get_free_gpus(util_threshold, mem_threshold, stable_time))
             for node in active_nodes_list
         )
         # Count frozen GPUs
@@ -127,7 +129,7 @@ class ClusterScreen(Screen):
         node_table.clear()
         for node in active_nodes_list:
             free_gpu_count = len(
-                node.get_free_gpus(util_threshold, mem_threshold)
+                node.get_free_gpus(util_threshold, mem_threshold, stable_time)
             )
             running_job_count = len(
                 [
@@ -166,7 +168,8 @@ class ClusterScreen(Screen):
                     frozen_gpus.append(gpu.gpu_id)
                 else:
                     is_free = gpu.stats.is_free(util_threshold, mem_threshold)
-                    if is_free:
+                    is_stable = gpu.is_stable(stable_time)
+                    if is_free and is_stable:
                         free_gpus.append(gpu.gpu_id)
                     else:
                         used_gpus.append((gpu.gpu_id, gpu.stats.utilization))

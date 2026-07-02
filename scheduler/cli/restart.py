@@ -34,15 +34,17 @@ def restart_command(timeout: Optional[int] = None) -> int:
         click.echo(f"Workers rejoined: {len(rejoined_nodes)}")
 
         if missing_nodes:
+            click.echo(click.style("✗", fg="red") + " Some workers did not join")
             click.echo("Missing workers:")
             for node_name in missing_nodes:
                 click.echo(f"  - {node_name}")
 
         if result.get("head_restart_scheduled"):
-            click.echo("Head restart scheduled")
+            click.echo(click.style("✓", fg="green") + " Head restart scheduled")
             return 0
-
-        return 0 if status == "restart_scheduled" else 1
+        else:
+            click.echo("Head restart skipped")
+            return 1
     except ConnectionException as e:
         click.echo(f"Error: Cannot request cluster restart: {e}")
         click.echo("Make sure the head node is running and accessible")

@@ -133,13 +133,21 @@ class NodeManager:
                     stats=stats
                 )
                 # Call update_stats to initialize GPU if free
-                gpu.update_stats(stats)
+                gpu.update_stats(
+                    stats,
+                    self.config.worker.gpu_util_threshold,
+                    self.config.worker.gpu_mem_threshold
+                )
                 node.gpus.append(gpu)
         else:
             # Update existing GPU stats
             for stats in gpu_stats:
                 if stats.gpu_id < len(node.gpus):
-                    node.gpus[stats.gpu_id].update_stats(stats)
+                    node.gpus[stats.gpu_id].update_stats(
+                        stats,
+                        self.config.worker.gpu_util_threshold,
+                        self.config.worker.gpu_mem_threshold
+                    )
 
         # Update heartbeat timestamp
         node.update_heartbeat(gpu_stats)

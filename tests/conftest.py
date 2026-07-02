@@ -86,6 +86,7 @@ def test_config(temp_dir):
             gpu_poll_interval=2,
             gpu_util_threshold=10.0,
             gpu_mem_threshold=10.0,
+            gpu_stable_time=0,
             job_startup_grace=3  # Reduced from 30 for faster tests
         ),
         storage=StorageConfig(),

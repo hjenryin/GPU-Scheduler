@@ -936,12 +936,14 @@ class SchedulerClient:
                 )
 
                 frozen_until = datetime.fromisoformat(gpu_data["frozen_until"]) if gpu_data.get("frozen_until") else None
+                stable_since = datetime.fromisoformat(gpu_data["stable_since"]) if gpu_data.get("stable_since") else None
 
                 gpu = GPU(
                     gpu_id=gpu_data["gpu_id"],
                     stats=stats,
                     frozen_until=frozen_until,
-                    assigned_job_id=gpu_data.get("assigned_job_id")
+                    assigned_job_id=gpu_data.get("assigned_job_id"),
+                    stable_since=stable_since
                 )
                 node.gpus.append(gpu)
 

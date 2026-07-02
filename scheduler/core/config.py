@@ -18,6 +18,7 @@ from scheduler.core.constants import (
     DEFAULT_GPU_POLL_INTERVAL,
     DEFAULT_GPU_UTIL_THRESHOLD,
     DEFAULT_GPU_MEM_THRESHOLD,
+    DEFAULT_GPU_STABLE_TIME,
     DEFAULT_JOB_STARTUP_GRACE,
     DEFAULT_STORAGE_BACKEND,
     DEFAULT_DATA_DIR,
@@ -52,6 +53,7 @@ class WorkerConfig:
     gpu_poll_interval: int = DEFAULT_GPU_POLL_INTERVAL
     gpu_util_threshold: float = DEFAULT_GPU_UTIL_THRESHOLD
     gpu_mem_threshold: float = DEFAULT_GPU_MEM_THRESHOLD
+    gpu_stable_time: int = DEFAULT_GPU_STABLE_TIME
     job_startup_grace: int = DEFAULT_JOB_STARTUP_GRACE
     heartbeat_interval: int = DEFAULT_HEARTBEAT_INTERVAL
     job_poll_timeout: int = DEFAULT_JOB_POLL_TIMEOUT

@@ -130,6 +130,7 @@ class GPUResponse(BaseModel):
     frozen_until: Optional[str] = None
     assigned_job_id: Optional[str] = None
     user: Optional[str] = None
+    stable_since: Optional[str] = None
 
 
 class NodeResponse(BaseModel):
@@ -157,7 +158,8 @@ class NodeResponse(BaseModel):
                 running_job_id=gpu.stats.running_job_id,
                 frozen_until=gpu.frozen_until.isoformat() if gpu.frozen_until else None,
                 assigned_job_id=gpu.assigned_job_id,
-                user=gpu.stats.user
+                user=gpu.stats.user,
+                stable_since=gpu.stable_since.isoformat() if gpu.stable_since else None
             )
             for gpu in node.gpus
         ]

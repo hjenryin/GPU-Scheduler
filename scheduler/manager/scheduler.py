@@ -105,6 +105,51 @@ class Scheduler:
         logger.info(f"Job {job.job_id} scheduled on {node_name} with GPUs {gpu_ids}")
         return True
 
+    def _get_waiting_gpus(self, node: Node) -> List[int]:
+        """
+        Get list of GPU IDs that are physically free but not yet stable.
+        
+        Args:
+            node: Node instance
+            
+        Returns:
+            List of GPU IDs in the waiting state
+        """
+        waiting_gpus = []
+        util_threshold = self.config.worker.gpu_util_threshold
+        mem_threshold = self.config.worker.gpu_mem_threshold
+        stable_time = self.config.worker.gpu_stable_time
+        for gpu in node.gpus:
+            if (
+                gpu.assigned_job_id is None
+                and not gpu.is_frozen()
+                and gpu.stats.running_job_id is None
+                and gpu.stats.is_free(util_threshold, mem_threshold)
+                and not gpu.is_stable(stable_time)
+            ):
+                waiting_gpus.append(gpu.gpu_id)
+        return waiting_gpus
+
+    def _get_max_allowed_gpus(self, req_gpus_list: List[int], limit: int) -> Optional[int]:
+        """
+        Get the maximum GPU count allowed by job requirements under a given limit.
+        
+        Args:
+            req_gpus_list: List of requirement GPU counts (may include -1 for flexible)
+            limit: Maximum limit of GPUs
+            
+        Returns:
+            Maximum GPU count <= limit, or None if no requirements are satisfied
+        """
+        candidates = []
+        for r in req_gpus_list:
+            if r == -1:
+                if limit >= 1:
+                    candidates.append(limit)
+            elif r <= limit:
+                candidates.append(r)
+        return max(candidates) if candidates else None
+
     def find_suitable_node(self, job: Job) -> Optional[Tuple[str, List[int]]]:
         """
         Find a suitable node for a job.
@@ -139,12 +184,46 @@ class Scheduler:
                 # Get free GPUs
                 free_gpus = node.get_free_gpus(
                     self.config.worker.gpu_util_threshold,
-                    self.config.worker.gpu_mem_threshold
+                    self.config.worker.gpu_mem_threshold,
+                    self.config.worker.gpu_stable_time
                 )
                 logger.debug(f"Node {node.node_name} has {len(free_gpus)} free GPUs: {free_gpus}")
 
+                # Get waiting (stabilizing) GPUs
+                waiting_gpus = self._get_waiting_gpus(node)
+                logger.debug(f"Node {node.node_name} has {len(waiting_gpus)} waiting GPUs: {waiting_gpus}")
+
+                z = len(free_gpus)
+                k = len(waiting_gpus)
+
+                # Get all alternatives for this node
+                node_req_gpus = [
+                    r_gpus for r_node, r_gpus in job.requirements.alternatives
+                    if r_node is None or r_node == node.node_name
+                ]
+
+                max_z = self._get_max_allowed_gpus(node_req_gpus, z)
+                max_zk = self._get_max_allowed_gpus(node_req_gpus, z + k)
+
+                # Only assign the job if max{x_i <= z} = max{x_i <= z + k}
+                if max_z is None or max_z != max_zk:
+                    logger.debug(
+                        f"Skipping node {node.node_name} for job {job.job_id}: "
+                        f"max{{x_i <= z}} ({max_z}) != max{{x_i <= z+k}} ({max_zk}) with z={z}, k={k}"
+                    )
+                    continue
+
+                # Ensure we only schedule the largest currently available alternative
+                is_flexible = (req_gpus == -1)
+                if not is_flexible and req_gpus != max_z:
+                    logger.debug(
+                        f"Skipping alternative {req_gpus} on node {node.node_name} for job {job.job_id}: "
+                        f"not the maximum available alternative {max_z}"
+                    )
+                    continue
+
                 # Check if enough GPUs are available
-                if req_gpus == -1:
+                if is_flexible:
                     # Flexible allocation: take all available GPUs (minimum 1 required)
                     if len(free_gpus) >= 1:
                         selected_gpus = free_gpus  # Take ALL available GPUs
@@ -163,3 +242,4 @@ class Scheduler:
         # No suitable node found
         logger.debug(f"No suitable node found for job {job.job_id}")
         return None
+

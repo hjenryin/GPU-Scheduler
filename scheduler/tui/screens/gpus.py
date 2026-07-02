@@ -52,6 +52,7 @@ class GPUsScreen(Screen):
         nodes: List[Node],
         util_threshold: float = 10.0,
         mem_threshold: float = 10.0,
+        stable_time: int = 120,
     ):
         """
         Update screen with new data.
@@ -60,6 +61,7 @@ class GPUsScreen(Screen):
             nodes: List of Node instances
             util_threshold: GPU utilization threshold
             mem_threshold: GPU memory threshold
+            stable_time: Required stable time in seconds
         """
         # Filter to only active nodes (exclude disconnected)
         from scheduler.core import NodeStatus
@@ -68,7 +70,7 @@ class GPUsScreen(Screen):
         # Calculate summary statistics (only for active nodes)
         total_gpus = sum(node.num_gpus for node in active_nodes)
         free_gpus = sum(
-            len(node.get_free_gpus(util_threshold, mem_threshold))
+            len(node.get_free_gpus(util_threshold, mem_threshold, stable_time))
             for node in active_nodes
         )
         # Count frozen GPUs
@@ -118,25 +120,18 @@ class GPUsScreen(Screen):
                 if gpu.is_frozen():
                     status = "Frozen"
                     job_id = "-"
+                elif gpu.assigned_job_id is not None:
+                    status = "Assigned"
+                    job_id = gpu.assigned_job_id
+                elif gpu.stats.running_job_id is not None:
+                    status = "In Use"
+                    job_id = gpu.stats.running_job_id
+                elif gpu.is_stable(stable_time):
+                    status = "Free"
+                    job_id = "-"
                 else:
-                    # Check if GPU is free using the same logic as get_free_gpus
-                    # A GPU is only truly "Free" if it meets utilization/memory thresholds
-                    # AND is not assigned
-                    is_free = gpu.stats.is_free(util_threshold, mem_threshold)
-
-                    if is_free and gpu.assigned_job_id is None:
-                        status = "Free"
-                        job_id = "-"
-                    elif gpu.stats.running_job_id is not None:
-                        status = "In Use"
-                        job_id = gpu.stats.running_job_id
-                    elif gpu.assigned_job_id is not None:
-                        status = "Assigned"
-                        job_id = gpu.assigned_job_id
-                    else:
-                        # GPU has no job but is above thresholds
-                        status = "Waiting"
-                        job_id = "-"
+                    status = "Waiting"
+                    job_id = "-"
 
                 gpu_table.add_row(
                     node.node_name,

@@ -305,7 +305,7 @@ class TestInitConfig:
             # Load and verify defaults
             config = load_config(config_path)
             assert config.head.port == 8266
-            assert config.head.heartbeat_timeout == 60
+            assert config.head.heartbeat_timeout == 30
 
     def test_init_config_file_exists(self):
         """Test init_config raises error if file exists"""
