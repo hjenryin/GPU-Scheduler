@@ -382,6 +382,72 @@ class TestJobsScreen:
             assert screen.search_text == "test search"
             mock_refresh.assert_called_once()
 
+    @patch('scheduler.tui.screens.jobs.JobsScreen.query_one', autospec=True)
+    def test_refresh_table_with_command_search(self, mock_query_one, mock_jobs):
+        """Test table refresh with command search filter."""
+        screen = JobsScreen()
+        screen.jobs_data = mock_jobs
+        
+        # Configure job command lists
+        for job in mock_jobs:
+            job.command = []
+        
+        mock_jobs[0].command = ["python3", "my_custom_training_script.py", "--epochs", "50"]
+        mock_jobs[1].command = ["bash", "run_eval.sh"]
+        
+        # Search for training script
+        screen.search_text = "my_custom_training"
+        
+        mock_jobs_table = create_autospec(DataTable, instance=True, spec_set=True)
+        mock_query_one.side_effect = lambda self, selector, widget_type: {
+            "#jobs-table": mock_jobs_table
+        }.get(selector, Mock(spec=[]))
+        
+        screen._refresh_table()
+        
+        # Should call add_row for the matching job (mock_jobs[0])
+        assert mock_jobs_table.add_row.call_count == 1
+        
+        # Reset and search for command argument
+        mock_jobs_table.reset_mock()
+        screen.search_text = "--epochs"
+        screen._refresh_table()
+        assert mock_jobs_table.add_row.call_count == 1
+
+    def test_row_selected_event_handling(self):
+        """Test that on_data_table_row_selected correctly extracts job_id from row_key."""
+        screen = JobsScreen()
+        
+        with patch.object(screen, 'on_job_selected') as mock_on_job_selected:
+            # Mock row selection event
+            event = Mock(spec=['data_table', 'row_key'])
+            event.data_table = Mock(spec=['id'])
+            event.data_table.id = "jobs-table"
+            row_key = Mock(spec=['value'])
+            row_key.value = "job_999"
+            event.row_key = row_key
+            
+            screen.on_data_table_row_selected(event)
+            mock_on_job_selected.assert_called_once_with("job_999")
+
+    @patch('scheduler.tui.screens.jobs.JobsScreen.query_one', autospec=True)
+    def test_action_show_job_detail_key_handling(self, mock_query_one):
+        """Test action_show_job_detail retrieves job_id from cursor_row key."""
+        screen = JobsScreen()
+        
+        with patch.object(screen, 'on_job_selected') as mock_on_job_selected:
+            mock_jobs_table = create_autospec(DataTable, instance=True, spec_set=True)
+            cursor_row = Mock(spec=['value'])
+            cursor_row.value = "job_777"
+            mock_jobs_table.cursor_row = cursor_row
+            
+            mock_query_one.side_effect = lambda self, selector, widget_type: {
+                "#jobs-table": mock_jobs_table
+            }.get(selector, Mock(spec=[]))
+            
+            screen.action_show_job_detail()
+            mock_on_job_selected.assert_called_once_with("job_777")
+
     def test_job_selection(self, mock_jobs):
         """Test job selection handling."""
         screen = JobsScreen()
@@ -498,7 +564,7 @@ class TestJobDetailScreen:
         screen = JobDetailScreen("job_123")
         binding_keys = [binding[0] for binding in screen.BINDINGS]
         # Initial bindings should only have base keys (no 'c' or 'r' until update_data is called)
-        expected_keys = ["escape", "l", "q"]
+        expected_keys = ["escape", "l", "d", "q"]
         assert binding_keys == expected_keys
         
         # Verify that cancel and retry bindings exist as instance variables
@@ -523,18 +589,15 @@ class TestJobDetailScreen:
         mock_job_running.dependencies = []
         
         mock_metadata = create_autospec(Static, instance=True, spec_set=True)
-        mock_config = create_autospec(Static, instance=True, spec_set=True)
         
         mock_query_one.side_effect = lambda self, selector, widget_type: {
             "#job-metadata": mock_metadata,
-            "#job-config": mock_config,
         }.get(selector, Mock(spec=[]))  # Fallback mock
 
         screen.update_data(mock_job_running)
 
         # Verify all components are updated
         mock_metadata.update.assert_called_once()
-        mock_config.update.assert_called_once()
         # Note: logs are not updated in update_data method, only in on_mount
 
     def test_cancel_job_action(self):

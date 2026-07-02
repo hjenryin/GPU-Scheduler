@@ -65,7 +65,7 @@ class JobsScreen(Screen):
         """Set up table when screen is mounted."""
         jobs_table = self.query_one("#jobs-table", DataTable)
         jobs_table.add_columns(
-            "Job ID", "Name", "Status", "Node", "GPUs", "Runtime", "ETA", "Submitted"
+            "Name", "Status", "Node", "GPUs", "Runtime", "ETA", "Submitted"
         )
         jobs_table.cursor_type = "row"
 
@@ -105,7 +105,6 @@ class JobsScreen(Screen):
             terminal_width = self.app.size.width
             
             # Calculate actual max widths needed for each column from the data
-            max_job_id = max((len(j.job_id) for j in filtered_jobs), default=6) if filtered_jobs else 6
             max_status = max((len(j.status.value) for j in filtered_jobs), default=7) if filtered_jobs else 7
             max_node = max((len(j.assigned_node or "-") for j in filtered_jobs), default=4) if filtered_jobs else 4
             max_gpus_data = max((len(str(j.requirements) if j.requirements else "?") for j in filtered_jobs), default=4) if filtered_jobs else 4
@@ -115,7 +114,6 @@ class JobsScreen(Screen):
             max_submitted = 16  # Date format is fixed (YYYY-MM-DD HH:MM)
             
             # Add column headers into consideration
-            max_job_id = max(max_job_id, len("Job ID"))
             max_status = max(max_status, len("Status"))
             max_node = max(max_node, len("Node"))
             max_gpus_data = max(max_gpus_data, len("GPUs"))
@@ -125,12 +123,12 @@ class JobsScreen(Screen):
             max_submitted = max(max_submitted, len("Submitted"))
             
             # DataTable adds padding (approximately 3 chars per column)
-            num_columns = 8
+            num_columns = 7
             padding = num_columns * 3
             borders = 2
             
             # Calculate truly fixed columns (everything except Name and GPUs)
-            fixed_width = max_job_id + max_status + max_node + max_runtime + max_eta + max_submitted + padding + borders
+            fixed_width = max_status + max_node + max_runtime + max_eta + max_submitted + padding + borders
             
             # Available space for Name and GPUs combined
             available_for_flexible = terminal_width - fixed_width
@@ -164,7 +162,7 @@ class JobsScreen(Screen):
             
             return (name_width, gpus_width)
             
-        except (AttributeError, TypeError):
+        except Exception:
             # Fallback to reasonable defaults
             return (30, 15)
 
@@ -194,6 +192,7 @@ class JobsScreen(Screen):
                 if search_lower in j.job_id.lower()
                 or (j.name and search_lower in j.name.lower())
                 or (j.assigned_node and search_lower in j.assigned_node.lower())
+                or (j.command and search_lower in " ".join(j.command).lower())
             ]
 
         # Calculate dynamic column widths based on actual data and terminal size
@@ -252,7 +251,6 @@ class JobsScreen(Screen):
             truncated_name = self._truncate_text(name, name_width)
             
             jobs_table.add_row(
-                row_data[0],  # job_id
                 truncated_name,  # name (dynamically truncated)
                 row_data[2],  # status
                 row_data[3],  # assigned_node
@@ -260,6 +258,7 @@ class JobsScreen(Screen):
                 row_data[5],  # runtime
                 row_data[6],  # eta
                 row_data[7],  # submitted_time
+                key=row_data[0],  # Use job_id as the row key
             )
 
     def _refresh_table(self):
@@ -279,10 +278,10 @@ class JobsScreen(Screen):
         """Handle row selection in jobs table."""
         if event.data_table.id == "jobs-table":
             try:
-                row_data = event.data_table.get_row(event.row_key)
-                job_id = str(row_data[0])
+                # Use key directly to identify job_id
+                job_id = str(event.row_key.value) if hasattr(event.row_key, "value") else str(event.row_key)
                 self.on_job_selected(job_id)
-            except (KeyError, IndexError):
+            except Exception:
                 # Row doesn't exist anymore, ignore
                 pass
 
@@ -347,8 +346,7 @@ class JobsScreen(Screen):
         jobs_table = self.query_one("#jobs-table", DataTable)
         if jobs_table.cursor_row is not None:
             row_key = jobs_table.cursor_row
-            row_data = jobs_table.get_row(row_key)
-            job_id = str(row_data[0])
+            job_id = str(row_key.value) if hasattr(row_key, "value") else str(row_key)
             self.on_job_selected(job_id)
 
     def on_key(self, event: events.Key) -> None:
